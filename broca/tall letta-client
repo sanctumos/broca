@@ -1,0 +1,33 @@
+[33m23a4eee[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtesting/fix-unit-tests[m[33m)[m osama bin fucked the codebase
+[33m076e962[m stable, but not necessarily passing tests.
+[33mcf605a1[m stable, about to do more unit/integration tests
+[33m188562a[m about to work on fixing some MINOR refactors (code review)
+[33md4bce4a[m[33m ([m[1;32mmain[m[33m)[m about to start again
+[33m81c2e1b[m prepping for next refactor.
+[33ma7d3bb1[m[33m ([m[1;31morigin/main[m[33m)[m Seems to be a good checkpoint.
+[33m8e8887c[m fixed the echo and listen modes.
+[33m84490fe[m guess what!? a problem fixed itself!
+[33mc76ef48[m I'm not happy with how the typing indicator works, but it's good enough for now.
+[33ma224a26[m typing indicator is back and almost fully functional
+[33m111d7aa[m actually stable and working!
+[33m18afce5[m updating the bugfix todo
+[33m50c97da[m full circuit working, still many bugs to quash.
+[33me55e83d[m Several small bugfixes that arose from the other bugs we fixed are now fixed. fml
+[33m655ed72[m Message Formatter Fixed (not tested)
+[33meea995f[m response handling fixed (not tested)
+[33m1a99e29[m letta "singleton" approach built (not tested)
+[33me9bcbbe[m created a bugfix list, but we've got letta integration halfway working.
+[33mf16aeaf[m working on the message flow
+[33m695dc38[m block attachment/detachment working properly in test script.
+[33mb596078[m last commit before i fuck it up somehow.
+[33mc52945a[m fixed the non-graceful shutdown of the flask app
+[33ma4dce38[m last commit before we start to implement the letta in core
+[33m2c285f6[m got rid of a "feature" that randomly wipes the database.
+[33m11499c4[m upgraded user management, future proof it a little.
+[33m7d30e27[m added some documentation for the next leg of the journey
+[33m4c75188[m updated readme
+[33mf679909[m pretty close to perfect prior to letta integration
+[33md6d0577[m fixed auth stuff.
+[33m2fd983d[m stable with message echo working. tested.
+[33mc46bb66[m stable dashboard.
+[33m9e8a82c[m first commit

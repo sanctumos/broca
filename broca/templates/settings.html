@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Broca{% endblock %}
+
+{% block content %}
+<h1>Settings</h1>
+
+<div class="settings-form">
+    <form method="post" action="{{ url_for('update_settings') }}">
+        <div class="form-group">
+            <label for="debug_mode">Debug Mode</label>
+            <input type="checkbox" id="debug_mode" name="debug_mode" 
+                   {% if settings.debug_mode %}checked{% endif %}>
+        </div>
+
+        <div class="form-group">
+            <label for="queue_refresh">Queue Refresh Interval (seconds)</label>
+            <input type="number" id="queue_refresh" name="queue_refresh" 
+                   value="{{ settings.queue_refresh }}" min="1" max="60">
+        </div>
+
+        <div class="form-group">
+            <label for="max_retries">Maximum Retries</label>
+            <input type="number" id="max_retries" name="max_retries" 
+                   value="{{ settings.max_retries }}" min="1" max="10">
+        </div>
+
+        <div class="form-group">
+            <label for="message_mode">Message Mode</label>
+            <select id="message_mode" name="message_mode">
+                <option value="echo" {% if settings.message_mode == 'echo' %}selected{% endif %}>Echo Mode</option>
+                <option value="listen" {% if settings.message_mode == 'listen' %}selected{% endif %}>Listen Mode</option>
+                <option value="live" {% if settings.message_mode == 'live' %}selected{% endif %}>Live Mode</option>
+            </select>
+        </div>
+
+        <button type="submit">Save Settings</button>
+    </form>
+</div>
+{% endblock %} 

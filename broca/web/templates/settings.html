@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Settings</title>
+</head>
+<body>
+    <form method="POST" action="{{ url_for('update_settings') }}">
+        <div>
+            <label>Debug Mode</label>
+            <input type="checkbox" name="debug_mode" {% if settings.debug_mode %}checked{% endif %}>
+        </div>
+        <div>
+            <label>Queue Refresh (seconds)</label>
+            <input type="number" name="queue_refresh" value="{{ settings.queue_refresh }}">
+        </div>
+        <div>
+            <label>Max Retries</label>
+            <input type="number" name="max_retries" value="{{ settings.max_retries }}">
+        </div>
+        <div>
+            <label>Message Mode</label>
+            <select name="message_mode">
+                <option value="echo" {% if settings.message_mode == 'echo' %}selected{% endif %}>Echo</option>
+                <option value="listen" {% if settings.message_mode == 'listen' %}selected{% endif %}>Listen</option>
+                <option value="live" {% if settings.message_mode == 'live' %}selected{% endif %}>Live</option>
+            </select>
+        </div>
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html> 
