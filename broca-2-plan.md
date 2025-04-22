@@ -50,68 +50,116 @@ Plugins:
 Plugin Refactoring Plan:
 
 A. Core Plugin Interface (Required for both Telegram and CLI)
-   1) [ ] Create abstract Plugin base class in plugins/__init__.py:
+   1) [x] Create abstract Plugin base class in plugins/__init__.py:
       - Required methods: start(), stop(), get_name()
       - Optional methods: get_settings(), validate_settings()
       - Event handling interface for message processing
+      - DO NOT:
+        - Add plugin-specific methods to base class
+        - Implement complex event routing logic
+        - Create plugin dependency management
    
-   2) [ ] Create MessageHandler base class in runtime/core/message.py:
+   2) [x] Create MessageHandler base class in runtime/core/message.py:
       - Abstract methods for message processing
       - Common message formatting and sanitization
       - Platform-agnostic message buffer functionality
+      - DO NOT:
+        - Add platform-specific formatting
+        - Implement complex message threading
+        - Create message persistence logic
    
-   3) [ ] Create PluginManager in runtime/core/plugin.py:
+   3) [x] Create PluginManager in runtime/core/plugin.py:
       - Plugin registration and lifecycle management
       - Event routing between plugins and core
       - Settings management per plugin
+      - DO NOT:
+        - Add plugin dependency resolution
+        - Implement complex event filtering
+        - Create plugin version management
 
 B. Telegram Plugin Refactoring
    1) [ ] Update TelegramBot to inherit from Plugin base class:
       - Move Telegram-specific settings to plugin config
       - Implement required Plugin interface methods
       - Remove direct environment variable access
+      - DO NOT:
+        - Add new Telegram features
+        - Change existing message handling logic
+        - Modify core block functionality
    
    2) [ ] Refactor MessageHandler to use base class:
       - Move Telegram-specific formatting to plugin
       - Use common message buffer implementation
       - Implement platform-specific user handling
+      - DO NOT:
+        - Change message processing flow
+        - Add new message types
+        - Modify existing error handling
    
    3) [ ] Create Telegram-specific settings:
       - Move API credentials to plugin config
       - Add session management settings
       - Define message handling modes
+      - DO NOT:
+        - Add complex configuration validation
+        - Create new setting types
+        - Modify core settings structure
 
 C. CLI Conversation Plugin
    1) [ ] Create CLI plugin structure:
       - Implement Plugin base class
       - Add command-line interface for conversation
       - Support message modes (echo, listen, live)
+      - DO NOT:
+        - Add complex CLI features
+        - Implement advanced terminal UI
+        - Create new message types
    
    2) [ ] Implement CLI message handling:
       - Use common MessageHandler base
       - Add CLI-specific formatting
       - Support interactive conversation
+      - DO NOT:
+        - Add complex input validation
+        - Implement command aliases
+        - Create new message formats
    
    3) [ ] Add CLI-specific features:
       - Command history
       - Message threading
       - User switching
+      - DO NOT:
+        - Add complex command parsing
+        - Implement advanced history features
+        - Create new user management features
 
 D. Common Infrastructure
    1) [ ] Update core to support multiple plugins:
       - Modify main.py to use PluginManager
       - Add plugin configuration loading
       - Support concurrent plugin operation
+      - DO NOT:
+        - Add plugin dependency management
+        - Implement complex startup sequences
+        - Create new core features
    
    2) [ ] Create plugin settings schema:
       - Define required vs optional settings
       - Add validation rules
       - Support plugin-specific settings
+      - DO NOT:
+        - Add complex validation logic
+        - Create new setting types
+        - Modify core settings structure
    
    3) [ ] Implement plugin event system:
       - Define core events (message, status, error)
       - Add plugin event registration
       - Support event filtering
+      - DO NOT:
+        - Add complex event routing
+        - Implement event persistence
+        - Create new event types
 
 Implementation Order:
 1. Core Plugin Interface (A.1-3)
@@ -124,6 +172,39 @@ This refactoring will:
 - Enable easy addition of new plugins
 - Provide consistent behavior across plugins
 - Make the system more maintainable and testable
+
+Scope Boundaries:
+1. DO NOT modify:
+   - Core block functionality
+   - Database operations
+   - Message processing logic
+   - Queue management
+   - Agent communication
+   - Error handling patterns
+
+2. DO NOT add:
+   - New message types
+   - Complex UI features
+   - Advanced configuration
+   - Plugin dependencies
+   - New core features
+   - Complex event routing
+
+3. DO NOT change:
+   - Existing message flow
+   - Core settings structure
+   - Error handling patterns
+   - Database schema
+   - Queue processing
+   - Agent interaction
+
+Focus Areas:
+1. Plugin interface standardization
+2. Message handling abstraction
+3. Settings management
+4. Event system basics
+5. CLI conversation basics
+6. Telegram plugin cleanup
 
 ---
 
@@ -243,3 +324,116 @@ async def send_test_message(user_id, message):
     print(f"📥 [CLI Plugin] Queuing message for user {user_id}: {message}")
     # TODO: Insert message into DB and add to queue
 ```
+
+## 📋 Project Context
+
+### Why We're Refactoring
+- Moving from web-based to CLI-first architecture
+- Improving plugin system for better extensibility
+- Reducing complexity in core components
+- Making the system more maintainable
+
+### Current Pain Points
+1. Web interface tightly coupled with core functionality
+2. Plugin system lacks standardization
+3. Settings management scattered across components
+4. Message handling varies by platform
+5. Core functionality mixed with platform-specific code
+
+### Technical Context
+- Python 3.8+ required
+- AsyncIO-based event loop
+- SQLite database with existing schema
+- Current async loop handles:
+  - Queue polling
+  - Message processing
+  - Agent communication
+  - Core block management
+
+## 🧪 Testing Strategy
+
+### Verification Steps
+1. Core Functionality:
+   - [ ] Async loop maintains existing behavior
+   - [ ] Queue processing works as before
+   - [ ] Message modes (echo, listen, live) function correctly
+   - [ ] Core block management unchanged
+
+2. Plugin System:
+   - [ ] Telegram plugin works with new interface
+   - [ ] CLI plugin handles messages correctly
+   - [ ] Settings propagate to plugins
+   - [ ] Events route properly
+
+3. Database Operations:
+   - [ ] All existing queries work
+   - [ ] Data integrity maintained
+   - [ ] Transaction handling unchanged
+
+### Regression Testing
+1. Automated Tests:
+   - [ ] Unit tests for new plugin interface
+   - [ ] Integration tests for message flow
+   - [ ] End-to-end tests for core scenarios
+
+2. Manual Verification:
+   - [ ] Telegram message processing
+   - [ ] CLI conversation handling
+   - [ ] Settings management
+   - [ ] Error recovery
+
+## 🚦 Migration Path
+
+### Phase 1: Preparation
+1. [ ] Backup current database
+2. [ ] Document current behavior
+3. [ ] Create test scenarios
+4. [ ] Set up monitoring
+
+### Phase 2: Implementation
+1. [ ] Implement core plugin interface
+2. [ ] Refactor Telegram plugin
+3. [ ] Add CLI plugin
+4. [ ] Update settings management
+
+### Phase 3: Verification
+1. [ ] Run test suite
+2. [ ] Verify core functionality
+3. [ ] Test plugin integration
+4. [ ] Validate settings
+
+### Phase 4: Deployment
+1. [ ] Deploy to staging
+2. [ ] Monitor for issues
+3. [ ] Roll out to production
+4. [ ] Verify data integrity
+
+### Rollback Plan
+1. [ ] Keep old code in separate branch
+2. [ ] Document rollback steps
+3. [ ] Prepare database restore
+4. [ ] Test rollback procedure
+
+## 🚨 Risk Mitigation
+
+### High-Risk Areas
+1. Database Operations:
+   - Keep existing queries unchanged
+   - Verify all operations work
+   - Test transaction handling
+
+2. Message Processing:
+   - Maintain existing flow
+   - Verify all modes work
+   - Test error handling
+
+3. Plugin Integration:
+   - Test each plugin independently
+   - Verify event handling
+   - Check settings propagation
+
+### Monitoring
+1. [ ] Set up logging for new components
+2. [ ] Add performance metrics
+3. [ ] Monitor error rates
+4. [ ] Track plugin health

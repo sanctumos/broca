@@ -1,6 +1,18 @@
 """Message handling and formatting functionality."""
+from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
+from dataclasses import dataclass
+
+@dataclass
+class Message:
+    """Base message class for platform-agnostic message handling."""
+    content: str
+    user_id: Optional[str] = None
+    username: Optional[str] = None
+    platform: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 class MessageFormatter:
     """Handles message formatting and processing."""
@@ -81,4 +93,73 @@ class MessageFormatter:
             return parts[-1]
         
         # If no metadata found, return the original message
-        return formatted_message 
+        return formatted_message
+
+class MessageHandler(ABC):
+    """Base class for platform-specific message handlers.
+    
+    This class defines the interface for handling messages in a platform-agnostic way.
+    Platform-specific handlers should inherit from this class and implement the required methods.
+    """
+    
+    @abstractmethod
+    async def handle_message(self, message: Message) -> None:
+        """Handle an incoming message.
+        
+        Args:
+            message: The message to handle
+        """
+        pass
+    
+    @abstractmethod
+    async def send_message(self, message: Message) -> None:
+        """Send a message.
+        
+        Args:
+            message: The message to send
+        """
+        pass
+    
+    def format_message(self, message: Message) -> str:
+        """Format a message for display.
+        
+        This is an optional method that handlers can override to provide
+        platform-specific formatting. The base implementation uses the
+        MessageFormatter.
+        
+        Args:
+            message: The message to format
+            
+        Returns:
+            str: The formatted message
+        """
+        return MessageFormatter.format_message(
+            message.content,
+            message.user_id,
+            message.username,
+            message.timestamp is not None,
+            message.timestamp
+        )
+    
+    def sanitize_message(self, message: Message) -> Message:
+        """Sanitize a message's content.
+        
+        This is an optional method that handlers can override to provide
+        platform-specific sanitization. The base implementation uses the
+        MessageFormatter.
+        
+        Args:
+            message: The message to sanitize
+            
+        Returns:
+            Message: The sanitized message
+        """
+        sanitized_content = MessageFormatter.sanitize_text(message.content)
+        return Message(
+            content=sanitized_content,
+            user_id=message.user_id,
+            username=message.username,
+            platform=message.platform,
+            timestamp=message.timestamp,
+            metadata=message.metadata
+        ) 
