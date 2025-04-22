@@ -31,7 +31,21 @@ ENV/
 *.swp
 *.swo
 
-# Project specific
+# Logs
+*.log
+
+# Local development
 .env
 *.db
-*.session 
+sanctum.db
+broca2.db
+*.session
+*.pid
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+telegram_session_*.json 
+workspace.code-workspace

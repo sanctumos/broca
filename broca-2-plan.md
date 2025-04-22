@@ -37,10 +37,10 @@
       - [x] Test queue processing
       - [x] Test agent communication
 3) [x] make sure it's working as standalone
-4) [ ] recreate everything that was previously controlled by the "settings" page in the dash to a CLI.
-5) [ ] recreate the queue tools as CLI (list queue, flush message, delete message, flush all, delete all)
-6) [ ] recreate the users tools as CLI (perviously was just list users. we'll add more features later)
-7) [ ] recreate the conversations tools as CLI (previously was just list conversations. we'll add more features later)
+4) [x] recreate everything that was previously controlled by the "settings" page in the dash to a CLI.
+5) [x] recreate the queue tools as CLI (list queue, flush message, delete message, flush all, delete all)
+6) [x] recreate the users tools as CLI (perviously was just list users. we'll add more features later)
+7) [x] recreate the conversations tools as CLI (previously was just list conversations. we'll add more features later)
 
 Plugins:
 1) [ ] create plugins/ folder

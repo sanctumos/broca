@@ -19,7 +19,7 @@ def load_settings() -> Dict[str, Any]:
     if SETTINGS_PATH.exists():
         with open(SETTINGS_PATH, 'r') as f:
             settings = json.load(f)
-            logger.info(f"Loaded settings from {SETTINGS_PATH.absolute()}")
+            # logger.info(f"Loaded settings from {SETTINGS_PATH.absolute()}")
             return settings
     # Default settings
     default_settings = {
@@ -28,15 +28,15 @@ def load_settings() -> Dict[str, Any]:
         "max_retries": 3,
         "message_mode": "echo"
     }
-    logger.info(f"Created default settings as {SETTINGS_PATH.absolute()} does not exist")
+    # logger.info(f"Created default settings as {SETTINGS_PATH.absolute()} does not exist")
     return default_settings
 
 def save_settings(settings: Dict[str, Any]) -> None:
     """Save settings to settings.json"""
     with open(SETTINGS_PATH, 'w') as f:
         json.dump(settings, f, indent=4)
-    logger.info(f"Saved settings to {SETTINGS_PATH.absolute()}")
-    logger.info(f"Settings content: {json.dumps(settings, indent=2)}")
+    # logger.info(f"Saved settings to {SETTINGS_PATH.absolute()}")
+    # logger.info(f"Settings content: {json.dumps(settings, indent=2)}")
 
 def print_output(data: Any, json_output: bool) -> None:
     """Print output in either human-readable or JSON format"""
@@ -70,19 +70,19 @@ def set_message_mode(args) -> None:
         sys.exit(1)
     
     settings = load_settings()
-    logger.info(f"Current message mode: {settings.get('message_mode', 'not set')}")
+    # logger.info(f"Current message mode: {settings.get('message_mode', 'not set')}")
     settings['message_mode'] = args.mode
     save_settings(settings)
-    logger.info(f"Message mode set to: {args.mode}")
+    # logger.info(f"Message mode set to: {args.mode}")
     print_output({"message_mode": args.mode}, args.json)
 
 def set_debug_mode(args) -> None:
     """Set debug mode"""
     settings = load_settings()
-    logger.info(f"Current debug mode: {settings.get('debug_mode', 'not set')}")
+    # logger.info(f"Current debug mode: {settings.get('debug_mode', 'not set')}")
     settings['debug_mode'] = args.enable
     save_settings(settings)
-    logger.info(f"Debug mode set to: {args.enable}")
+    # logger.info(f"Debug mode set to: {args.enable}")
     print_output({"debug_mode": args.enable}, args.json)
 
 def set_queue_refresh(args) -> None:
@@ -93,10 +93,10 @@ def set_queue_refresh(args) -> None:
         sys.exit(1)
     
     settings = load_settings()
-    logger.info(f"Current queue refresh: {settings.get('queue_refresh', 'not set')}")
+    # logger.info(f"Current queue refresh: {settings.get('queue_refresh', 'not set')}")
     settings['queue_refresh'] = args.seconds
     save_settings(settings)
-    logger.info(f"Queue refresh set to: {args.seconds}")
+    # logger.info(f"Queue refresh set to: {args.seconds}")
     print_output({"queue_refresh": args.seconds}, args.json)
 
 def set_max_retries(args) -> None:
@@ -107,10 +107,10 @@ def set_max_retries(args) -> None:
         sys.exit(1)
     
     settings = load_settings()
-    logger.info(f"Current max retries: {settings.get('max_retries', 'not set')}")
+    # logger.info(f"Current max retries: {settings.get('max_retries', 'not set')}")
     settings['max_retries'] = args.retries
     save_settings(settings)
-    logger.info(f"Max retries set to: {args.retries}")
+    # logger.info(f"Max retries set to: {args.retries}")
     print_output({"max_retries": args.retries}, args.json)
 
 def main():
