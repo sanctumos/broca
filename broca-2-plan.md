@@ -43,9 +43,87 @@
 7) [x] recreate the conversations tools as CLI (previously was just list conversations. we'll add more features later)
 
 Plugins:
-1) [ ] create plugins/ folder
+1) [x] create plugins/ folder
 2) [ ] Plugin: create simple cli tool for adding messages to the queue
-3) [ ] Plugin: bring broca/telegram/ into the plugins folder, refactor to new setup
+3) [x] Plugin: bring broca/telegram/ into the plugins folder, refactor to new setup
+
+Plugin Refactoring Plan:
+
+A. Core Plugin Interface (Required for both Telegram and CLI)
+   1) [ ] Create abstract Plugin base class in plugins/__init__.py:
+      - Required methods: start(), stop(), get_name()
+      - Optional methods: get_settings(), validate_settings()
+      - Event handling interface for message processing
+   
+   2) [ ] Create MessageHandler base class in runtime/core/message.py:
+      - Abstract methods for message processing
+      - Common message formatting and sanitization
+      - Platform-agnostic message buffer functionality
+   
+   3) [ ] Create PluginManager in runtime/core/plugin.py:
+      - Plugin registration and lifecycle management
+      - Event routing between plugins and core
+      - Settings management per plugin
+
+B. Telegram Plugin Refactoring
+   1) [ ] Update TelegramBot to inherit from Plugin base class:
+      - Move Telegram-specific settings to plugin config
+      - Implement required Plugin interface methods
+      - Remove direct environment variable access
+   
+   2) [ ] Refactor MessageHandler to use base class:
+      - Move Telegram-specific formatting to plugin
+      - Use common message buffer implementation
+      - Implement platform-specific user handling
+   
+   3) [ ] Create Telegram-specific settings:
+      - Move API credentials to plugin config
+      - Add session management settings
+      - Define message handling modes
+
+C. CLI Conversation Plugin
+   1) [ ] Create CLI plugin structure:
+      - Implement Plugin base class
+      - Add command-line interface for conversation
+      - Support message modes (echo, listen, live)
+   
+   2) [ ] Implement CLI message handling:
+      - Use common MessageHandler base
+      - Add CLI-specific formatting
+      - Support interactive conversation
+   
+   3) [ ] Add CLI-specific features:
+      - Command history
+      - Message threading
+      - User switching
+
+D. Common Infrastructure
+   1) [ ] Update core to support multiple plugins:
+      - Modify main.py to use PluginManager
+      - Add plugin configuration loading
+      - Support concurrent plugin operation
+   
+   2) [ ] Create plugin settings schema:
+      - Define required vs optional settings
+      - Add validation rules
+      - Support plugin-specific settings
+   
+   3) [ ] Implement plugin event system:
+      - Define core events (message, status, error)
+      - Add plugin event registration
+      - Support event filtering
+
+Implementation Order:
+1. Core Plugin Interface (A.1-3)
+2. Telegram Plugin Refactoring (B.1-3)
+3. Common Infrastructure (D.1-3)
+4. CLI Conversation Plugin (C.1-3)
+
+This refactoring will:
+- Create a clean separation between core and plugins
+- Enable easy addition of new plugins
+- Provide consistent behavior across plugins
+- Make the system more maintainable and testable
 
 ---
 
