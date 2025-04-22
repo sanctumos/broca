@@ -1,34 +1,34 @@
 1) [x] create a broca2/ folder
 2) [ ] copy all async loop functionality from broca 1 to broca 2
-   a) [ ] Core Components to Migrate:
-      - [ ] Application class (main.py) - Core coordinator
-      - [ ] QueueProcessor (core/queue.py) - Message queue handling
-      - [ ] AgentClient (core/agent.py) - Agent API interaction
-      - [ ] MessageFormatter (core/message.py) - Message formatting
-      - [ ] LettaClient (core/letta_client.py) - Letta API client
+   a) [x] Core Components to Migrate:
+      - [x] Application class (main.py) - Core coordinator
+      - [x] QueueProcessor (core/queue.py) - Message queue handling
+      - [x] AgentClient (core/agent.py) - Agent API interaction
+      - [x] MessageFormatter (core/message.py) - Message formatting
+      - [x] LettaClient (core/letta_client.py) - Letta API client
    
-   b) [ ] Database Dependencies:
-      - [ ] Message operations (get_message_text, update_message_with_response)
-      - [ ] User operations (get_user_details, get_platform_profile_id, get_letta_user_block_id)
-      - [ ] Queue operations (update_queue_status, get_pending_queue_item)
+   b) [x] Database Dependencies:
+      - [x] Message operations (get_message_text, update_message_with_response)
+      - [x] User operations (get_user_details, get_platform_profile_id, get_letta_user_block_id)
+      - [x] Queue operations (update_queue_status, get_pending_queue_item)
    
    c) [ ] Configuration and Logging:
-      - [ ] Common config setup (common/config.py)
-      - [ ] Logging setup with emoji support (common/logging.py)
+      - [x] Common config setup (common/config.py)
+      - [x] Logging setup with emoji support (common/logging.py)
    
-   d) [ ] Message Processing Modes:
-      - [ ] Echo mode (direct message return)
-      - [ ] Listen mode (store without processing)
-      - [ ] Live mode (process through agent)
+   d) [x] Message Processing Modes:
+      - [x] Echo mode (direct message return)
+      - [x] Listen mode (store without processing)
+      - [x] Live mode (process through agent)
    
-   e) [ ] Core Block Management:
-      - [ ] Attach/detach core blocks for users
-      - [ ] Handle core block errors and cleanup
+   e) [x] Core Block Management:
+      - [x] Attach/detach core blocks for users
+      - [x] Handle core block errors and cleanup
    
-   f) [ ] Error Handling:
-      - [ ] Graceful shutdown on KeyboardInterrupt
-      - [ ] Error recovery in queue processing
-      - [ ] Core block cleanup on errors
+   f) [x] Error Handling:
+      - [x] Graceful shutdown on KeyboardInterrupt
+      - [x] Error recovery in queue processing
+      - [x] Core block cleanup on errors
    
    g) [ ] Testing Requirements:
       - [ ] Test all message modes

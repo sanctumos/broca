@@ -6,8 +6,10 @@ import uuid
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any
 import aiosqlite
-from core.letta_client import get_letta_client
+from runtime.core.letta_client import get_letta_client
 from ..models import LettaUser, PlatformProfile
+from sqlalchemy.orm import Session
+from database.session import get_session
 
 # Database file path
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "sanctum.db")

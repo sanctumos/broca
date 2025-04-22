@@ -2,18 +2,20 @@
 import asyncio
 import sys
 import logging
-from threading import Thread
 from typing import Optional
 from telethon import events
+from dotenv import load_dotenv
 
 from runtime.core.agent import AgentClient
 from runtime.core.queue import QueueProcessor
 from plugins.telegram.plugin import TelegramBot
 from plugins.telegram.handlers import MessageHandler
-from web.app import app, create_app
 from database.operations.shared import initialize_database, check_and_migrate_db
 from common.config import get_env_var
 from common.logging import setup_logging
+
+# Load environment variables
+load_dotenv()
 
 # Setup logging
 setup_logging()
@@ -28,8 +30,6 @@ class Application:
         self.telegram = TelegramBot()
         self.message_handler = MessageHandler()
         self.queue_processor: Optional[QueueProcessor] = None
-        self.web_app = create_app(self)
-        self.flask_thread: Optional[Thread] = None
     
     async def _handle_message(self, event: events.NewMessage.Event) -> None:
         """Handle incoming Telegram messages.
@@ -60,11 +60,6 @@ class Application:
         if self.telegram.client:
             await self.telegram.client.send_message(user_id, response)
     
-    def _run_flask(self) -> None:
-        """Run the Flask web application."""
-        port = get_env_var("FLASK_PORT", default=5000, cast_type=int)
-        self.web_app.run(debug=True, use_reloader=False, port=port)
-    
     async def start(self) -> None:
         """Start all application components."""
         try:
@@ -78,26 +73,18 @@ class Application:
                 logger.error("❌ Failed to initialize agent. Exiting...")
                 return
             
-            # Start Flask in a separate thread
-            logger.info("🌐 Starting dashboard server...")
-            self.flask_thread = Thread(target=self._run_flask)
-            self.flask_thread.daemon = True
-            self.flask_thread.start()
-            
             # Initialize queue processor
             logger.info("📋 Initializing message queue processor...")
             self.queue_processor = QueueProcessor(
                 message_processor=self._process_message,
-                message_mode='echo',  # Default mode, will be updated by settings
+                message_mode='echo',  # Default mode
                 on_message_processed=self._on_message_processed,
                 telegram_client=self.telegram.client
             )
             
-            # Set initial message mode from settings
-            settings = self.web_app.config.get('SETTINGS', {})
-            initial_mode = settings.get('message_mode', 'echo')
-            self.message_handler.set_message_mode(initial_mode)
-            self.queue_processor.set_message_mode(initial_mode)
+            # Set initial message mode
+            self.message_handler.set_message_mode('echo')
+            self.queue_processor.set_message_mode('echo')
             
             # Start queue processor
             queue_task = asyncio.create_task(self.queue_processor.start())
