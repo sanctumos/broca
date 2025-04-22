@@ -1,22 +1,57 @@
-
-1) create a broca2/ folder
-2) copy all async loop functionality from broca 1 to broca 2
-3) make sure it's working as standalone
-4) recreate everything that was previously controlled by the "settings" page in the dash to a CLI.
-5) recreate the queue tools as CLI (list queue, flush message, delete message, flush all, delete all)
-6) recreate the users tools as CLI (perviously was just list users. we'll add more features later)
-7) recreate the conversations tools as CLI (previously was just list conversations. we'll add more features later)
+1) [x] create a broca2/ folder
+2) [ ] copy all async loop functionality from broca 1 to broca 2
+   a) [ ] Core Components to Migrate:
+      - [ ] Application class (main.py) - Core coordinator
+      - [ ] QueueProcessor (core/queue.py) - Message queue handling
+      - [ ] AgentClient (core/agent.py) - Agent API interaction
+      - [ ] MessageFormatter (core/message.py) - Message formatting
+      - [ ] LettaClient (core/letta_client.py) - Letta API client
+   
+   b) [ ] Database Dependencies:
+      - [ ] Message operations (get_message_text, update_message_with_response)
+      - [ ] User operations (get_user_details, get_platform_profile_id, get_letta_user_block_id)
+      - [ ] Queue operations (update_queue_status, get_pending_queue_item)
+   
+   c) [ ] Configuration and Logging:
+      - [ ] Common config setup (common/config.py)
+      - [ ] Logging setup with emoji support (common/logging.py)
+   
+   d) [ ] Message Processing Modes:
+      - [ ] Echo mode (direct message return)
+      - [ ] Listen mode (store without processing)
+      - [ ] Live mode (process through agent)
+   
+   e) [ ] Core Block Management:
+      - [ ] Attach/detach core blocks for users
+      - [ ] Handle core block errors and cleanup
+   
+   f) [ ] Error Handling:
+      - [ ] Graceful shutdown on KeyboardInterrupt
+      - [ ] Error recovery in queue processing
+      - [ ] Core block cleanup on errors
+   
+   g) [ ] Testing Requirements:
+      - [ ] Test all message modes
+      - [ ] Test core block attachment/detachment
+      - [ ] Test error recovery
+      - [ ] Test queue processing
+      - [ ] Test agent communication
+3) [ ] make sure it's working as standalone
+4) [ ] recreate everything that was previously controlled by the "settings" page in the dash to a CLI.
+5) [ ] recreate the queue tools as CLI (list queue, flush message, delete message, flush all, delete all)
+6) [ ] recreate the users tools as CLI (perviously was just list users. we'll add more features later)
+7) [ ] recreate the conversations tools as CLI (previously was just list conversations. we'll add more features later)
 
 Plugins:
-1) create plugins/ folder
-2) Plugin: create simple cli tool for adding messages to the queue
-3) Plugin: bring broca/telegram/ into the plugins folder, refactor to new setup
+1) [ ] create plugins/ folder
+2) [ ] Plugin: create simple cli tool for adding messages to the queue
+3) [ ] Plugin: bring broca/telegram/ into the plugins folder, refactor to new setup
 
 ---
 
 **LET'S GOOOO 🚀**
 
-Here’s your `broca2/` skeleton—clean, CLI-first, plugin-ready, runtime-modular.
+Here's your `broca2/` skeleton—clean, CLI-first, plugin-ready, runtime-modular.
 
 ---
 
@@ -29,7 +64,6 @@ broca2/
 │   └── all the core files here.
 ├── cli/
 │   ├── __init__.py
-│   ├── broca_admin.py
 │   ├── queue.py
 │   ├── users.py
 │   ├── conversations.py

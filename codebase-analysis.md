@@ -2,18 +2,6 @@
 
 ## Core Components Overview
 
-### 1. Message Buffer System (`telegram/handlers.py`)
-- **Purpose**: Buffers messages for batch processing
-- **Key Components**:
-  - `MessageBuffer` class with configurable delay (default 5s)
-  - In-memory buffer using Dict[int, Dict[str, Any]]
-  - Async flush mechanism with cancellable tasks
-- **Flow**:
-  1. Messages added to buffer with user/platform IDs
-  2. Flush scheduled after delay
-  3. Messages combined and inserted into database
-  4. Added to processing queue
-
 ### 2. Queue System (`core/queue.py`, `database/operations/queue.py`)
 - **Purpose**: Handles asynchronous processing of messages
 - **Components**:
@@ -89,9 +77,6 @@ CREATE TABLE queue (
 ### 2. Suggested File Structure
 ```
 src/
-├── buffer/
-│   ├── message_buffer.py
-│   └── buffer_utils.py
 ├── queue/
 │   ├── processor.py
 │   └── queue_ops.py
