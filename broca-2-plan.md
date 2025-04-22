@@ -30,13 +30,13 @@
       - [x] Error recovery in queue processing
       - [x] Core block cleanup on errors
    
-   g) [ ] Testing Requirements:
-      - [ ] Test all message modes
-      - [ ] Test core block attachment/detachment
-      - [ ] Test error recovery
-      - [ ] Test queue processing
-      - [ ] Test agent communication
-3) [ ] make sure it's working as standalone
+   g) [x] Testing Requirements:
+      - [x] Test all message modes
+      - [x] Test core block attachment/detachment
+      - [x] Test error recovery
+      - [x] Test queue processing
+      - [x] Test agent communication
+3) [x] make sure it's working as standalone
 4) [ ] recreate everything that was previously controlled by the "settings" page in the dash to a CLI.
 5) [ ] recreate the queue tools as CLI (list queue, flush message, delete message, flush all, delete all)
 6) [ ] recreate the users tools as CLI (perviously was just list users. we'll add more features later)

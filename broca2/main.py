@@ -2,16 +2,20 @@
 import asyncio
 import sys
 import logging
+import os
+import time
+import json
 from typing import Optional
 from telethon import events
 from dotenv import load_dotenv
+from pathlib import Path
 
 from runtime.core.agent import AgentClient
 from runtime.core.queue import QueueProcessor
 from plugins.telegram.plugin import TelegramBot
 from plugins.telegram.handlers import MessageHandler
 from database.operations.shared import initialize_database, check_and_migrate_db
-from common.config import get_env_var
+from common.config import get_env_var, get_settings, validate_settings
 from common.logging import setup_logging
 
 # Load environment variables
@@ -20,6 +24,20 @@ load_dotenv()
 # Setup logging
 setup_logging()
 logger = logging.getLogger(__name__)
+
+def create_default_settings() -> None:
+    """Create default settings file if it doesn't exist."""
+    settings_path = Path("settings.json")
+    if not settings_path.exists():
+        default_settings = {
+            "debug_mode": False,
+            "queue_refresh": 5,
+            "max_retries": 3,
+            "message_mode": "echo"
+        }
+        with open(settings_path, 'w') as f:
+            json.dump(default_settings, f, indent=4)
+        logger.info("Created default settings.json file")
 
 class Application:
     """Main application class that coordinates all components."""
@@ -30,6 +48,63 @@ class Application:
         self.telegram = TelegramBot()
         self.message_handler = MessageHandler()
         self.queue_processor: Optional[QueueProcessor] = None
+        self._settings_file = "settings.json"
+        self._settings_mtime = 0
+        
+        # Create default settings if needed
+        create_default_settings()
+        
+        # Save PID to file
+        with open("broca2.pid", "w") as f:
+            f.write(str(os.getpid()))
+    
+    async def _check_settings(self):
+        """Check if settings file has been modified."""
+        try:
+            current_mtime = os.path.getmtime(self._settings_file)
+            if current_mtime > self._settings_mtime:
+                logger.info("Settings file modified, reloading...")
+                settings = get_settings()
+                validate_settings(settings)
+                
+                # Update message mode in all components
+                if 'message_mode' in settings:
+                    new_mode = settings['message_mode']
+                    logger.info(f"Updating message mode to: {new_mode}")
+                    
+                    # Update message handler
+                    self.message_handler.set_message_mode(new_mode)
+                    logger.info(f"Message handler mode set to: {new_mode}")
+                    
+                    # Update queue processor if it exists
+                    if self.queue_processor:
+                        self.queue_processor.set_message_mode(new_mode)
+                        logger.info(f"🔵 Message processing mode changed to: {new_mode.upper()}")
+                    
+                    # Force immediate mode change
+                    if self.queue_processor:
+                        self.queue_processor.message_mode = new_mode
+                        logger.info(f"🔵 Forced immediate mode change to: {new_mode.upper()}")
+                
+                # Update debug mode
+                if 'debug_mode' in settings:
+                    self.agent.debug_mode = settings['debug_mode']
+                    logger.info(f"Debug mode {'enabled' if settings['debug_mode'] else 'disabled'}")
+                
+                # Update queue refresh interval
+                if 'queue_refresh' in settings and self.queue_processor:
+                    self.queue_processor.refresh_interval = settings['queue_refresh']
+                    logger.info(f"Queue refresh interval set to {settings['queue_refresh']} seconds")
+                
+                # Update max retries
+                if 'max_retries' in settings and self.queue_processor:
+                    self.queue_processor.max_retries = settings['max_retries']
+                    logger.info(f"Max retries set to {settings['max_retries']}")
+                
+                self._settings_mtime = current_mtime
+                logger.info("Settings reloaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to reload settings: {str(e)}")
     
     async def _handle_message(self, event: events.NewMessage.Event) -> None:
         """Handle incoming Telegram messages.
@@ -101,6 +176,9 @@ class Application:
             await self.telegram.start()
             logger.info("✅ Application started successfully!")
             
+            # Start settings monitor task
+            settings_task = asyncio.create_task(self._monitor_settings())
+            
             # Wait for the Telegram client to disconnect
             await self.telegram.client.run_until_disconnected()
             
@@ -126,6 +204,12 @@ class Application:
             await self.telegram.client.disconnect()
             raise
     
+    async def _monitor_settings(self):
+        """Monitor settings file for changes."""
+        while True:
+            await self._check_settings()
+            await asyncio.sleep(1)  # Check every second
+    
     async def stop(self) -> None:
         """Stop all application components."""
         # Stop queue processor
@@ -137,6 +221,12 @@ class Application:
         
         # Clean up agent
         await self.agent.cleanup()
+        
+        # Remove PID file
+        try:
+            os.remove("broca2.pid")
+        except:
+            pass
 
     def update_settings(self, settings: dict) -> None:
         """Update application settings.
