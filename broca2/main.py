@@ -12,7 +12,8 @@ from pathlib import Path
 
 from runtime.core.agent import AgentClient
 from runtime.core.queue import QueueProcessor
-from plugins.telegram.plugin import TelegramBot
+from runtime.core.plugin import PluginManager
+from plugins.telegram.telegram_plugin import TelegramPlugin
 from plugins.telegram.handlers import MessageHandler
 from database.operations.shared import initialize_database, check_and_migrate_db
 from common.config import get_env_var, get_settings, validate_settings
@@ -44,10 +45,26 @@ class Application:
     
     def __init__(self):
         """Initialize the application components."""
+        # Initialize plugin manager first
+        self.plugin_manager = PluginManager()
+        
+        # Initialize other components
         self.agent = AgentClient()
-        self.telegram = TelegramBot()
+        self.telegram = TelegramPlugin()  # Changed from TelegramBot to TelegramPlugin
         self.message_handler = MessageHandler()
-        self.queue_processor: Optional[QueueProcessor] = None
+        
+        # Initialize queue processor with plugin manager
+        self.queue_processor = QueueProcessor(
+            message_processor=self._process_message,
+            plugin_manager=self.plugin_manager
+        )
+        
+        # Register the telegram plugin
+        self.plugin_manager.register_platform_handler(
+            "telegram",
+            self.telegram.get_message_handler()
+        )
+        
         self._settings_file = "settings.json"
         self._settings_mtime = 0
         
@@ -152,9 +169,7 @@ class Application:
             logger.info("📋 Initializing message queue processor...")
             self.queue_processor = QueueProcessor(
                 message_processor=self._process_message,
-                message_mode='echo',  # Default mode
-                on_message_processed=self._on_message_processed,
-                telegram_client=self.telegram.client
+                plugin_manager=self.plugin_manager
             )
             
             # Set initial message mode
