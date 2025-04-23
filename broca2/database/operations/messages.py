@@ -152,4 +152,27 @@ async def get_message_platform_profile(message_id: int) -> Optional[PlatformProf
                     created_at=row[7],
                     last_active=row[8]
                 )
-            return None 
+            return None
+
+async def update_message_status(
+    message_id: int,
+    status: str,
+    response: Optional[str] = None
+) -> None:
+    """Update message status and store response.
+    
+    Args:
+        message_id: ID of the message to update
+        status: New status ('success' or 'failed')
+        response: Optional response text
+    """
+    processed = 1 if status == 'success' else 0
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            UPDATE messages 
+            SET processed = ?,
+                agent_response = COALESCE(?, agent_response)
+            WHERE id = ?
+        """, (processed, response, message_id))
+        await db.commit() 

@@ -3,8 +3,8 @@ import asyncio
 import logging
 from typing import Dict, Any, Optional, Callable, List, Tuple
 from datetime import datetime
-from ..common.config import validate_settings
-from ..common.exceptions import PluginError
+from common.config import validate_settings, get_env_var
+from common.exceptions import PluginError
 from database.operations.messages import (
     get_message_text, 
     update_message_with_response,
@@ -14,7 +14,6 @@ from database.operations.users import get_user_details, get_platform_profile_id,
 from database.operations.queue import get_pending_queue_item, update_queue_status
 from .message import MessageFormatter
 from runtime.core.letta_client import get_letta_client
-from common.config import get_env_var
 from common.logging import setup_logging
 
 # Setup logging with emojis
@@ -45,7 +44,8 @@ class QueueProcessor:
         message_processor: Callable[[str], str],
         message_mode: str = 'echo',
         plugin_manager: Optional[Any] = None,
-        telegram_client: Optional[Any] = None
+        telegram_client: Optional[Any] = None,
+        on_message_processed: Optional[Callable[[int, str], None]] = None
     ):
         """Initialize the queue processor.
         
@@ -54,6 +54,7 @@ class QueueProcessor:
             message_mode: The message mode ('echo', 'listen', or 'live')
             plugin_manager: The plugin manager instance for routing responses
             telegram_client: The Telegram client instance for typing indicator
+            on_message_processed: Optional callback for when a message is processed
         """
         self.message_processor = message_processor
         self.message_mode = message_mode
@@ -61,15 +62,16 @@ class QueueProcessor:
         self.is_running = False
         self.plugin_manager = plugin_manager
         self.telegram_client = telegram_client
+        self.on_message_processed = on_message_processed
         self.processing_messages = set()  # Track messages being processed
         self._stop_event = asyncio.Event()
         self.letta_client = get_letta_client()
+        self.agent_id = get_env_var("AGENT_ID", required=True)
     
     async def _process_with_core_block(
         self,
         message: str,
-        letta_user_id: int,
-        agent_id: str
+        letta_user_id: int
     ) -> Tuple[Optional[str], str]:
         """Process a message with proper core block management."""
         # Get the user's core block ID
@@ -82,7 +84,7 @@ class QueueProcessor:
             # Attach core block
             logger.info(f"Attaching user core block {block_id[:8]}... to agent")
             self.letta_client.agents.blocks.attach(
-                agent_id=agent_id,
+                agent_id=self.agent_id,
                 block_id=block_id
             )
             
@@ -93,7 +95,7 @@ class QueueProcessor:
             # Detach core block
             logger.info(f"Detaching core block {block_id[:8]}... from agent")
             self.letta_client.agents.blocks.detach(
-                agent_id=agent_id,
+                agent_id=self.agent_id,
                 block_id=block_id
             )
             
@@ -109,7 +111,7 @@ class QueueProcessor:
             try:
                 logger.info(f"Cleaning up: Detaching core block {block_id[:8]}... from agent")
                 self.letta_client.agents.blocks.detach(
-                    agent_id=agent_id,
+                    agent_id=self.agent_id,
                     block_id=block_id
                 )
                 logger.info("Core block successfully detached")
@@ -225,8 +227,7 @@ class QueueProcessor:
                             logger.info(f"Processing message in {self.message_mode.upper()} mode")
                             response, status = await self._process_with_core_block(
                                 message=formatted_message,
-                                letta_user_id=queue_item.letta_user_id,
-                                agent_id=queue_item.agent_id
+                                letta_user_id=queue_item.letta_user_id
                             )
                         
                         if response:
