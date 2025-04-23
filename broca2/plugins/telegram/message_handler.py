@@ -4,11 +4,30 @@ from typing import Dict, Any, Tuple
 from telethon import events
 from datetime import datetime
 
-from runtime.core.message import Message, MessageHandler, MessageFormatter
+from runtime.core.message import Message, MessageHandler, MessageFormatter as BaseMessageFormatter
 from database.operations.users import get_or_create_platform_profile
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
 from .settings import TelegramSettings, MessageMode
+
+class MessageFormatter(BaseMessageFormatter):
+    """Telegram-specific message formatter."""
+    
+    def format_response(self, response: str) -> str:
+        """Format a response for Telegram.
+        
+        This method can be extended to add Telegram-specific formatting
+        like markdown, HTML, or custom formatting rules.
+        
+        Args:
+            response: The response to format
+            
+        Returns:
+            str: The formatted response
+        """
+        # For now, just sanitize and return the response
+        # In the future, we can add Telegram-specific formatting here
+        return self.sanitize_text(response)
 
 class MessageBuffer:
     """Buffers messages for batch processing."""
@@ -38,31 +57,30 @@ class MessageBuffer:
             platform_user_id: The platform-specific user ID
             letta_user_id: The Letta user ID
             platform_profile_id: The platform profile ID
-            message: The message text
+            message: The message content
             timestamp: The message timestamp
         """
-        print(f"Adding message to buffer for user {platform_user_id}: {message[:50]}...")
-        
         buffer_key = (platform_user_id, letta_user_id, platform_profile_id)
+        
         if buffer_key not in self.buffers:
             self.buffers[buffer_key] = {
                 "messages": [],
-                "task": None
+                "flush_task": None
             }
-            print(f"Created new buffer for user {platform_user_id}")
         
-        self.buffers[buffer_key]["messages"].append((message, timestamp))
+        # Add message to buffer
+        self.buffers[buffer_key]["messages"].append({
+            "message": message,
+            "timestamp": timestamp
+        })
         
-        # Cancel any existing flush task
-        if self.buffers[buffer_key]["task"] is not None:
-            self.buffers[buffer_key]["task"].cancel()
-            print(f"Cancelled existing flush task for user {platform_user_id}")
+        # Schedule or reschedule flush
+        if self.buffers[buffer_key]["flush_task"]:
+            self.buffers[buffer_key]["flush_task"].cancel()
         
-        # Schedule a new flush
-        self.buffers[buffer_key]["task"] = asyncio.create_task(
+        self.buffers[buffer_key]["flush_task"] = asyncio.create_task(
             self._schedule_flush(buffer_key)
         )
-        print(f"Scheduled new flush task for user {platform_user_id}")
     
     async def _schedule_flush(self, buffer_key: Tuple[int, int, int]) -> None:
         """Schedule a flush for the specified user's buffer.
@@ -82,46 +100,44 @@ class MessageBuffer:
             pass
     
     async def _flush_buffer(self, buffer_key: Tuple[int, int, int]) -> None:
-        """Flush the message buffer for a user.
+        """Flush the buffer for a specific user.
         
         Args:
             buffer_key: Tuple of (platform_user_id, letta_user_id, platform_profile_id)
         """
-        platform_user_id, letta_user_id, platform_profile_id = buffer_key
-        buffer = self.buffers.get(buffer_key)
-        if not buffer or not buffer["messages"]:
-            print(f"No messages to flush for user {platform_user_id}")
+        if buffer_key not in self.buffers:
             return
+            
+        platform_user_id, letta_user_id, platform_profile_id = buffer_key
+        buffer = self.buffers[buffer_key]
         
-        print(f"Flushing {len(buffer['messages'])} messages for user {platform_user_id}")
-        
-        # Get raw messages and combine them with newlines
-        messages = [msg for msg, _ in buffer["messages"]]
-        combined_text = "\n".join(messages)
-        
-        # Get timestamp of first message
-        first_msg_date = buffer["messages"][0][1].strftime("%Y-%m-%d %H:%M UTC")
-        
-        print(f"Inserting message into database: {combined_text[:50]}...")
-        
-        # Insert message and add to queue
-        message_id = await insert_message(
-            letta_user_id=letta_user_id,
-            platform_profile_id=platform_profile_id,
-            role="user",
-            message=combined_text,
-            timestamp=first_msg_date
-        )
-        await add_to_queue(letta_user_id, message_id)
-        
-        print(f"Message {message_id} added to queue for user {platform_user_id}")
-        
-        # Clear the buffer
-        self.buffers[buffer_key] = {
-            "messages": [],
-            "task": None
-        }
-        print(f"Buffer cleared for user {platform_user_id}")
+        try:
+            # Process each message in the buffer
+            for msg in buffer["messages"]:
+                # Insert message into database
+                message_id = await insert_message(
+                    letta_user_id=letta_user_id,
+                    platform_profile_id=platform_profile_id,
+                    role="user",
+                    message=msg["message"],
+                    timestamp=msg["timestamp"].isoformat()
+                )
+                
+                # Add to processing queue
+                await add_to_queue(
+                    message_id=message_id,
+                    letta_user_id=letta_user_id
+                )
+                
+            print(f"Flushed {len(buffer['messages'])} messages for user {platform_user_id}")
+            
+        except Exception as e:
+            print(f"Error flushing buffer for user {platform_user_id}: {str(e)}")
+            
+        finally:
+            # Clear the buffer
+            buffer["messages"].clear()
+            buffer["flush_task"] = None
 
 class TelegramMessageHandler(MessageHandler):
     """Handles Telegram message events."""

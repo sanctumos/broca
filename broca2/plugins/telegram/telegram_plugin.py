@@ -8,7 +8,9 @@ from dotenv import load_dotenv, set_key
 
 from common.config import get_env_var
 from plugins import Plugin, Event, EventType
+from database.models import PlatformProfile
 from .settings import TelegramSettings, MessageMode
+from .message_handler import MessageFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,7 @@ class TelegramPlugin(Plugin):
     def __init__(self):
         """Initialize the Telegram plugin."""
         self.settings = TelegramSettings.from_env()
+        self.formatter = MessageFormatter()
         
         # Initialize client
         self.client = TelegramClient(
@@ -34,6 +37,44 @@ class TelegramPlugin(Plugin):
     def get_name(self) -> str:
         """Get the plugin's name."""
         return "telegram"
+    
+    def get_platform(self) -> str:
+        """Get the platform name this plugin handles."""
+        return "telegram"
+    
+    def get_message_handler(self) -> Callable:
+        """Get the message handler for this platform."""
+        return self._handle_response
+    
+    async def _handle_response(self, response: str, profile: PlatformProfile) -> None:
+        """Handle sending a response to a Telegram user.
+        
+        Args:
+            response: The response message to send
+            profile: The platform profile of the recipient
+        """
+        try:
+            # Format response for Telegram
+            formatted = self.formatter.format_response(response)
+            
+            # Convert platform_user_id to integer for Telegram
+            try:
+                telegram_user_id = int(profile.platform_user_id)
+            except ValueError:
+                logger.error(f"Invalid Telegram user ID format: {profile.platform_user_id}")
+                return
+            
+            # Send message with typing indicator
+            async with self.client.action(telegram_user_id, 'typing'):
+                await self.client.send_message(
+                    telegram_user_id,
+                    formatted
+                )
+                logger.info(f"Response sent to user {profile.username} ({telegram_user_id})")
+                
+        except Exception as e:
+            logger.error(f"Failed to send response to {profile.platform_user_id}: {str(e)}")
+            # Note: We don't need to update message status here as it's handled by the QueueProcessor
     
     def get_settings(self) -> Optional[Dict[str, Any]]:
         """Get the plugin's settings."""
