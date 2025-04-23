@@ -1,91 +1,136 @@
-"""Plugin management and event routing."""
-from typing import Dict, List, Optional, Set, Callable
+"""Plugin management system for broca2."""
 import asyncio
 import logging
-from broca2.plugins import Plugin, Event, EventType
+from typing import Dict, Any, Optional, Callable, List
+from pathlib import Path
+import importlib.util
+import sys
+from ..common.config import validate_settings
+from ..common.exceptions import PluginError
+from ...plugins import Plugin, Event, EventType
 
 logger = logging.getLogger(__name__)
 
 class PluginManager:
-    """Manages plugin lifecycle and event routing.
-    
-    This class is responsible for:
-    - Loading and unloading plugins
-    - Managing plugin lifecycle (start/stop)
-    - Routing events between plugins
-    - Managing plugin settings
-    """
+    """Manages plugin lifecycles and event routing."""
     
     def __init__(self):
         """Initialize the plugin manager."""
         self._plugins: Dict[str, Plugin] = {}
-        self._event_handlers: Dict[EventType, Set[Callable]] = {
-            event_type: set() for event_type in EventType
-        }
+        self._event_handlers: Dict[EventType, List[Callable[[Event], None]]] = {}
+        self._platform_handlers: Dict[str, Callable] = {}
         self._running = False
     
-    async def load_plugin(self, plugin: Plugin) -> None:
-        """Load a plugin.
+    async def load_plugin(self, plugin_path: str) -> None:
+        """Load a plugin from the given path.
         
         Args:
-            plugin: The plugin to load
+            plugin_path: Path to the plugin module
             
         Raises:
-            ValueError: If a plugin with the same name is already loaded
+            PluginError: If plugin loading fails
         """
-        name = plugin.get_name()
-        if name in self._plugins:
-            raise ValueError(f"Plugin {name} is already loaded")
-        
-        self._plugins[name] = plugin
-        logger.info(f"Loaded plugin: {name}")
+        try:
+            # Convert path to module name
+            module_name = Path(plugin_path).stem
+            spec = importlib.util.spec_from_file_location(module_name, plugin_path)
+            if spec is None:
+                raise PluginError(f"Could not load plugin from {plugin_path}")
+            
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            
+            # Find and instantiate the plugin class
+            for name, obj in module.__dict__.items():
+                if isinstance(obj, type) and issubclass(obj, Plugin) and obj != Plugin:
+                    plugin = obj()
+                    plugin_name = plugin.get_name()
+                    
+                    if plugin_name in self._plugins:
+                        raise PluginError(f"Plugin {plugin_name} already loaded")
+                    
+                    # Register platform handler if plugin provides one
+                    platform = plugin.get_platform()
+                    if platform:
+                        handler = plugin.get_message_handler()
+                        if handler:
+                            self._platform_handlers[platform] = handler
+                            logger.info(f"Registered message handler for platform: {platform}")
+                    
+                    self._plugins[plugin_name] = plugin
+                    logger.info(f"Loaded plugin: {plugin_name}")
+                    return
+            
+            raise PluginError(f"No plugin class found in {plugin_path}")
+            
+        except Exception as e:
+            raise PluginError(f"Failed to load plugin from {plugin_path}: {str(e)}")
     
-    async def unload_plugin(self, name: str) -> None:
+    async def unload_plugin(self, plugin_name: str) -> None:
         """Unload a plugin.
         
         Args:
-            name: Name of the plugin to unload
+            plugin_name: Name of the plugin to unload
             
         Raises:
-            KeyError: If the plugin is not loaded
+            PluginError: If plugin unloading fails
         """
-        if name not in self._plugins:
-            raise KeyError(f"Plugin {name} is not loaded")
+        if plugin_name not in self._plugins:
+            raise PluginError(f"Plugin {plugin_name} not loaded")
         
-        plugin = self._plugins[name]
-        if self._running:
+        plugin = self._plugins[plugin_name]
+        
+        # Unregister platform handler if this plugin provided one
+        platform = plugin.get_platform()
+        if platform and platform in self._platform_handlers:
+            del self._platform_handlers[platform]
+            logger.info(f"Unregistered message handler for platform: {platform}")
+        
+        try:
             await plugin.stop()
-        
-        del self._plugins[name]
-        logger.info(f"Unloaded plugin: {name}")
+            del self._plugins[plugin_name]
+            logger.info(f"Unloaded plugin: {plugin_name}")
+        except Exception as e:
+            raise PluginError(f"Failed to unload plugin {plugin_name}: {str(e)}")
     
-    async def start_all(self) -> None:
-        """Start all loaded plugins."""
-        if self._running:
-            return
+    async def start_plugin(self, plugin_name: str) -> None:
+        """Start a plugin.
         
-        self._running = True
-        for name, plugin in self._plugins.items():
-            try:
-                await plugin.start()
-                logger.info(f"Started plugin: {name}")
-            except Exception as e:
-                logger.error(f"Failed to start plugin {name}: {e}")
-                # Don't re-raise, continue with other plugins
+        Args:
+            plugin_name: Name of the plugin to start
+            
+        Raises:
+            PluginError: If plugin start fails
+        """
+        if plugin_name not in self._plugins:
+            raise PluginError(f"Plugin {plugin_name} not loaded")
+        
+        plugin = self._plugins[plugin_name]
+        try:
+            await plugin.start()
+            logger.info(f"Started plugin: {plugin_name}")
+        except Exception as e:
+            raise PluginError(f"Failed to start plugin {plugin_name}: {str(e)}")
     
-    async def stop_all(self) -> None:
-        """Stop all loaded plugins."""
-        if not self._running:
-            return
+    async def stop_plugin(self, plugin_name: str) -> None:
+        """Stop a plugin.
         
-        self._running = False
-        for name, plugin in self._plugins.items():
-            try:
-                await plugin.stop()
-                logger.info(f"Stopped plugin: {name}")
-            except Exception as e:
-                logger.error(f"Failed to stop plugin {name}: {e}")
-                # Don't re-raise, continue with other plugins
+        Args:
+            plugin_name: Name of the plugin to stop
+            
+        Raises:
+            PluginError: If plugin stop fails
+        """
+        if plugin_name not in self._plugins:
+            raise PluginError(f"Plugin {plugin_name} not loaded")
+        
+        plugin = self._plugins[plugin_name]
+        try:
+            await plugin.stop()
+            logger.info(f"Stopped plugin: {plugin_name}")
+        except Exception as e:
+            raise PluginError(f"Failed to stop plugin {plugin_name}: {str(e)}")
     
     def register_event_handler(self, event_type: EventType, handler: Callable[[Event], None]) -> None:
         """Register an event handler.
@@ -94,16 +139,18 @@ class PluginManager:
             event_type: Type of event to handle
             handler: Function to call when event occurs
         """
-        self._event_handlers[event_type].add(handler)
+        if event_type not in self._event_handlers:
+            self._event_handlers[event_type] = []
+        self._event_handlers[event_type].append(handler)
     
     def unregister_event_handler(self, event_type: EventType, handler: Callable[[Event], None]) -> None:
         """Unregister an event handler.
         
         Args:
-            event_type: Type of event to unregister from
-            handler: Handler to unregister
+            event_type: Type of event to unregister
+            handler: Handler to remove
         """
-        if handler in self._event_handlers[event_type]:
+        if event_type in self._event_handlers:
             self._event_handlers[event_type].remove(handler)
     
     def emit_event(self, event: Event) -> None:
@@ -112,36 +159,71 @@ class PluginManager:
         Args:
             event: Event to emit
         """
-        handlers = self._event_handlers[event.type]
-        for handler in handlers:
-            try:
-                handler(event)
-            except Exception as e:
-                logger.error(f"Error in event handler for {event.type}: {e}")
+        if event.type in self._event_handlers:
+            for handler in self._event_handlers[event.type]:
+                try:
+                    handler(event)
+                except Exception as e:
+                    logger.error(f"Error in event handler: {str(e)}")
     
-    def get_plugin(self, name: str) -> Optional[Plugin]:
+    def get_platform_handler(self, platform: str) -> Optional[Callable]:
+        """Get the message handler for a platform.
+        
+        Args:
+            platform: Platform name to get handler for
+            
+        Returns:
+            Optional[Callable]: Message handler if registered, None otherwise
+        """
+        return self._platform_handlers.get(platform)
+    
+    async def start(self) -> None:
+        """Start all loaded plugins."""
+        if self._running:
+            return
+        
+        self._running = True
+        for plugin_name in list(self._plugins.keys()):
+            try:
+                await self.start_plugin(plugin_name)
+            except PluginError as e:
+                logger.error(f"Failed to start plugin {plugin_name}: {str(e)}")
+    
+    async def stop(self) -> None:
+        """Stop all loaded plugins."""
+        if not self._running:
+            return
+        
+        self._running = False
+        for plugin_name in list(self._plugins.keys()):
+            try:
+                await self.stop_plugin(plugin_name)
+            except PluginError as e:
+                logger.error(f"Failed to stop plugin {plugin_name}: {str(e)}")
+    
+    def get_plugin(self, plugin_name: str) -> Optional[Plugin]:
         """Get a loaded plugin by name.
         
         Args:
-            name: Name of the plugin to get
+            plugin_name: Name of the plugin to get
             
         Returns:
-            The plugin if found, None otherwise
+            Optional[Plugin]: The plugin if loaded, None otherwise
         """
-        return self._plugins.get(name)
+        return self._plugins.get(plugin_name)
     
-    def get_all_plugins(self) -> List[Plugin]:
-        """Get all loaded plugins.
+    def get_loaded_plugins(self) -> List[str]:
+        """Get names of all loaded plugins.
         
         Returns:
-            List of all loaded plugins
+            List[str]: List of loaded plugin names
         """
-        return list(self._plugins.values())
+        return list(self._plugins.keys())
     
     def is_running(self) -> bool:
-        """Check if plugins are running.
+        """Check if the plugin manager is running.
         
         Returns:
-            True if plugins are running, False otherwise
+            bool: True if running, False otherwise
         """
         return self._running 

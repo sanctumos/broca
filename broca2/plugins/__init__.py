@@ -54,6 +54,24 @@ class Plugin(ABC):
             str: The plugin's name, used for identification and logging.
         """
         pass
+
+    @abstractmethod
+    def get_platform(self) -> str:
+        """Get the platform name this plugin handles.
+        
+        Returns:
+            str: The platform name (e.g., 'telegram', 'cli')
+        """
+        pass
+
+    @abstractmethod
+    def get_message_handler(self) -> Callable:
+        """Get the message handler for this platform.
+        
+        Returns:
+            Callable: The message handler function
+        """
+        pass
     
     def get_settings(self) -> Optional[Dict[str, Any]]:
         """Get the plugin's settings.
