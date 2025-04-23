@@ -49,3 +49,11 @@ Thumbs.db
 # Project specific
 telegram_session_*.json 
 workspace.code-workspace
+broca2/plugins/__pycache__/__init__.cpython-312.pyc
+broca2/plugins/telegram/__pycache__/__init__.cpython-312.pyc
+broca2/plugins/telegram/__pycache__/handlers.cpython-312.pyc
+broca2/plugins/telegram/__pycache__/plugin.cpython-312.pyc
+broca2/plugins/telegram/__pycache__/__init__.cpython-312.pyc
+broca2/plugins/telegram/__pycache__/handlers.cpython-312.pyc
+broca2/plugins/telegram/__pycache__/plugin.cpython-312.pyc
+broca2/runtime/core/__pycache__/message.cpython-312.pyc

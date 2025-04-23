@@ -89,7 +89,6 @@ B. Telegram Plugin Refactoring
         - Change existing message handling logic
         - Modify core block functionality
     
-   
    2) [x] Refactor MessageHandler to use base class:
       - Move Telegram-specific formatting to plugin
       - Use common message buffer implementation
@@ -98,7 +97,7 @@ B. Telegram Plugin Refactoring
         - Change message processing flow
         - Add new message types
         - Modify existing error handling
-   
+    
    3) [x] Create Telegram-specific settings:
       - Move API credentials to plugin config
       - Add session management settings
@@ -107,6 +106,104 @@ B. Telegram Plugin Refactoring
         - Add complex configuration validation
         - Create new setting types
         - Modify core settings structure
+
+   4) [ ] Implement Message Routing Using Existing Schema:
+      a) Platform Handler Registration:
+         - Add platform handler registry to PluginManager:
+           ```python
+           class PluginManager:
+               def __init__(self):
+                   self._platform_handlers: Dict[str, Callable] = {}  # platform -> handler
+           
+               def register_platform_handler(self, platform: str, handler: Callable) -> None:
+                   """Register a handler for a specific platform."""
+                   self._platform_handlers[platform] = handler
+           ```
+         - Update Plugin base class to register platform handlers:
+           ```python
+           class Plugin(ABC):
+               def get_platform(self) -> str:
+                   """Get the platform name this plugin handles."""
+                   pass
+           
+               def get_message_handler(self) -> Callable:
+                   """Get the message handler for this platform."""
+                   pass
+           ```
+      
+      b) Response Routing:
+         - Add response routing to QueueProcessor:
+           ```python
+           async def _process_with_core_block(self, message_id: int) -> None:
+               # Process message with agent...
+               response = await self.message_processor(message)
+               
+               # Route response back to platform
+               profile = await get_message_platform_profile(message_id)
+               if profile and profile.platform in self.plugin_manager._platform_handlers:
+                   handler = self.plugin_manager._platform_handlers[profile.platform]
+                   await handler(response, profile)
+           ```
+         - Update message status tracking:
+           ```python
+           async def update_message_status(
+               self,
+               message_id: int,
+               status: str,
+               response: Optional[str] = None
+           ) -> None:
+               """Update message status and store response."""
+               await update_message(
+                   message_id=message_id,
+                   processed=1,
+                   agent_response=response
+               )
+           ```
+      
+      c) Platform-Specific Response Handling:
+         - Implement platform-specific response formatting in plugins:
+           ```python
+           class TelegramPlugin(Plugin):
+               def get_platform(self) -> str:
+                   return "telegram"
+           
+               def get_message_handler(self) -> Callable:
+                   return self._handle_response
+           
+               async def _handle_response(self, response: str, profile: PlatformProfile) -> None:
+                   # Format response for Telegram
+                   formatted = self.format_response(response)
+                   await self.client.send_message(
+                       profile.platform_user_id,
+                       formatted
+                   )
+           ```
+      
+      d) Error Handling:
+         - Add error routing to platform handlers:
+           ```python
+           async def _handle_response(self, response: str, profile: PlatformProfile) -> None:
+               try:
+                   formatted = self.format_response(response)
+                   await self.client.send_message(
+                       profile.platform_user_id,
+                       formatted
+                   )
+               except Exception as e:
+                   logger.error(f"Failed to send response to {profile.platform_user_id}: {e}")
+                   # Update message status to failed
+                   await update_message_status(
+                       message_id=message_id,
+                       status="failed",
+                       response=str(e)
+                   )
+           ```
+      
+      DO NOT:
+      - Add new database tables or columns
+      - Implement complex message threading
+      - Create plugin-to-plugin communication
+      - Modify existing database schema
 
 C. CLI Conversation Plugin
    1) [ ] Create CLI plugin structure:
