@@ -59,11 +59,14 @@ class Application:
             plugin_manager=self.plugin_manager
         )
         
-        # Register the telegram plugin
-        self.plugin_manager.register_platform_handler(
-            "telegram",
-            self.telegram.get_message_handler()
-        )
+        # Load the telegram plugin
+        self.plugin_manager._plugins[self.telegram.get_name()] = self.telegram
+        platform = self.telegram.get_platform()
+        if platform:
+            handler = self.telegram.get_message_handler()
+            if handler:
+                self.plugin_manager._platform_handlers[platform] = handler
+                logger.info(f"Registered message handler for platform: {platform}")
         
         self._settings_file = "settings.json"
         self._settings_mtime = 0
@@ -189,7 +192,7 @@ class Application:
             
             # Set up Telegram handlers
             logger.info("📱 Setting up Telegram handlers...")
-            self.telegram.add_event_handler(
+            self.telegram.add_message_handler(
                 self._handle_message,
                 events.NewMessage(incoming=True)
             )

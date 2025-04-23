@@ -5,9 +5,9 @@ from typing import Dict, Any, Optional, Callable, List
 from pathlib import Path
 import importlib.util
 import sys
-from ..common.config import validate_settings
-from ..common.exceptions import PluginError
-from ...plugins import Plugin, Event, EventType
+from common.config import validate_settings
+from common.exceptions import PluginError
+from plugins import Plugin, Event, EventType
 
 logger = logging.getLogger(__name__)
 
