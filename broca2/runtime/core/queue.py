@@ -145,7 +145,7 @@ class QueueProcessor:
             
         try:
             # Route the response through the platform handler
-            await handler(response, profile)
+            await handler(response, profile, message_id)
             return True
         except Exception as e:
             logger.error(f"Error routing response through {profile.platform} handler: {str(e)}")

@@ -9,6 +9,7 @@ from dotenv import load_dotenv, set_key
 from common.config import get_env_var
 from plugins import Plugin, Event, EventType
 from database.models import PlatformProfile
+from database.operations.messages import update_message_status
 from .settings import TelegramSettings, MessageMode
 from .message_handler import MessageFormatter
 
@@ -46,12 +47,13 @@ class TelegramPlugin(Plugin):
         """Get the message handler for this platform."""
         return self._handle_response
     
-    async def _handle_response(self, response: str, profile: PlatformProfile) -> None:
+    async def _handle_response(self, response: str, profile: PlatformProfile, message_id: int) -> None:
         """Handle sending a response to a Telegram user.
         
         Args:
             response: The response message to send
             profile: The platform profile of the recipient
+            message_id: The ID of the message being responded to
         """
         try:
             # Format response for Telegram
@@ -62,6 +64,11 @@ class TelegramPlugin(Plugin):
                 telegram_user_id = int(profile.platform_user_id)
             except ValueError:
                 logger.error(f"Invalid Telegram user ID format: {profile.platform_user_id}")
+                await update_message_status(
+                    message_id=message_id,
+                    status="failed",
+                    response=f"Invalid Telegram user ID format: {profile.platform_user_id}"
+                )
                 return
             
             # Send message with typing indicator
@@ -72,9 +79,22 @@ class TelegramPlugin(Plugin):
                 )
                 logger.info(f"Response sent to user {profile.username} ({telegram_user_id})")
                 
+                # Update message status to success
+                await update_message_status(
+                    message_id=message_id,
+                    status="success",
+                    response=formatted
+                )
+                
         except Exception as e:
-            logger.error(f"Failed to send response to {profile.platform_user_id}: {str(e)}")
-            # Note: We don't need to update message status here as it's handled by the QueueProcessor
+            error_msg = f"Failed to send response to {profile.platform_user_id}: {str(e)}"
+            logger.error(error_msg)
+            # Update message status to failed
+            await update_message_status(
+                message_id=message_id,
+                status="failed",
+                response=error_msg
+            )
     
     def get_settings(self) -> Optional[Dict[str, Any]]:
         """Get the plugin's settings."""
