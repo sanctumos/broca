@@ -165,6 +165,14 @@ class Application:
                 logger.error("❌ Failed to initialize agent. Exiting...")
                 return
             
+            # Start plugin manager first
+            logger.info("🔄 Starting plugin manager...")
+            await self.plugin_manager.start()
+            
+            # Start Telegram client
+            logger.info("🤖 Starting Telegram client...")
+            await self.telegram.start()
+            
             # Initialize queue processor
             logger.info("📋 Initializing message queue processor...")
             self.queue_processor = QueueProcessor(
@@ -186,9 +194,6 @@ class Application:
                 events.NewMessage(incoming=True)
             )
             
-            # Start Telegram client
-            logger.info("🤖 Starting Telegram client...")
-            await self.telegram.start()
             logger.info("✅ Application started successfully!")
             
             # Start settings monitor task
