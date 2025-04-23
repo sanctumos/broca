@@ -78,7 +78,9 @@ A. Core Plugin Interface (Required for both Telegram and CLI)
         - Create plugin version management
 
 B. Telegram Plugin Refactoring
-   1) [ ] Update TelegramBot to inherit from Plugin base class:
+   - DO NOT:
+     - move CORE functionality into the plugin.
+   1) [x] Update TelegramBot to inherit from Plugin base class:
       - Move Telegram-specific settings to plugin config
       - Implement required Plugin interface methods
       - Remove direct environment variable access
@@ -86,6 +88,7 @@ B. Telegram Plugin Refactoring
         - Add new Telegram features
         - Change existing message handling logic
         - Modify core block functionality
+    
    
    2) [ ] Refactor MessageHandler to use base class:
       - Move Telegram-specific formatting to plugin
