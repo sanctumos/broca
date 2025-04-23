@@ -1,11 +1,18 @@
-"""Queue processing functionality."""
+"""Queue processing and message handling."""
 import asyncio
 import logging
-from typing import Optional, Callable, Tuple, Any
-from database.operations.messages import get_message_text, update_message_with_response
+from typing import Dict, Any, Optional, Callable, List, Tuple
+from datetime import datetime
+from ..common.config import validate_settings
+from ..common.exceptions import PluginError
+from database.operations.messages import (
+    get_message_text, 
+    update_message_with_response,
+    get_message_platform_profile
+)
 from database.operations.users import get_user_details, get_platform_profile_id, get_letta_user_block_id
-from database.operations.queue import update_queue_status, get_pending_queue_item
-from runtime.core.message import MessageFormatter
+from database.operations.queue import get_pending_queue_item, update_queue_status
+from .message import MessageFormatter
 from runtime.core.letta_client import get_letta_client
 from common.config import get_env_var
 from common.logging import setup_logging
@@ -37,7 +44,7 @@ class QueueProcessor:
         self,
         message_processor: Callable[[str], str],
         message_mode: str = 'echo',
-        on_message_processed: Optional[Callable[[int, str], None]] = None,
+        plugin_manager: Optional[Any] = None,
         telegram_client: Optional[Any] = None
     ):
         """Initialize the queue processor.
@@ -45,18 +52,18 @@ class QueueProcessor:
         Args:
             message_processor: Function to process messages
             message_mode: The message mode ('echo', 'listen', or 'live')
-            on_message_processed: Callback function when a message is processed
+            plugin_manager: The plugin manager instance for routing responses
             telegram_client: The Telegram client instance for typing indicator
         """
         self.message_processor = message_processor
         self.message_mode = message_mode
         self.formatter = MessageFormatter()
         self.is_running = False
-        self.on_message_processed = on_message_processed
-        self.letta_client = get_letta_client()
+        self.plugin_manager = plugin_manager
         self.telegram_client = telegram_client
         self.processing_messages = set()  # Track messages being processed
         self._stop_event = asyncio.Event()
+        self.letta_client = get_letta_client()
     
     async def _process_with_core_block(
         self,
@@ -109,6 +116,40 @@ class QueueProcessor:
             except Exception as detach_error:
                 logger.error(f"Failed to detach core block after error: {str(detach_error)}")
             return None, 'failed'
+    
+    async def _route_response(self, message_id: int, response: str) -> bool:
+        """Route a response through the appropriate platform handler.
+        
+        Args:
+            message_id: ID of the message being responded to
+            response: The response to route
+            
+        Returns:
+            bool: True if routing succeeded, False otherwise
+        """
+        if not self.plugin_manager:
+            logger.warning("No plugin manager available for response routing")
+            return False
+            
+        # Get the platform profile for the message
+        profile = await get_message_platform_profile(message_id)
+        if not profile:
+            logger.error(f"Could not find platform profile for message {message_id}")
+            return False
+            
+        # Get the handler for this platform
+        handler = self.plugin_manager.get_platform_handler(profile.platform)
+        if not handler:
+            logger.error(f"No handler registered for platform {profile.platform}")
+            return False
+            
+        try:
+            # Route the response through the platform handler
+            await handler(response, profile)
+            return True
+        except Exception as e:
+            logger.error(f"Error routing response through {profile.platform} handler: {str(e)}")
+            return False
     
     async def start(self) -> None:
         """Start processing the queue."""
@@ -179,65 +220,27 @@ class QueueProcessor:
                             logger.info("ECHO MODE: Returning formatted message")
                             response = formatted_message  # Use formatted message with metadata
                             status = 'completed'
-                            
+                        else:
+                            # Process with agent
+                            logger.info(f"Processing message in {self.message_mode.upper()} mode")
+                            response, status = await self._process_with_core_block(
+                                message=formatted_message,
+                                letta_user_id=queue_item.letta_user_id,
+                                agent_id=queue_item.agent_id
+                            )
+                        
+                        if response:
                             # Update message and queue status
                             await update_message_with_response(queue_item.message_id, response)
                             await update_queue_status(queue_item.id, status)
                             
-                            # Send response if callback is set
-                            if self.on_message_processed:
-                                platform_profile = await get_platform_profile_id(queue_item.letta_user_id)
-                                if platform_profile:
-                                    _, telegram_user_id = platform_profile
-                                    try:
-                                        # Convert platform_user_id to integer for Telegram
-                                        telegram_user_id_int = int(telegram_user_id)
-                                        await self.on_message_processed(telegram_user_id_int, response)
-                                    except ValueError:
-                                        logger.error(f"Invalid Telegram user ID format: {telegram_user_id}")
-                                        await update_queue_status(queue_item.id, 'failed')
-                        elif self.message_mode == 'listen':
-                            # Listen mode: Store message without processing
-                            logger.info("LISTEN MODE: Storing message without processing")
-                            # Mark as completed without processing
-                            await update_queue_status(queue_item.id, 'completed')
-                            logger.info(f"Message stored (Queue ID: {queue_item.id})")
-                            
-                        elif self.message_mode == 'live':
-                            # Live mode: Process through agent with core block
-                            logger.info("LIVE MODE: Processing message through agent with core block")
-                            
-                            # Get agent ID from environment
-                            agent_id = get_env_var("AGENT_ID", required=True)
-                            
-                            # Process with core block using formatted message
-                            response, status = await self._process_with_core_block(
-                                message=formatted_message,  # Use formatted message with metadata
-                                letta_user_id=queue_item.letta_user_id,
-                                agent_id=agent_id
-                            )
-                            
-                            if response:
-                                # Update message and queue status
-                                await update_message_with_response(queue_item.message_id, response)
-                                await update_queue_status(queue_item.id, status)
-                                
-                                # Send response if callback is set
-                                if self.on_message_processed:
-                                    platform_profile = await get_platform_profile_id(queue_item.letta_user_id)
-                                    if platform_profile:
-                                        _, telegram_user_id = platform_profile
-                                        try:
-                                            # Convert platform_user_id to integer for Telegram
-                                            telegram_user_id_int = int(telegram_user_id)
-                                            await self.on_message_processed(telegram_user_id_int, response)
-                                        except ValueError:
-                                            logger.error(f"Invalid Telegram user ID format: {telegram_user_id}")
-                                            await update_queue_status(queue_item.id, 'failed')
-                            else:
-                                # Mark as failed if no response
-                                await update_queue_status(queue_item.id, 'failed')
-                                logger.warning("No response received from agent - Message processing failed")
+                            # Route response through platform handler
+                            if not await self._route_response(queue_item.message_id, response):
+                                logger.warning("Failed to route response through platform handler")
+                        else:
+                            # Mark as failed if no response
+                            await update_queue_status(queue_item.id, 'failed')
+                            logger.warning("No response received from agent - Message processing failed")
                         
                     except Exception as e:
                         logger.error(f"Error processing queue item {queue_item.id}: {str(e)}")

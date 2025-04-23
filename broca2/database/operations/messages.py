@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any
 import aiosqlite
-from ..models import Message
+from ..models import Message, PlatformProfile
 
 # Database file path
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "sanctum.db")
@@ -119,4 +119,37 @@ async def get_messages(
             "message": row[4],
             "agent_response": row[5],
             "timestamp": row[6]
-        } for row in rows] 
+        } for row in rows]
+
+async def get_message_platform_profile(message_id: int) -> Optional[PlatformProfile]:
+    """Get the platform profile associated with a message.
+    
+    Args:
+        message_id: ID of the message
+        
+    Returns:
+        Optional[PlatformProfile]: The platform profile or None if not found
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT 
+                pp.id, pp.letta_user_id, pp.platform, pp.platform_user_id,
+                pp.username, pp.display_name, pp.metadata, pp.created_at, pp.last_active
+            FROM messages m
+            INNER JOIN platform_profiles pp ON m.platform_profile_id = pp.id
+            WHERE m.id = ?
+        """, (message_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return PlatformProfile(
+                    id=row[0],
+                    letta_user_id=row[1],
+                    platform=row[2],
+                    platform_user_id=row[3],
+                    username=row[4],
+                    display_name=row[5],
+                    metadata=row[6],
+                    created_at=row[7],
+                    last_active=row[8]
+                )
+            return None 
