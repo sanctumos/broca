@@ -232,21 +232,35 @@ class Application:
     
     async def stop(self) -> None:
         """Stop all application components."""
-        # Stop queue processor
-        if self.queue_processor:
-            self.queue_processor.stop()
-        
-        # Stop Telegram client
-        await self.telegram.stop()
-        
-        # Clean up agent
-        await self.agent.cleanup()
-        
-        # Remove PID file
         try:
-            os.remove("broca2.pid")
-        except:
-            pass
+            # Stop components in reverse order
+            if self.queue_processor:
+                logger.info("🛑 Stopping queue processor...")
+                await self.queue_processor.stop()
+            
+            if self.telegram:
+                logger.info("🛑 Stopping Telegram client...")
+                await self.telegram.stop()
+            
+            # Clean up agent
+            logger.info("🛑 Cleaning up agent...")
+            await self.agent.cleanup()
+            
+            # Stop plugin manager last
+            logger.info("🛑 Stopping plugin manager...")
+            await self.plugin_manager.stop()
+            
+            # Remove PID file
+            try:
+                os.remove("broca2.pid")
+            except:
+                pass
+                
+            logger.info("✅ Application stopped successfully")
+            
+        except Exception as e:
+            logger.error(f"❌ Error during shutdown: {str(e)}")
+            raise
 
     def update_settings(self, settings: dict) -> None:
         """Update application settings.
