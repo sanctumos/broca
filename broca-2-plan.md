@@ -107,7 +107,7 @@ B. Telegram Plugin Refactoring
         - Create new setting types
         - Modify core settings structure
 
-   4) [ ] Implement Message Routing Using Existing Schema:
+   4) [x] Implement Message Routing Using Existing Schema:
       a) Platform Handler Registration:
          - Add platform handler registry to PluginManager:
            ```python
@@ -204,6 +204,68 @@ B. Telegram Plugin Refactoring
       - Implement complex message threading
       - Create plugin-to-plugin communication
       - Modify existing database schema
+
+   5) [ ] Fix Application Class Plugin Integration:
+      a) [ ] Update Application Initialization:
+         - Modify Application.__init__ to properly use existing PluginManager:
+           ```python
+           class Application:
+               def __init__(self):
+                   # Initialize plugin manager first
+                   self.plugin_manager = PluginManager()
+                   
+                   # Initialize other components
+                   self.agent = AgentClient()
+                   self.telegram = TelegramPlugin()  # Note: Changed from TelegramBot to TelegramPlugin
+                   self.message_handler = MessageHandler()
+                   
+                   # Initialize queue processor with plugin manager
+                   self.queue_processor = QueueProcessor(
+                       message_processor=self._process_message,
+                       plugin_manager=self.plugin_manager
+                   )
+                   
+                   # Register the telegram plugin
+                   self.plugin_manager.register_platform_handler(
+                       "telegram",
+                       self.telegram.get_message_handler()
+                   )
+           ```
+      
+      b) [ ] Update Application Start Method:
+         - Ensure proper plugin initialization in start():
+           ```python
+           async def start(self):
+               # Start plugin manager first
+               await self.plugin_manager.start()
+               
+               # Start other components
+               await self.telegram.start()
+               await self.queue_processor.start()
+           ```
+      
+      c) [ ] Update Application Stop Method:
+         - Ensure proper plugin cleanup in stop():
+           ```python
+           async def stop(self):
+               # Stop components in reverse order
+               if self.queue_processor:
+                   await self.queue_processor.stop()
+               
+               if self.telegram:
+                   await self.telegram.stop()
+               
+               # Stop plugin manager last
+               await self.plugin_manager.stop()
+           ```
+      
+      DO NOT:
+      - Modify the existing PluginManager implementation
+      - Change the plugin interface
+      - Alter the message routing logic
+      - Modify the QueueProcessor's plugin handling
+      - Change the existing error handling
+      - write major new functions UNLESS you've checked to see if existing code is around and you missed it the first time
 
 C. CLI Conversation Plugin
    1) [ ] Create CLI plugin structure:
