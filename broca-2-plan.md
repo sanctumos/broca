@@ -90,7 +90,7 @@ B. Telegram Plugin Refactoring
         - Modify core block functionality
     
    
-   2) [ ] Refactor MessageHandler to use base class:
+   2) [x] Refactor MessageHandler to use base class:
       - Move Telegram-specific formatting to plugin
       - Use common message buffer implementation
       - Implement platform-specific user handling
@@ -99,7 +99,7 @@ B. Telegram Plugin Refactoring
         - Add new message types
         - Modify existing error handling
    
-   3) [ ] Create Telegram-specific settings:
+   3) [x] Create Telegram-specific settings:
       - Move API credentials to plugin config
       - Add session management settings
       - Define message handling modes

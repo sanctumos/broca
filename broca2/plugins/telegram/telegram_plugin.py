@@ -8,6 +8,7 @@ from dotenv import load_dotenv, set_key
 
 from common.config import get_env_var
 from plugins import Plugin, Event, EventType
+from .settings import TelegramSettings, MessageMode
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,13 @@ class TelegramPlugin(Plugin):
     
     def __init__(self):
         """Initialize the Telegram plugin."""
-        self.api_id = get_env_var("TELEGRAM_API_ID")
-        self.api_hash = get_env_var("TELEGRAM_API_HASH")
-        self.session_string = get_env_var("TELEGRAM_SESSION_STRING", default="")
+        self.settings = TelegramSettings.from_env()
         
         # Initialize client
         self.client = TelegramClient(
-            StringSession(self.session_string),
-            self.api_id,
-            self.api_hash
+            StringSession(self.settings.session_string),
+            self.settings.api_id,
+            self.settings.api_hash
         )
         
         # Event handlers
@@ -38,16 +37,15 @@ class TelegramPlugin(Plugin):
     
     def get_settings(self) -> Optional[Dict[str, Any]]:
         """Get the plugin's settings."""
-        return {
-            "api_id": self.api_id,
-            "api_hash": self.api_hash,
-            "session_string": self.session_string
-        }
+        return self.settings.to_dict()
     
     def validate_settings(self, settings: Dict[str, Any]) -> bool:
         """Validate plugin settings."""
-        required_keys = {"api_id", "api_hash"}
-        return all(key in settings for key in required_keys)
+        try:
+            TelegramSettings.from_dict(settings)
+            return True
+        except (KeyError, ValueError):
+            return False
     
     def register_event_handler(self, event_type: EventType, handler: Callable[[Event], None]) -> None:
         """Register an event handler."""
@@ -77,12 +75,13 @@ class TelegramPlugin(Plugin):
                 return
             
             # Save the session string if it's different from what we have
-            new_session_string = self.client.session.save()
-            if new_session_string != self.session_string:
-                logger.info("💾 Saving new Telegram session string...")
-                env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
-                set_key(env_path, "TELEGRAM_SESSION_STRING", new_session_string)
-                self.session_string = new_session_string
+            if self.settings.auto_save_session:
+                new_session_string = self.client.session.save()
+                if new_session_string != self.settings.session_string:
+                    logger.info("💾 Saving new Telegram session string...")
+                    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+                    set_key(env_path, "TELEGRAM_SESSION_STRING", new_session_string)
+                    self.settings.session_string = new_session_string
             
             logger.info("✅ Telegram client started successfully")
             
@@ -103,4 +102,13 @@ class TelegramPlugin(Plugin):
             event: The event to handle
         """
         if self.client:
-            self.client.add_event_handler(callback, event) 
+            self.client.add_event_handler(callback, event)
+    
+    def set_message_mode(self, mode: MessageMode) -> None:
+        """Set the message handling mode.
+        
+        Args:
+            mode: The message mode
+        """
+        self.settings.message_mode = mode
+        logger.info(f"🔵 Message processing mode changed to: {mode.name}") 
