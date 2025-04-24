@@ -1,3 +1,8 @@
+# Broca 2 Refactoring Plan (v0.9.0)
+
+## Project Overview
+This plan outlines the refactoring of Broca 2 to a CLI-first architecture with a plugin system.
+
 1) [x] create a broca2/ folder
 2) [ ] copy all async loop functionality from broca 1 to broca 2
    a) [x] Core Components to Migrate:

@@ -2,12 +2,22 @@ from setuptools import setup, find_packages
 
 setup(
     name="broca2",
-    version="0.1.0",
+    version="0.9.0",
     packages=find_packages(),
     install_requires=[
         "telethon",
         "python-dotenv",
         "sqlalchemy",
-        "aiosqlite",
+        "aiohttp",
+        "emoji",
+        "rich",
+        "typer",
+        "pydantic"
     ],
+    entry_points={
+        "console_scripts": [
+            "broca2=main:main",
+            "broca-admin=cli.broca_admin:main"
+        ]
+    }
 ) 
