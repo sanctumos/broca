@@ -176,9 +176,9 @@ class MyPlugin(Plugin):
 
 ## 📚 Documentation
 
-- [Plugin Development Guide](docs/plugin_development.md)
-- [CLI Tools Reference](docs/cli_reference.md)
-- [Configuration Guide](docs/configuration.md)
+- [Plugin Development Guide](broca2/docs/plugin_development.md)
+- [CLI Tools Reference](broca2/docs/cli_reference.md)
+- [Configuration Guide](broca2/docs/configuration.md)
 
 
 ## 🙏 Acknowledgments
