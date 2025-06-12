@@ -10,6 +10,17 @@ Broca 2 is a refactored version of Broca, focusing on:
 - Clean separation between core and platform-specific code
 - Improved maintainability and testing capabilities
 
+## Broca: The Middleware Bridge
+
+Broca 2 serves as middleware designed to bridge the Letta Agentic Framework with various communication endpoints. Just as Broca's area in the human brain is responsible for language production and speech, Broca 2 acts as the "speech center" for AI systems—translating agent intentions into actionable messages across different platforms.
+
+In the AI brain, Broca 2 plays a crucial role by:
+- **Translating Agent Intentions:** Converting high-level agent decisions into platform-specific messages.
+- **Unifying Communication:** Providing a standardized interface for different endpoints (Telegram, CLI, APIs, etc.).
+- **Enabling Extensibility:** Allowing new endpoints to be integrated seamlessly through the plugin system.
+
+This middleware approach ensures that the Letta Agentic Framework can focus on decision-making and intelligence, while Broca 2 handles the complexities of communication and integration.
+
 ## 🏗️ Architecture
 
 ```
