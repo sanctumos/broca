@@ -1,10 +1,10 @@
-# Broca 2 (v0.9.0)
+# Sanctum: Broca 2 (v0.9.0)
 
 A CLI-first, plugin-based message processing system for agent communication.
 
 ## 🚀 Overview
 
-Broca 2 is a refactored version of Broca, focusing on:
+Sanctum: Broca 2 is a refactored version of Broca, focusing on:
 - CLI-first architecture for better control and automation
 - Plugin-based system for extensible message handling
 - Clean separation between core and platform-specific code
@@ -12,14 +12,14 @@ Broca 2 is a refactored version of Broca, focusing on:
 
 ## Broca: The Middleware Bridge
 
-Broca 2 serves as middleware designed to bridge the Letta Agentic Framework with various communication endpoints. Just as Broca's area in the human brain is responsible for language production and speech, Broca 2 acts as the "speech center" for AI systems—translating agent intentions into actionable messages across different platforms.
+Sanctum: Broca 2 serves as middleware designed to bridge the Letta Agentic Framework with various communication endpoints. Just as Broca's area in the human brain is responsible for language production and speech, Sanctum: Broca 2 acts as the "speech center" for AI systems—translating agent intentions into actionable messages across different platforms.
 
-In the AI brain, Broca 2 plays a crucial role by:
+In the AI brain, Sanctum: Broca 2 plays a crucial role by:
 - **Translating Agent Intentions:** Converting high-level agent decisions into platform-specific messages.
 - **Unifying Communication:** Providing a standardized interface for different endpoints (Telegram, CLI, APIs, etc.).
 - **Enabling Extensibility:** Allowing new endpoints to be integrated seamlessly through the plugin system.
 
-This middleware approach ensures that the Letta Agentic Framework can focus on decision-making and intelligence, while Broca 2 handles the complexities of communication and integration.
+This middleware approach ensures that the Letta Agentic Framework can focus on decision-making and intelligence, while Sanctum: Broca 2 handles the complexities of communication and integration.
 
 ## 🏗️ Architecture
 
@@ -193,11 +193,11 @@ class MyPlugin(Plugin):
 
 ## 🤖 Agent/MCP-Ready Design
 
-Broca 2 is built so that all CLI tools and plugin interfaces are **MCP'able** (machine-controllable by agents):
+Sanctum: Broca 2 is built so that all CLI tools and plugin interfaces are **MCP'able** (machine-controllable by agents):
 - Every CLI and admin tool is scriptable and can be operated by other AI agents or automation systems.
 - All commands support machine-friendly output (e.g., JSON) and error handling.
-- This enables Broca to be embedded in agent networks, automated test harnesses, or orchestration systems.
-- When extending Broca, always consider both human and agent/automation use cases.
+- This enables Sanctum: Broca 2 to be embedded in agent networks, automated test harnesses, or orchestration systems.
+- When extending Sanctum: Broca 2, always consider both human and agent/automation use cases.
 
 ## 🙏 Acknowledgments
 

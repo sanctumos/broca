@@ -1,16 +1,16 @@
-# Broca 2 Plugin Development Guide
+# Sanctum: Broca 2 Plugin Development Guide
 
 ## Overview
-Broca 2 is designed with a plugin-first architecture. **Plugins are the primary way to integrate new endpoints, services, and communication channels**—not just Telegram or CLI, but any system (APIs, bots, webhooks, etc.) that needs to send or receive messages through Broca.
+Sanctum: Broca 2 is designed with a plugin-first architecture. **Plugins are the primary way to integrate new endpoints, services, and communication channels**—not just Telegram or CLI, but any system (APIs, bots, webhooks, etc.) that needs to send or receive messages through Sanctum: Broca.
 
 Plugins can:
-- Connect Broca to external platforms (e.g., Telegram, Slack, REST APIs, custom bots)
+- Connect Sanctum: Broca to external platforms (e.g., Telegram, Slack, REST APIs, custom bots)
 - Add diagnostic or testing surfaces (CLI, admin tools)
-- Extend Broca for automation, monitoring, or custom workflows
+- Extend Sanctum: Broca for automation, monitoring, or custom workflows
 
 **CLI tools and plugins are built to be MCP'able:**
 - All CLI interfaces are designed so that agents (not just humans) can operate them programmatically.
-- This enables Broca to be managed, tested, and extended by other AI agents or automation systems.
+- This enables Sanctum: Broca to be managed, tested, and extended by other AI agents or automation systems.
 - MCP (Machine Control Protocol) compatibility is a core design goal for all admin and plugin interfaces.
 
 ---
@@ -18,7 +18,7 @@ Plugins can:
 ## Agent/MCP Integration
 - Plugins and CLI tools are designed for both human and agent (AI/automation) operation.
 - All commands and endpoints are scriptable, with JSON output and machine-friendly error handling.
-- This allows Broca to be embedded in larger agent networks, automated test harnesses, or orchestration systems.
+- This allows Sanctum: Broca to be embedded in larger agent networks, automated test harnesses, or orchestration systems.
 - When building a plugin or CLI, always consider how an agent would interact with it (not just a human).
 
 ---
@@ -111,7 +111,7 @@ def get_settings(self):
 
 ## Registering and Enabling Plugins
 - Plugins are discovered and loaded by the PluginManager.
-- To enable/disable a plugin, update the config and restart Broca 2.
+- To enable/disable a plugin, update the config and restart Sanctum: Broca 2.
 - Plugins should clean up all resources on stop.
 
 ---
@@ -163,7 +163,7 @@ class EchoPlugin(Plugin):
 
 ---
 
-## Extending Broca 2
+## Extending Sanctum: Broca 2
 - Add new plugins in `plugins/`.
 - Register them in your config or via PluginManager.
 - Follow the interface and lifecycle requirements above.

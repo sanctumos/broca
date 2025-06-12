@@ -1,7 +1,7 @@
-# Broca 2 Configuration Guide
+# Sanctum: Broca 2 Configuration Guide
 
 ## Overview
-Broca 2 uses a combination of JSON and environment variable configuration for maximum flexibility. This guide covers all configuration options, files, and best practices.
+Sanctum: Broca 2 uses a combination of JSON and environment variable configuration for maximum flexibility. This guide covers all configuration options, files, and best practices.
 
 ---
 
