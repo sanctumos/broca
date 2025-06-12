@@ -124,12 +124,17 @@ class MessageBuffer:
 class MessageHandler:
     """Handles Telegram message events."""
     
-    def __init__(self):
-        """Initialize the message handler."""
+    def __init__(self, telegram_plugin=None):
+        """Initialize the message handler.
+        
+        Args:
+            telegram_plugin: Optional reference to the TelegramPlugin instance
+        """
         print("Initializing MessageHandler")
         self.formatter = MessageFormatter()
         self.buffer = MessageBuffer()
         self.message_mode = 'echo'  # Default mode
+        self.telegram_plugin = telegram_plugin
     
     def set_message_mode(self, mode: str) -> None:
         """Set the message handling mode.
@@ -154,6 +159,11 @@ class MessageHandler:
         
         sender = await event.get_sender()
         print(f"Received private message from {sender.first_name} (@{sender.username})")
+        
+        # Check if sender is a bot and is ignored
+        if sender.bot and self.telegram_plugin and self.telegram_plugin.is_bot_ignored(sender.id, sender.username):
+            print(f"Ignoring message from bot {sender.id} (@{sender.username})")
+            return
         
         # Sanitize user input
         message = self.formatter.sanitize_text(event.text)

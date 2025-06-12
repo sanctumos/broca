@@ -5,14 +5,13 @@ from typing import Optional
 
 @dataclass
 class LettaUser:
-    """Master user model representing a user across all platforms."""
+    """Master user model representing a user across all platforms. Contains user identity, preferences, and status fields."""
     id: Optional[int]
     created_at: str
     last_active: str
     letta_identity_id: Optional[str] = None  # ID of the associated Letta identity
     letta_block_id: Optional[str] = None  # ID of the associated Letta core block
     agent_preferences: Optional[str] = None  # JSON string
-    conversation_history_limit: int = 10
     custom_instructions: Optional[str] = None
     is_active: bool = True
 
@@ -66,6 +65,7 @@ class QueueItemDisplay:
 
 # Database schema definitions
 SCHEMA = {
+    # Table definitions for all core entities in the application database.
     'letta_users': """
         CREATE TABLE IF NOT EXISTS letta_users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +74,6 @@ SCHEMA = {
             letta_identity_id TEXT,
             letta_block_id TEXT,
             agent_preferences TEXT,
-            conversation_history_limit INTEGER DEFAULT 10,
             custom_instructions TEXT,
             is_active INTEGER DEFAULT 1
         )

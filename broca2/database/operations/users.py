@@ -204,10 +204,19 @@ async def get_or_create_platform_profile(
 async def update_letta_user(
     user_id: int,
     agent_preferences: Optional[Dict[str, Any]] = None,
-    conversation_history_limit: Optional[int] = None,
     custom_instructions: Optional[str] = None
 ) -> LettaUser:
-    """Update a Letta user's preferences and settings."""
+    """
+    Update a Letta user's preferences and settings in the database.
+
+    Args:
+        user_id: The ID of the user to update.
+        agent_preferences: Optional dictionary of agent preferences to store as JSON.
+        custom_instructions: Optional custom instructions for the user.
+
+    Returns:
+        LettaUser: The updated user object.
+    """
     now = datetime.utcnow().isoformat()
     updates = []
     values = []
@@ -215,10 +224,6 @@ async def update_letta_user(
     if agent_preferences is not None:
         updates.append("agent_preferences = ?")
         values.append(json.dumps(agent_preferences))
-    
-    if conversation_history_limit is not None:
-        updates.append("conversation_history_limit = ?")
-        values.append(conversation_history_limit)
     
     if custom_instructions is not None:
         updates.append("custom_instructions = ?")
@@ -251,9 +256,8 @@ async def update_letta_user(
                 last_active=row[2],
                 letta_identity_id=row[3],
                 agent_preferences=row[4],
-                conversation_history_limit=row[5],
-                custom_instructions=row[6],
-                is_active=bool(row[7])
+                custom_instructions=row[5],
+                is_active=bool(row[6])
             )
 
 async def get_user_details(letta_user_id: int) -> Optional[Tuple[str, str]]:
@@ -270,12 +274,17 @@ async def get_user_details(letta_user_id: int) -> Optional[Tuple[str, str]]:
             return None
 
 async def get_all_users() -> List[Dict[str, Any]]:
-    """Get all users with their details."""
+    """
+    Retrieve all users with their details, including platform profile information.
+
+    Returns:
+        List[Dict[str, Any]]: List of user records with associated profile data.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
             SELECT 
                 lu.id, lu.created_at, lu.last_active, lu.letta_identity_id,
-                lu.agent_preferences, lu.conversation_history_limit, lu.custom_instructions,
+                lu.agent_preferences, lu.custom_instructions,
                 lu.is_active,
                 pp.username, pp.display_name, pp.platform
             FROM letta_users lu
@@ -289,12 +298,11 @@ async def get_all_users() -> List[Dict[str, Any]]:
                     "last_active": row[2],
                     "letta_identity_id": row[3],
                     "agent_preferences": json.loads(row[4]) if row[4] else None,
-                    "conversation_history_limit": row[5],
-                    "custom_instructions": row[6],
-                    "is_active": bool(row[7]),
-                    "username": row[8],
-                    "display_name": row[9],
-                    "platform": row[10]
+                    "custom_instructions": row[5],
+                    "is_active": bool(row[6]),
+                    "username": row[7],
+                    "display_name": row[8],
+                    "platform": row[9]
                 }
                 for row in rows
             ]

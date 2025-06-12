@@ -12,7 +12,8 @@ from pathlib import Path
 
 from runtime.core.agent import AgentClient
 from runtime.core.queue import QueueProcessor
-from plugins.telegram.plugin import TelegramBot
+from runtime.core.plugin import PluginManager
+from plugins.telegram.telegram_plugin import TelegramPlugin
 from plugins.telegram.handlers import MessageHandler
 from database.operations.shared import initialize_database, check_and_migrate_db
 from common.config import get_env_var, get_settings, validate_settings
@@ -44,10 +45,29 @@ class Application:
     
     def __init__(self):
         """Initialize the application components."""
+        # Initialize plugin manager first
+        self.plugin_manager = PluginManager()
+        
+        # Initialize other components
         self.agent = AgentClient()
-        self.telegram = TelegramBot()
-        self.message_handler = MessageHandler()
-        self.queue_processor: Optional[QueueProcessor] = None
+        self.telegram = TelegramPlugin()  # Changed from TelegramBot to TelegramPlugin
+        self.message_handler = MessageHandler(telegram_plugin=self.telegram)
+        
+        # Initialize queue processor with plugin manager
+        self.queue_processor = QueueProcessor(
+            message_processor=self._process_message,
+            plugin_manager=self.plugin_manager
+        )
+        
+        # Load the telegram plugin
+        self.plugin_manager._plugins[self.telegram.get_name()] = self.telegram
+        platform = self.telegram.get_platform()
+        if platform:
+            handler = self.telegram.get_message_handler()
+            if handler:
+                self.plugin_manager._platform_handlers[platform] = handler
+                logger.info(f"Registered message handler for platform: {platform}")
+        
         self._settings_file = "settings.json"
         self._settings_mtime = 0
         
@@ -148,13 +168,19 @@ class Application:
                 logger.error("❌ Failed to initialize agent. Exiting...")
                 return
             
+            # Start plugin manager first
+            logger.info("🔄 Starting plugin manager...")
+            await self.plugin_manager.start()
+            
+            # Start Telegram client
+            logger.info("🤖 Starting Telegram client...")
+            await self.telegram.start()
+            
             # Initialize queue processor
             logger.info("📋 Initializing message queue processor...")
             self.queue_processor = QueueProcessor(
                 message_processor=self._process_message,
-                message_mode='echo',  # Default mode
-                on_message_processed=self._on_message_processed,
-                telegram_client=self.telegram.client
+                plugin_manager=self.plugin_manager
             )
             
             # Set initial message mode
@@ -166,14 +192,11 @@ class Application:
             
             # Set up Telegram handlers
             logger.info("📱 Setting up Telegram handlers...")
-            self.telegram.add_event_handler(
+            self.telegram.add_message_handler(
                 self._handle_message,
                 events.NewMessage(incoming=True)
             )
             
-            # Start Telegram client
-            logger.info("🤖 Starting Telegram client...")
-            await self.telegram.start()
             logger.info("✅ Application started successfully!")
             
             # Start settings monitor task
@@ -212,21 +235,35 @@ class Application:
     
     async def stop(self) -> None:
         """Stop all application components."""
-        # Stop queue processor
-        if self.queue_processor:
-            self.queue_processor.stop()
-        
-        # Stop Telegram client
-        await self.telegram.stop()
-        
-        # Clean up agent
-        await self.agent.cleanup()
-        
-        # Remove PID file
         try:
-            os.remove("broca2.pid")
-        except:
-            pass
+            # Stop components in reverse order
+            if self.queue_processor:
+                logger.info("🛑 Stopping queue processor...")
+                await self.queue_processor.stop()
+            
+            if self.telegram:
+                logger.info("🛑 Stopping Telegram client...")
+                await self.telegram.stop()
+            
+            # Clean up agent
+            logger.info("🛑 Cleaning up agent...")
+            await self.agent.cleanup()
+            
+            # Stop plugin manager last
+            logger.info("🛑 Stopping plugin manager...")
+            await self.plugin_manager.stop()
+            
+            # Remove PID file
+            try:
+                os.remove("broca2.pid")
+            except:
+                pass
+                
+            logger.info("✅ Application stopped successfully")
+            
+        except Exception as e:
+            logger.error(f"❌ Error during shutdown: {str(e)}")
+            raise
 
     def update_settings(self, settings: dict) -> None:
         """Update application settings.

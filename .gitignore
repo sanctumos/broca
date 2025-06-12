@@ -57,3 +57,6 @@ broca2/plugins/telegram/__pycache__/__init__.cpython-312.pyc
 broca2/plugins/telegram/__pycache__/handlers.cpython-312.pyc
 broca2/plugins/telegram/__pycache__/plugin.cpython-312.pyc
 broca2/runtime/core/__pycache__/message.cpython-312.pyc
+
+# Ignore database backup files
+broca2/sanctum.db.bak

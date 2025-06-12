@@ -1,10 +1,12 @@
 """Telegram bot plugin."""
 import logging
 import os
-from typing import Dict, Any, Optional, Callable
+import json
+from typing import Dict, Any, Optional, Callable, List
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from dotenv import load_dotenv, set_key
+from pathlib import Path
 
 from common.config import get_env_var
 from plugins import Plugin, Event, EventType
@@ -22,6 +24,7 @@ class TelegramPlugin(Plugin):
         """Initialize the Telegram plugin."""
         self.settings = TelegramSettings.from_env()
         self.formatter = MessageFormatter()
+        self.ignored_bots: Dict[str, Dict[str, str]] = {}
         
         # Initialize client
         self.client = TelegramClient(
@@ -34,6 +37,62 @@ class TelegramPlugin(Plugin):
         self._event_handlers: Dict[EventType, set[Callable[[Event], None]]] = {
             event_type: set() for event_type in EventType
         }
+    
+    def _get_ignore_list_path(self) -> Path:
+        """Get the path to the ignore list file."""
+        return Path(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "telegram_ignore_list.json"))
+    
+    def _load_ignore_list(self) -> None:
+        """Load the ignore list from file."""
+        path = self._get_ignore_list_path()
+        if not path.exists():
+            logger.info("No ignore list file found")
+            return
+            
+        try:
+            with open(path, 'r') as f:
+                self.ignored_bots = json.load(f)
+            logger.info(f"Loaded {len(self.ignored_bots)} ignored bots: {self.ignored_bots}")
+        except json.JSONDecodeError:
+            logger.error("Failed to parse ignore list file")
+            self.ignored_bots = {}
+    
+    def reload_ignore_list(self) -> None:
+        """Reload the ignore list from file."""
+        logger.debug("Reloading ignore list...")
+        self._load_ignore_list()
+    
+    def is_bot_ignored(self, bot_id: str, username: Optional[str] = None) -> bool:
+        """Check if a bot is in the ignore list.
+        
+        Args:
+            bot_id: The bot ID to check
+            username: Optional bot username to check
+            
+        Returns:
+            bool: True if the bot is ignored, False otherwise
+        """
+        # Reload the ignore list to get any changes
+        self.reload_ignore_list()
+        
+        # Check by ID
+        if str(bot_id) in self.ignored_bots:
+            logger.info(f"Bot {bot_id} (@{username}) is ignored by ID")
+            return True
+            
+        # Check by username
+        if username:
+            # Remove @ if present and convert to lowercase
+            username = username[1:] if username.startswith('@') else username
+            username = username.lower()
+            
+            for data in self.ignored_bots.values():
+                if data.get("username", "").lower() == username:
+                    logger.info(f"Bot {bot_id} (@{username}) is ignored by username")
+                    return True
+        
+        logger.debug(f"Bot {bot_id} (@{username}) is not ignored")
+        return False
     
     def get_name(self) -> str:
         """Get the plugin's name."""
@@ -134,6 +193,9 @@ class TelegramPlugin(Plugin):
             if not await self.client.is_user_authorized():
                 logger.error("❌ Telegram client not authorized")
                 return
+            
+            # Load ignore list
+            self._load_ignore_list()
             
             # Save the session string if it's different from what we have
             if self.settings.auto_save_session:

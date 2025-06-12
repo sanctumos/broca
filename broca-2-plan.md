@@ -1,3 +1,8 @@
+# Broca 2 Refactoring Plan (v0.9.0)
+
+## Project Overview
+This plan outlines the refactoring of Broca 2 to a CLI-first architecture with a plugin system.
+
 1) [x] create a broca2/ folder
 2) [ ] copy all async loop functionality from broca 1 to broca 2
    a) [x] Core Components to Migrate:
@@ -12,7 +17,7 @@
       - [x] User operations (get_user_details, get_platform_profile_id, get_letta_user_block_id)
       - [x] Queue operations (update_queue_status, get_pending_queue_item)
    
-   c) [ ] Configuration and Logging:
+   c) [x] Configuration and Logging:
       - [x] Common config setup (common/config.py)
       - [x] Logging setup with emoji support (common/logging.py)
    
@@ -107,7 +112,7 @@ B. Telegram Plugin Refactoring
         - Create new setting types
         - Modify core settings structure
 
-   4) [ ] Implement Message Routing Using Existing Schema:
+   4) [x] Implement Message Routing Using Existing Schema:
       a) Platform Handler Registration:
          - Add platform handler registry to PluginManager:
            ```python
@@ -205,15 +210,78 @@ B. Telegram Plugin Refactoring
       - Create plugin-to-plugin communication
       - Modify existing database schema
 
+   5) [x] Fix Application Class Plugin Integration:
+      a) [x] Update Application Initialization:
+         - Modify Application.__init__ to properly use existing PluginManager:
+           ```python
+           class Application:
+               def __init__(self):
+                   # Initialize plugin manager first
+                   self.plugin_manager = PluginManager()
+                   
+                   # Initialize other components
+                   self.agent = AgentClient()
+                   self.telegram = TelegramPlugin()  # Note: Changed from TelegramBot to TelegramPlugin
+                   self.message_handler = MessageHandler()
+                   
+                   # Initialize queue processor with plugin manager
+                   self.queue_processor = QueueProcessor(
+                       message_processor=self._process_message,
+                       plugin_manager=self.plugin_manager
+                   )
+                   
+                   # Register the telegram plugin
+                   self.plugin_manager.register_platform_handler(
+                       "telegram",
+                       self.telegram.get_message_handler()
+                   )
+           ```
+      
+      b) [x] Update Application Start Method:
+         - Ensure proper plugin initialization in start():
+           ```python
+           async def start(self):
+               # Start plugin manager first
+               await self.plugin_manager.start()
+               
+               # Start other components
+               await self.telegram.start()
+               await self.queue_processor.start()
+           ```
+      
+      c) [x] Update Application Stop Method:
+         - Ensure proper plugin cleanup in stop():
+           ```python
+           async def stop(self):
+               # Stop components in reverse order
+               if self.queue_processor:
+                   await self.queue_processor.stop()
+               
+               if self.telegram:
+                   await self.telegram.stop()
+               
+               # Stop plugin manager last
+               await self.plugin_manager.stop()
+           ```
+      
+      DO NOT:
+      - Modify the existing PluginManager implementation
+      - Change the plugin interface
+      - Alter the message routing logic
+      - Modify the QueueProcessor's plugin handling
+      - Change the existing error handling
+      - write major new functions UNLESS you've checked to see if existing code is around and you missed it the first time
+
 C. CLI Conversation Plugin
    1) [ ] Create CLI plugin structure:
-      - Implement Plugin base class
-      - Add command-line interface for conversation
+      - Implement Plugin base class for message handling in plugins/cli/
+      - Create standalone CLI script in cli/ folder (similar to ctool.py/qtool.py)
       - Support message modes (echo, listen, live)
       - DO NOT:
         - Add complex CLI features
         - Implement advanced terminal UI
         - Create new message types
+        - Integrate with main server runtime
    
    2) [ ] Implement CLI message handling:
       - Use common MessageHandler base
@@ -223,6 +291,7 @@ C. CLI Conversation Plugin
         - Add complex input validation
         - Implement command aliases
         - Create new message formats
+        - Run as part of main server
    
    3) [ ] Add CLI-specific features:
       - Command history
@@ -232,9 +301,51 @@ C. CLI Conversation Plugin
         - Add complex command parsing
         - Implement advanced history features
         - Create new user management features
+        - Embed in server process
+
+   IMPORTANT: This is a standalone diagnostic/utility tool:
+   - Must be runnable independently from main server
+   - Follows pattern of existing CLI tools (ctool.py, qtool.py)
+   - Primary purpose is diagnostic/testing when other interfaces are down
+   - Could be used as building block for CLI API layer
+   - Should be placed in @cli folder with other CLI tools (even if the core modules exist in its own plugin folder)
+   - Must NOT be integrated into main server runtime
+   - Must NOT require server to be running to function
+   - Must NOT attempt to run alongside server process
+
+   Project Structure:
+   ```
+   broca2/
+   ├── plugins/
+   │   └── cli/
+   │       ├── __init__.py
+   │       ├── plugin.py      # Plugin implementation
+   │       └── message.py     # CLI-specific message handling
+   └── cli/
+       └── cli_plugin.py      # Standalone CLI tool
+   ```
+
+   Documentation Requirements:
+   - Clear separation between plugin implementation and CLI tool
+   - Instructions for enabling/disabling the plugin
+   - Example use cases for different scenarios
+   - Configuration options for plugin behavior
+   - Integration points with other CLI tools
+   - Error handling and recovery procedures
+   - Performance considerations for different modes
+   - Security implications of plugin usage
+
+   Plugin Management:
+   - Plugin should be easily enabled/disabled
+   - Configuration should be separate from core settings
+   - Should not affect other plugins when disabled
+   - Should clean up resources properly when disabled
+   - Should maintain state between enable/disable cycles
+   - Should log all significant operations
+   - Should provide clear status feedback
 
 D. Common Infrastructure
-   1) [ ] Update core to support multiple plugins:
+   1) [x] Update core to support multiple plugins:
       - Modify main.py to use PluginManager
       - Add plugin configuration loading
       - Support concurrent plugin operation
@@ -243,7 +354,7 @@ D. Common Infrastructure
         - Implement complex startup sequences
         - Create new core features
    
-   2) [ ] Create plugin settings schema:
+   2) [x] Create plugin settings schema:
       - Define required vs optional settings
       - Add validation rules
       - Support plugin-specific settings
@@ -252,7 +363,7 @@ D. Common Infrastructure
         - Create new setting types
         - Modify core settings structure
    
-   3) [ ] Implement plugin event system:
+   3) [x] Implement plugin event system:
       - Define core events (message, status, error)
       - Add plugin event registration
       - Support event filtering
