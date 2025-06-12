@@ -51,7 +51,7 @@ class Application:
         # Initialize other components
         self.agent = AgentClient()
         self.telegram = TelegramPlugin()  # Changed from TelegramBot to TelegramPlugin
-        self.message_handler = MessageHandler()
+        self.message_handler = MessageHandler(telegram_plugin=self.telegram)
         
         # Initialize queue processor with plugin manager
         self.queue_processor = QueueProcessor(
