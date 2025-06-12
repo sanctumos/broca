@@ -56,7 +56,12 @@ async def update_message_with_response(message_id: int, agent_response: str) -> 
         await db.commit()
 
 async def get_message_history() -> List[dict]:
-    """Get the message history with user details."""
+    """
+    Get the message history with user details, including message content, response, and user metadata.
+
+    Returns:
+        List[dict]: List of message records with associated user and status information.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
             SELECT 
