@@ -180,6 +180,13 @@ class MyPlugin(Plugin):
 - [CLI Tools Reference](broca2/docs/cli_reference.md)
 - [Configuration Guide](broca2/docs/configuration.md)
 
+## 🤖 Agent/MCP-Ready Design
+
+Broca 2 is built so that all CLI tools and plugin interfaces are **MCP'able** (machine-controllable by agents):
+- Every CLI and admin tool is scriptable and can be operated by other AI agents or automation systems.
+- All commands support machine-friendly output (e.g., JSON) and error handling.
+- This enables Broca to be embedded in agent networks, automated test harnesses, or orchestration systems.
+- When extending Broca, always consider both human and agent/automation use cases.
 
 ## 🙏 Acknowledgments
 

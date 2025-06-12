@@ -1,7 +1,25 @@
 # Broca 2 Plugin Development Guide
 
 ## Overview
-Broca 2 is designed with a plugin-first architecture. Plugins allow you to extend, customize, and integrate new message sources, platforms, or diagnostic tools without modifying the core system.
+Broca 2 is designed with a plugin-first architecture. **Plugins are the primary way to integrate new endpoints, services, and communication channels**—not just Telegram or CLI, but any system (APIs, bots, webhooks, etc.) that needs to send or receive messages through Broca.
+
+Plugins can:
+- Connect Broca to external platforms (e.g., Telegram, Slack, REST APIs, custom bots)
+- Add diagnostic or testing surfaces (CLI, admin tools)
+- Extend Broca for automation, monitoring, or custom workflows
+
+**CLI tools and plugins are built to be MCP'able:**
+- All CLI interfaces are designed so that agents (not just humans) can operate them programmatically.
+- This enables Broca to be managed, tested, and extended by other AI agents or automation systems.
+- MCP (Machine Control Protocol) compatibility is a core design goal for all admin and plugin interfaces.
+
+---
+
+## Agent/MCP Integration
+- Plugins and CLI tools are designed for both human and agent (AI/automation) operation.
+- All commands and endpoints are scriptable, with JSON output and machine-friendly error handling.
+- This allows Broca to be embedded in larger agent networks, automated test harnesses, or orchestration systems.
+- When building a plugin or CLI, always consider how an agent would interact with it (not just a human).
 
 ---
 
