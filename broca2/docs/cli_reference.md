@@ -1,7 +1,7 @@
-# Broca 2 CLI Tools Reference
+# Sanctum: Broca 2 CLI Tools Reference
 
 ## Overview
-Broca 2 provides a suite of CLI tools for administration, diagnostics, and development. All tools are designed for automation and scripting as well as interactive use.
+Sanctum: Broca 2 provides a suite of CLI tools for administration, diagnostics, and development. All tools are designed for automation and scripting as well as interactive use.
 
 ---
 
