@@ -362,7 +362,7 @@ This document provides a comprehensive analysis of the project structure, compon
 - Integrates with queue system
 - Handles Telegram-specific events
 
-### Database Layer
+### Database Layer   
 
 #### Database Operations (`database/operations.py`)
 **Architecture:**
