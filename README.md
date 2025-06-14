@@ -199,7 +199,24 @@ Sanctum: Broca 2 is built so that all CLI tools and plugin interfaces are **MCP'
 - This enables Sanctum: Broca 2 to be embedded in agent networks, automated test harnesses, or orchestration systems.
 - When extending Sanctum: Broca 2, always consider both human and agent/automation use cases.
 
-## 🙏 Acknowledgments
+## 🔮 Planned Updates
+
+### Multi-Agent Architecture
+Sanctum: Broca 2 will support multiple Letta agents through a simple, efficient architecture:
+- Each agent will run in its own Broca instance
+- Instances will share a common virtual environment to minimize resource usage
+- Simple git-based update system that preserves agent-specific configurations
+- Clear 1:1 mapping between Broca instances and Letta agents
+
+### Broca MCP Server
+A new Management Control Panel server will be added to manage multiple Broca instances:
+- Instance Management: Deploy, monitor, and update Broca instances
+- Agent Configuration: Manage Letta agent credentials and settings
+- Monitoring & Logging: Centralized logging and performance metrics
+- Resource Management: Monitor shared resources and system health
+- Security: Centralized credential management and access control
+
+## �� Acknowledgments
 
 - Original Broca project (It was me).
 - Contributors and maintainers (Also me).
