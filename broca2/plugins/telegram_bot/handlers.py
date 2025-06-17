@@ -1,14 +1,18 @@
 """Telegram message handlers and event processing."""
 import asyncio
-from typing import Dict, Any, Tuple
+import logging
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 from runtime.core.message import MessageFormatter
 from database.operations.users import get_or_create_platform_profile
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
+from runtime.core.letta_client import LettaClient
+
+logger = logging.getLogger(__name__)
 
 class MessageBuffer:
-    """Buffers messages for batch processing."""
+    """Buffers messages before sending them to the queue."""
     
     def __init__(self, delay: int = 5):
         """Initialize the message buffer.
@@ -17,124 +21,85 @@ class MessageBuffer:
             delay: Delay in seconds before flushing messages
         """
         self.delay = delay
-        self.buffers: Dict[int, Dict[str, Any]] = {}
-        self.formatter = MessageFormatter()
-        print(f"Message buffer initialized with {delay}s delay")
+        self.messages: List[Dict[str, Any]] = []
+        self.letta_client = LettaClient()
+        logger.info(f"Message buffer initialized with {delay}s delay")
     
-    async def add_message(
-        self,
-        platform_user_id: int,
-        letta_user_id: int,
-        platform_profile_id: int,
-        message: str,
-        timestamp: datetime
-    ) -> None:
+    async def add_message(self, message: Dict[str, Any]) -> None:
         """Add a message to the buffer.
         
         Args:
-            platform_user_id: The platform-specific user ID
-            letta_user_id: The Letta user ID
-            platform_profile_id: The platform profile ID
-            message: The message text
-            timestamp: The message timestamp
+            message: The message to add
         """
-        print(f"Adding message to buffer for user {platform_user_id}: {message[:50]}...")
-        
-        buffer_key = (platform_user_id, letta_user_id, platform_profile_id)
-        if buffer_key not in self.buffers:
-            self.buffers[buffer_key] = {
-                "messages": [],
-                "task": None
-            }
-            print(f"Created new buffer for user {platform_user_id}")
-        
-        self.buffers[buffer_key]["messages"].append((message, timestamp))
-        
-        # Cancel any existing flush task
-        if self.buffers[buffer_key]["task"] is not None:
-            self.buffers[buffer_key]["task"].cancel()
-            print(f"Cancelled existing flush task for user {platform_user_id}")
-        
-        # Schedule a new flush
-        self.buffers[buffer_key]["task"] = asyncio.create_task(
-            self._schedule_flush(buffer_key)
-        )
-        print(f"Scheduled new flush task for user {platform_user_id}")
+        self.messages.append(message)
+        if len(self.messages) == 1:
+            # Start flush timer for first message
+            asyncio.create_task(self._delayed_flush())
     
-    async def _schedule_flush(self, buffer_key: Tuple[int, int, int]) -> None:
-        """Schedule a flush for the specified user's buffer.
-        
-        Args:
-            buffer_key: Tuple of (platform_user_id, letta_user_id, platform_profile_id)
-        """
-        try:
-            platform_user_id = buffer_key[0]
-            print(f"Waiting {self.delay}s before flushing messages for user {platform_user_id}")
-            await asyncio.sleep(self.delay)
-            if buffer_key in self.buffers and self.buffers[buffer_key]["messages"]:
-                print(f"Flushing messages for user {platform_user_id}")
-                await self._flush_buffer(buffer_key)
-        except asyncio.CancelledError:
-            print(f"Flush task cancelled for user {platform_user_id}")
-            pass
+    async def _delayed_flush(self) -> None:
+        """Flush messages after delay."""
+        await asyncio.sleep(self.delay)
+        await self.flush()
     
-    async def _flush_buffer(self, buffer_key: Tuple[int, int, int]) -> None:
-        """Flush the message buffer for a user.
-        
-        Args:
-            buffer_key: Tuple of (platform_user_id, letta_user_id, platform_profile_id)
-        """
-        platform_user_id, letta_user_id, platform_profile_id = buffer_key
-        buffer = self.buffers.get(buffer_key)
-        if not buffer or not buffer["messages"]:
-            print(f"No messages to flush for user {platform_user_id}")
+    async def flush(self) -> None:
+        """Flush all buffered messages to the queue."""
+        if not self.messages:
             return
         
-        print(f"Flushing {len(buffer['messages'])} messages for user {platform_user_id}")
-        
-        # Get raw messages and combine them with newlines
-        messages = [msg for msg, _ in buffer["messages"]]
-        combined_text = "\n".join(messages)
-        
-        # Get timestamp of first message
-        first_msg_date = buffer["messages"][0][1].strftime("%Y-%m-%d %H:%M UTC")
-        
-        print(f"Inserting message into database: {combined_text[:50]}...")
-        
-        # Insert message and add to queue
-        message_id = await insert_message(
-            letta_user_id=letta_user_id,
-            platform_profile_id=platform_profile_id,
-            role="user",
-            message=combined_text,
-            timestamp=first_msg_date
-        )
-        await add_to_queue(letta_user_id, message_id)
-        
-        print(f"Message {message_id} added to queue for user {platform_user_id}")
-        
-        # Clear the buffer
-        self.buffers[buffer_key] = {
-            "messages": [],
-            "task": None
-        }
-        print(f"Buffer cleared for user {platform_user_id}")
+        try:
+            # Add all messages to queue
+            for message in self.messages:
+                await self.letta_client.add_to_queue(
+                    message=message["message"],
+                    user_id=message["user_id"],
+                    username=message["username"],
+                    first_name=message["first_name"],
+                    timestamp=message["timestamp"]
+                )
+        except Exception as e:
+            logger.error(f"Error flushing messages: {e}")
+            raise
+        finally:
+            self.clear()
+    
+    def clear(self) -> None:
+        """Clear all buffered messages."""
+        self.messages.clear()
 
 class MessageHandler:
-    """Handles Telegram message events."""
+    """Handles message processing and buffering."""
     
-    def __init__(self, telegram_plugin=None):
+    def __init__(self, buffer_delay: int = 5):
         """Initialize the message handler.
         
         Args:
-            telegram_plugin: Optional reference to the TelegramPlugin instance
+            buffer_delay: Delay in seconds before flushing messages
         """
-        print("Initializing MessageHandler")
-        self.formatter = MessageFormatter()
-        self.buffer = MessageBuffer()
-        self.message_mode = 'echo'  # Default mode
-        self.telegram_plugin = telegram_plugin
+        self.buffer = MessageBuffer(delay=buffer_delay)
+        self.letta_client = LettaClient()
     
+    async def handle_message(self, message: Dict[str, Any]) -> None:
+        """Handle a message.
+        
+        Args:
+            message: The message to handle
+        """
+        await self.buffer.add_message(message)
+    
+    async def process_message(self, message: Dict[str, Any]) -> None:
+        """Process a message immediately.
+        
+        Args:
+            message: The message to process
+        """
+        await self.letta_client.add_to_queue(
+            message=message["message"],
+            user_id=message["user_id"],
+            username=message["username"],
+            first_name=message["first_name"],
+            timestamp=message["timestamp"]
+        )
+
     def set_message_mode(self, mode: str) -> None:
         """Set the message handling mode.
         
@@ -177,10 +142,12 @@ class MessageHandler:
         
         # Always add message to buffer/queue regardless of mode
         await self.buffer.add_message(
-            platform_user_id=user_id,
-            letta_user_id=letta_user.id,
-            platform_profile_id=profile.id,
-            message=message,
-            timestamp=datetime.now()
+            {
+                "user_id": letta_user.id,
+                "username": sender_username,
+                "first_name": sender_first_name,
+                "message": message,
+                "timestamp": datetime.now()
+            }
         )
         print(f"Message added to queue in {self.message_mode} mode") 

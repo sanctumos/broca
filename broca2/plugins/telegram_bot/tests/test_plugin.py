@@ -6,8 +6,8 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.types import User, Message, Chat
 
-from ..plugin import TelegramBotPlugin
-from ..settings import TelegramBotSettings, MessageMode
+from plugins.telegram_bot.plugin import TelegramBotPlugin
+from plugins.telegram_bot.settings import TelegramBotSettings, MessageMode
 
 @pytest.fixture
 def mock_bot():
@@ -42,54 +42,93 @@ def mock_message(mock_user):
     )
 
 @pytest.fixture
-def plugin():
-    """Create a plugin instance."""
+def plugin(mock_letta_client):
+    """Create a plugin instance for testing."""
     return TelegramBotPlugin()
 
 @pytest.mark.asyncio
 async def test_plugin_initialization(plugin):
     """Test plugin initialization."""
-    assert plugin.get_name() == "telegram_bot"
+    assert plugin.get_name() == "Telegram Bot"
     assert plugin.get_platform() == "telegram"
-    assert plugin.settings is None
-    assert plugin.bot is None
-    assert plugin.dp is None
-    assert plugin.message_handler is None
-    assert plugin.message_buffer is None
-    assert not plugin._running
-    assert not plugin._owner_verified
+    assert plugin.get_message_handler() is not None
+    assert plugin.get_settings() is not None
 
 @pytest.mark.asyncio
 async def test_plugin_start(plugin, mock_bot, mock_dispatcher):
     """Test plugin start."""
     with patch("aiogram.Bot", return_value=mock_bot), \
-         patch("aiogram.Dispatcher", return_value=mock_dispatcher), \
-         patch.object(TelegramBotSettings, "from_env", return_value=MagicMock(
-             bot_token="test_token",
-             owner_id="123456789",
-             message_mode=MessageMode.ECHO,
-             buffer_delay=5
-         )):
-        
+         patch("aiogram.Dispatcher", return_value=mock_dispatcher):
         await plugin.start()
-        
-        assert plugin.settings is not None
         assert plugin.bot is not None
         assert plugin.dp is not None
-        assert plugin.message_handler is not None
-        assert plugin.message_buffer is not None
-        assert plugin._running
+        mock_dispatcher.start_polling.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_plugin_stop(plugin, mock_bot):
     """Test plugin stop."""
     plugin.bot = mock_bot
-    plugin._running = True
-    
     await plugin.stop()
-    
-    assert not plugin._running
     mock_bot.session.close.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_handle_message(plugin, mock_message, mock_letta_client):
+    """Test message handling."""
+    plugin.bot = AsyncMock()
+    await plugin._handle_message(mock_message)
+    mock_letta_client.add_to_queue.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_handle_response(plugin, mock_message):
+    """Test response handling."""
+    plugin.bot = AsyncMock()
+    await plugin._handle_response("Test response", mock_message)
+    mock_message.answer.assert_called_once_with("Test response")
+
+@pytest.mark.asyncio
+async def test_handle_start_command(plugin, mock_message):
+    """Test start command handling."""
+    await plugin._handle_start_command(mock_message)
+    mock_message.answer.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_handle_help_command(plugin, mock_message):
+    """Test help command handling."""
+    await plugin._handle_help_command(mock_message)
+    mock_message.answer.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_handle_unknown_command(plugin, mock_message):
+    """Test unknown command handling."""
+    await plugin._handle_unknown_command(mock_message)
+    mock_message.answer.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_validate_settings(plugin):
+    """Test settings validation."""
+    settings = TelegramBotSettings(
+        bot_token="test_token",
+        owner_id=123456789,
+        message_mode=MessageMode.ECHO,
+        buffer_delay=5
+    )
+    assert plugin.validate_settings(settings) is True
+
+@pytest.mark.asyncio
+async def test_register_event_handler(plugin):
+    """Test event handler registration."""
+    handler = AsyncMock()
+    plugin.register_event_handler("test_event", handler)
+    assert "test_event" in plugin.event_handlers
+    assert plugin.event_handlers["test_event"] == handler
+
+@pytest.mark.asyncio
+async def test_emit_event(plugin):
+    """Test event emission."""
+    handler = AsyncMock()
+    plugin.register_event_handler("test_event", handler)
+    await plugin.emit_event("test_event", {"data": "test"})
+    handler.assert_called_once_with({"data": "test"})
 
 @pytest.mark.asyncio
 async def test_verify_owner_by_id(plugin, mock_user):
@@ -145,35 +184,4 @@ async def test_handle_message_from_non_owner(plugin, mock_message):
     
     await plugin._handle_message(mock_message)
     
-    plugin.message_handler.handle_private_message.assert_not_called()
-
-@pytest.mark.asyncio
-async def test_handle_start_command(plugin, mock_message):
-    """Test handling /start command."""
-    await plugin._handle_start(mock_message)
-    
-    mock_message.answer.assert_called_once()
-
-@pytest.mark.asyncio
-async def test_handle_help_command(plugin, mock_message):
-    """Test handling /help command."""
-    await plugin._handle_help(mock_message)
-    
-    mock_message.answer.assert_called_once()
-
-@pytest.mark.asyncio
-async def test_handle_response(plugin, mock_bot):
-    """Test handling response message."""
-    plugin.bot = mock_bot
-    message_id = 1
-    response = "Test response"
-    
-    with patch.object(plugin, "_get_message", return_value={
-        "platform_user_id": "123456789"
-    }):
-        await plugin._handle_response(message_id, response)
-        
-        mock_bot.send_message.assert_called_once_with(
-            chat_id="123456789",
-            text=response
-        ) 
+    plugin.message_handler.handle_private_message.assert_not_called() 

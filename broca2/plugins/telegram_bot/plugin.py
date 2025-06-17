@@ -1,252 +1,200 @@
 """Telegram bot plugin using aiogram."""
 import logging
-import asyncio
-from typing import Dict, Any, Optional
-from datetime import datetime
+from typing import Dict, Any, Optional, Callable, Awaitable
 
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
+from aiogram import Bot, Dispatcher
 from aiogram.types import Message
-from aiogram.exceptions import TelegramAPIError
+from aiogram.filters import Command
+from aiogram.exceptions import TelegramUnauthorizedError
 
-from runtime.core.plugin import Plugin
-from runtime.core.message import MessageFormatter
-from database.operations.users import get_or_create_platform_profile
-from database.operations.messages import insert_message, update_message_status
-from database.operations.queue import add_to_queue
-
-from .settings import TelegramBotSettings, MessageMode
-from .handlers import MessageHandler, MessageBuffer
-from .message_handler import TelegramMessageHandler
+from plugins.telegram_bot.settings import TelegramBotSettings, MessageMode
+from plugins.telegram_bot.message_handler import TelegramMessageHandler
+from plugins.telegram_bot.handlers import MessageHandler
 
 logger = logging.getLogger(__name__)
 
-class TelegramBotPlugin(Plugin):
+class TelegramBotPlugin:
     """Telegram bot plugin using aiogram."""
-    
+
     def __init__(self):
         """Initialize the plugin."""
-        super().__init__()
-        self.settings = None
-        self.bot = None
-        self.dp = None
-        self.message_handler = None
-        self.message_buffer = None
-        self.formatter = MessageFormatter()
-        self._running = False
-        self._owner_verified = False
-        logger.info("TelegramBotPlugin initialized")
-    
+        self.settings = TelegramBotSettings.from_env()
+        self.bot: Optional[Bot] = None
+        self.dp: Optional[Dispatcher] = None
+        self.message_handler = TelegramMessageHandler()
+        self.event_handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[None]]] = {}
+        logger.info("Initialized TelegramBotPlugin")
+
     def get_name(self) -> str:
-        """Get the plugin name."""
-        return "telegram_bot"
-    
-    def get_platform(self) -> str:
-        """Get the platform name."""
-        return "telegram"
-    
-    def get_message_handler(self) -> MessageHandler:
-        """Get the message handler."""
-        return self.message_handler
-    
-    async def _handle_response(self, message_id: int, response: str) -> None:
-        """Handle a response message.
-        
-        Args:
-            message_id: The message ID
-            response: The response text
-        """
-        try:
-            # Format the response
-            formatted_response = self.formatter.format_message(response)
-            
-            # Get the message from the database
-            message = await self._get_message(message_id)
-            if not message:
-                logger.error(f"Message {message_id} not found")
-                return
-            
-            # Get the user's Telegram ID
-            user_id = message.get("platform_user_id")
-            if not user_id:
-                logger.error(f"No platform_user_id found for message {message_id}")
-                return
-            
-            # Send the response
-            await self.bot.send_message(
-                chat_id=user_id,
-                text=formatted_response
-            )
-            
-            # Update message status
-            await update_message_status(message_id, "sent")
-            logger.info(f"Response sent for message {message_id}")
-            
-        except TelegramAPIError as e:
-            logger.error(f"Failed to send response for message {message_id}: {str(e)}")
-            await update_message_status(message_id, "failed")
-        except Exception as e:
-            logger.error(f"Error handling response for message {message_id}: {str(e)}")
-            await update_message_status(message_id, "failed")
-    
-    def get_settings(self) -> Dict[str, Any]:
-        """Get the plugin settings."""
-        return self.settings.to_dict() if self.settings else {}
-    
-    def validate_settings(self, settings: Dict[str, Any]) -> bool:
-        """Validate the plugin settings.
-        
-        Args:
-            settings: The settings to validate
-            
+        """Get the plugin name.
+
         Returns:
-            True if settings are valid, False otherwise
+            str: Plugin name
+        """
+        return "Telegram Bot"
+
+    def get_platform(self) -> str:
+        """Get the platform name.
+
+        Returns:
+            str: Platform name
+        """
+        return "telegram"
+
+    def get_message_handler(self) -> MessageHandler:
+        """Get the message handler.
+
+        Returns:
+            MessageHandler: Message handler instance
+        """
+        return self.message_handler
+
+    def get_settings(self) -> TelegramBotSettings:
+        """Get the plugin settings.
+
+        Returns:
+            TelegramBotSettings: Settings instance
+        """
+        return self.settings
+
+    def validate_settings(self, settings: TelegramBotSettings) -> bool:
+        """Validate plugin settings.
+
+        Args:
+            settings: Settings to validate
+
+        Returns:
+            bool: True if settings are valid
         """
         try:
-            TelegramBotSettings.from_dict(settings)
+            if not settings.bot_token:
+                return False
+            if not settings.owner_id and not settings.owner_username:
+                return False
+            if settings.owner_id and settings.owner_username:
+                return False
             return True
         except Exception as e:
-            logger.error(f"Invalid settings: {str(e)}")
+            logger.error(f"Invalid settings: {e}")
             return False
-    
-    async def register_event_handler(self, event_type: str, handler: callable) -> None:
+
+    async def register_event_handler(self, event: str, handler: Callable[[Dict[str, Any]], Awaitable[None]]) -> None:
         """Register an event handler.
-        
+
         Args:
-            event_type: The event type
-            handler: The handler function
+            event: Event name
+            handler: Event handler function
         """
-        if event_type == "message":
-            self.message_handler = handler
-            logger.info("Message event handler registered")
-    
-    async def emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
+        self.event_handlers[event] = handler
+
+    async def emit_event(self, event: str, data: Dict[str, Any]) -> None:
         """Emit an event.
-        
+
         Args:
-            event_type: The event type
-            data: The event data
+            event: Event name
+            data: Event data
         """
-        if event_type == "message" and self.message_handler:
-            await self.message_handler(data)
-            logger.info(f"Message event emitted: {data}")
-    
+        if event in self.event_handlers:
+            await self.event_handlers[event](data)
+
     async def start(self) -> None:
         """Start the plugin."""
         try:
-            # Load settings
-            self.settings = TelegramBotSettings.from_env()
-            if not self.settings:
-                raise ValueError("Failed to load settings")
-            
             # Initialize bot and dispatcher
             self.bot = Bot(token=self.settings.bot_token)
             self.dp = Dispatcher()
-            
-            # Initialize message handler and buffer
-            self.message_handler = MessageHandler(self)
-            self.message_buffer = MessageBuffer(delay=self.settings.buffer_delay)
-            
+
             # Register command handlers
-            self.dp.message.register(self._handle_start, Command(commands=["start"]))
-            self.dp.message.register(self._handle_help, Command(commands=["help"]))
+            self.dp.message.register(self._handle_start_command, Command(commands=["start"]))
+            self.dp.message.register(self._handle_help_command, Command(commands=["help"]))
             self.dp.message.register(self._handle_message)
-            
+
             # Start polling
-            self._running = True
             await self.dp.start_polling(self.bot)
-            logger.info("Telegram bot started")
-            
+            logger.info("Plugin started successfully")
         except Exception as e:
-            logger.error(f"Failed to start plugin: {str(e)}")
+            logger.error(f"Failed to start plugin: {e}")
             raise
-    
+
     async def stop(self) -> None:
         """Stop the plugin."""
         try:
-            self._running = False
             if self.bot:
                 await self.bot.session.close()
-            logger.info("Telegram bot stopped")
+            logger.info("Plugin stopped successfully")
         except Exception as e:
-            logger.error(f"Error stopping plugin: {str(e)}")
-    
-    async def _handle_start(self, message: Message) -> None:
-        """Handle the /start command.
-        
-        Args:
-            message: The message object
-        """
-        try:
-            await message.answer(
-                "Welcome! I'm your Telegram bot. "
-                "Send me a message and I'll process it."
-            )
-            logger.info(f"Start command handled for user {message.from_user.id}")
-        except Exception as e:
-            logger.error(f"Error handling start command: {str(e)}")
-    
-    async def _handle_help(self, message: Message) -> None:
-        """Handle the /help command.
-        
-        Args:
-            message: The message object
-        """
-        try:
-            await message.answer(
-                "Available commands:\n"
-                "/start - Start the bot\n"
-                "/help - Show this help message"
-            )
-            logger.info(f"Help command handled for user {message.from_user.id}")
-        except Exception as e:
-            logger.error(f"Error handling help command: {str(e)}")
-    
+            logger.error(f"Error stopping plugin: {e}")
+            raise
+
     async def _handle_message(self, message: Message) -> None:
         """Handle incoming messages.
-        
+
         Args:
-            message: The message object
+            message: The incoming message
         """
         try:
             # Check if message is from owner
-            if not await self._verify_owner(message.from_user):
+            if not self._verify_owner(message.from_user.id, message.from_user.username):
                 logger.warning(f"Message from unauthorized user {message.from_user.id}")
                 return
-            
-            # Process message
-            event = {
-                "message": message.text,
-                "user_id": message.from_user.id,
-                "username": message.from_user.username,
-                "first_name": message.from_user.first_name,
-                "timestamp": datetime.now()
-            }
-            
-            await self.message_handler.handle_private_message(event)
-            logger.info(f"Message handled for user {message.from_user.id}")
-            
+
+            # Process message based on chat type
+            if message.chat.type == "private":
+                await self.message_handler.handle_private_message(message)
+            elif message.chat.type == "group":
+                await self.message_handler.handle_group_message(message)
+            elif message.chat.type == "channel":
+                await self.message_handler.handle_channel_message(message)
         except Exception as e:
-            logger.error(f"Error handling message: {str(e)}")
-    
-    async def _verify_owner(self, user: types.User) -> bool:
-        """Verify if a user is the owner.
-        
+            logger.error(f"Error handling message: {e}")
+            raise
+
+    async def _handle_response(self, response: str, message: Message) -> None:
+        """Handle outgoing responses.
+
         Args:
-            user: The user to verify
-            
-        Returns:
-            True if user is owner, False otherwise
+            response: The response to send
+            message: The original message
         """
-        if not self.settings:
-            return False
-        
-        # Check owner ID
-        if self.settings.owner_id and str(user.id) == str(self.settings.owner_id):
+        try:
+            await self.message_handler.process_outgoing_message(message, response)
+        except Exception as e:
+            logger.error(f"Error handling response for message {response}: {e}")
+            raise
+
+    async def _handle_start_command(self, message: Message) -> None:
+        """Handle /start command.
+
+        Args:
+            message: The command message
+        """
+        await message.answer("Welcome! I'm your Telegram bot.")
+
+    async def _handle_help_command(self, message: Message) -> None:
+        """Handle /help command.
+
+        Args:
+            message: The command message
+        """
+        help_text = """
+Available commands:
+/start - Start the bot
+/help - Show this help message
+        """
+        await message.answer(help_text)
+
+    def _verify_owner(self, user_id: int, username: Optional[str]) -> bool:
+        """Verify if a user is the owner.
+
+        Args:
+            user_id: The user's ID
+            username: The user's username
+
+        Returns:
+            bool: True if user is the owner
+        """
+        if self.settings.owner_id and user_id == self.settings.owner_id:
             return True
-        
-        # Check owner username
-        if self.settings.owner_username and user.username == self.settings.owner_username:
+        if self.settings.owner_username and username == self.settings.owner_username:
             return True
-        
         return False 
