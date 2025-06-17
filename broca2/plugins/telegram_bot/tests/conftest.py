@@ -20,13 +20,25 @@ def mock_env_vars():
     }):
         yield
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
+def patch_db_ops():
+    with patch("database.operations.users.get_or_create_letta_user", new_callable=AsyncMock) as mock_get_user, \
+         patch("database.operations.users.get_or_create_platform_profile", new_callable=AsyncMock) as mock_get_profile:
+        mock_get_user.return_value = MagicMock()
+        mock_get_profile.return_value = (MagicMock(), MagicMock())
+        yield
+
+@pytest.fixture(autouse=True)
 def mock_letta_client():
-    """Mock Letta client."""
-    with patch("runtime.core.letta_client.LettaClient") as mock:
-        client = MagicMock()
-        mock.return_value = client
-        yield client
+    with patch("runtime.core.letta_client.LettaClient") as mock_class:
+        instance = MagicMock()
+        # Add all required async methods
+        instance.add_to_queue = AsyncMock()
+        instance.update_message_status = AsyncMock()
+        instance.get_or_create_user = AsyncMock()
+        instance.get_or_create_platform_profile = AsyncMock()
+        mock_class.return_value = instance
+        yield instance
 
 @pytest.fixture
 def mock_bot():
@@ -43,25 +55,39 @@ def mock_dispatcher():
 @pytest.fixture
 def mock_user():
     """Create a mock user."""
-    return User(
-        id=123456789,
-        is_bot=False,
-        first_name="Test",
-        username="testuser",
-        language_code="en"
-    )
+    user = MagicMock()
+    user.id = 123456789
+    user.is_bot = False
+    user.first_name = "Test"
+    user.username = "testuser"
+    user.language_code = "en"
+    return user
 
 @pytest.fixture
 def mock_message(mock_user):
     """Create a mock message."""
-    message = Message(
-        message_id=1,
-        date=datetime.now(),
-        chat=Chat(id=123456789, type="private"),
-        from_user=mock_user,
-        text="Test message"
-    )
+    # Create a fully mocked message object
+    message = MagicMock()
+    message.message_id = 1
+    message.date = datetime.now()
+    
+    # Create a mutable chat object
+    chat = MagicMock()
+    chat.id = 123456789
+    chat.type = "private"
+    message.chat = chat
+    
+    # Set user and text
+    message.from_user = mock_user
+    message.text = "Test message"
+    
+    # Mock the answer method
     message.answer = AsyncMock()
+    
+    # Mock any other required methods
+    message.reply = AsyncMock()
+    message.edit_text = AsyncMock()
+    
     return message
 
 @pytest.fixture
