@@ -219,6 +219,134 @@ A new Management Control Panel server will be added to manage multiple Broca ins
 - Resource Management: Monitor shared resources and system health
 - Security: Centralized credential management and access control
 
+## 🏠 Multi-Agent Setup
+
+### Folder Structure
+For managing multiple Broca instances on the same machine, use the following structure:
+
+```
+~/sanctum/
+├── broca2/                    # Base Broca 2 installation
+│   ├── main.py
+│   ├── runtime/
+│   ├── plugins/
+│   └── ...
+├── agent-721679f6-c8af-4e01-8677-dc042dc80368/  # Agent-specific instance
+│   ├── .env                   # Agent-specific environment
+│   ├── settings.json          # Agent-specific settings
+│   ├── sanctum.db            # Agent-specific database
+│   └── logs/                 # Agent-specific logs
+├── agent-9a2b3c4d-5e6f-7890-abcd-ef1234567890/  # Another agent
+│   ├── .env
+│   ├── settings.json
+│   ├── sanctum.db
+│   └── logs/
+└── shared/                   # Shared resources (optional)
+    ├── templates/
+    └── configs/
+```
+
+### Setup Instructions
+
+1. **Choose your master folder:**
+   ```bash
+   # Typically your home directory or a dedicated user folder
+   mkdir ~/sanctum
+   cd ~/sanctum
+   ```
+
+2. **Clone the base Broca 2 installation:**
+   ```bash
+   git clone https://github.com/yourusername/broca-2.git broca2
+   cd broca2
+   pip install -e .
+   ```
+
+3. **Create agent-specific instances:**
+   ```bash
+   # For each Letta agent, create a folder named after the agent ID
+   mkdir ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   
+   # Copy base configuration
+   cp ~/sanctum/broca2/.env.example .env
+   cp ~/sanctum/broca2/settings.json .
+   
+   # Edit agent-specific configuration
+   nano .env
+   # Set AGENT_ENDPOINT, AGENT_API_KEY, and other agent-specific settings
+   ```
+
+4. **Run agent-specific instances:**
+   ```bash
+   # From the agent folder
+   cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   python -m broca2.main
+   
+   # Or use the CLI tools
+   broca-admin queue list
+   ```
+
+### Master Sanctum Provisioning Suite Integration
+
+If you're using the Master Sanctum Provisioning Suite:
+
+1. **Configure the Sanctum home folder** in your provisioning suite's `.env` file
+2. **The suite will automatically:**
+   - Git-clone Broca 2 into the proper folder structure
+   - Create agent-specific folders based on your agent configurations
+   - Set up the correct relative paths for all components
+
+### Managing Multiple Instances
+
+#### Starting Instances
+```bash
+# Start a specific agent's Broca instance
+cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+python -m broca2.main
+
+# Or use a process manager like PM2
+pm2 start "broca-agent-1" --interpreter python -- -m broca2.main
+pm2 start "broca-agent-2" --interpreter python -- -m broca2.main
+```
+
+#### Configuration Management
+```bash
+# Each agent has its own configuration
+~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
+~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/settings.json
+
+# Shared configurations can be symlinked or copied
+ln -s ~/sanctum/shared/templates/telegram_config.json ~/sanctum/agent-*/telegram_config.json
+```
+
+#### Database Management
+```bash
+# Each agent has its own database
+~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/sanctum.db
+
+# Backup agent-specific databases
+cp ~/sanctum/agent-*/sanctum.db ~/sanctum/backups/
+```
+
+#### Logging
+```bash
+# Each agent has its own logs
+~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/logs/
+
+# Centralized logging (optional)
+ln -s ~/sanctum/logs/ ~/sanctum/agent-*/logs
+```
+
+### Benefits of This Structure
+
+- **Isolation**: Each agent runs independently with its own configuration and database
+- **Scalability**: Easy to add new agents without affecting existing ones
+- **Maintenance**: Update the base Broca 2 installation once, affects all agents
+- **Backup**: Simple to backup individual agent configurations and data
+- **Resource Efficiency**: Shared base installation reduces disk usage
+- **Flexibility**: Each agent can have different plugins, settings, and configurations
+
 ## 🤖 Acknowledgments
 
 - Original Broca project (It was me).
