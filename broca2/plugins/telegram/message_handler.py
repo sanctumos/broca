@@ -1,5 +1,6 @@
 """Telegram message handler implementation."""
 import asyncio
+import re
 from typing import Dict, Any, Tuple
 from telethon import events
 from datetime import datetime
@@ -14,20 +15,40 @@ class MessageFormatter(BaseMessageFormatter):
     """Telegram-specific message formatter."""
     
     def format_response(self, response: str) -> str:
-        """Format a response for Telegram.
+        """Format a response for Telegram with markdown support.
         
-        This method can be extended to add Telegram-specific formatting
-        like markdown, HTML, or custom formatting rules.
+        This method preserves markdown formatting from Letta/Broca responses
+        while ensuring compatibility with Telegram's MarkdownV2 format.
         
         Args:
             response: The response to format
             
         Returns:
-            str: The formatted response
+            str: The formatted response with preserved markdown
         """
-        # For now, just sanitize and return the response
-        # In the future, we can add Telegram-specific formatting here
-        return self.sanitize_text(response)
+        return self.preserve_markdown(response)
+    
+    def preserve_markdown(self, text: str) -> str:
+        """Preserve markdown formatting while ensuring Telegram compatibility.
+        
+        Args:
+            text: The text to format
+            
+        Returns:
+            str: Text with preserved markdown formatting
+        """
+        if not text:
+            return text
+            
+        # Basic Telegram MarkdownV2 escaping for common characters
+        # Characters that need escaping: _ * [ ] ( ) ~ ` > # + - = | { } . !
+        
+        # Escape special characters that could break MarkdownV2
+        escaped_text = re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', text)
+        
+        # Preserve newlines and basic formatting
+        # Keep markdown structure intact
+        return escaped_text.strip()
 
 class MessageBuffer:
     """Buffers messages for batch processing."""

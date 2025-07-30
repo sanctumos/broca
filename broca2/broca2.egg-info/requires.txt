@@ -1,4 +1,8 @@
 telethon
 python-dotenv
 sqlalchemy
-aiosqlite
+aiohttp
+emoji
+rich
+typer
+pydantic

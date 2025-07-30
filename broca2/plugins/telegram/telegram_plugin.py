@@ -130,12 +130,21 @@ class TelegramPlugin(Plugin):
                 )
                 return
             
-            # Send message with typing indicator
+            # Send message with typing indicator and markdown support
             async with self.client.action(telegram_user_id, 'typing'):
-                await self.client.send_message(
-                    telegram_user_id,
-                    formatted
-                )
+                try:
+                    await self.client.send_message(
+                        telegram_user_id,
+                        formatted,
+                        parse_mode='MarkdownV2'
+                    )
+                except Exception as markdown_error:
+                    logger.warning(f"Markdown parsing failed, falling back to plain text: {str(markdown_error)}")
+                    # Fallback to plain text if markdown fails
+                    await self.client.send_message(
+                        telegram_user_id,
+                        formatted
+                    )
                 logger.info(f"Response sent to user {profile.username} ({telegram_user_id})")
                 
                 # Update message status to success
