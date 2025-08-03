@@ -6,3 +6,4 @@ emoji
 rich
 typer
 pydantic
+markdown 
