@@ -136,7 +136,7 @@ class TelegramPlugin(Plugin):
                     await self.client.send_message(
                         telegram_user_id,
                         formatted,
-                        parse_mode='MarkdownV2'
+                        parse_mode='markdown'
                     )
                 except Exception as markdown_error:
                     logger.warning(f"Markdown parsing failed, falling back to plain text: {str(markdown_error)}")
