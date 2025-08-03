@@ -74,11 +74,10 @@ async def get_or_create_letta_user(username: str = None, display_name: str = Non
                     letta_identity_id,
                     letta_block_id,
                     agent_preferences,
-                    conversation_history_limit,
                     custom_instructions,
                     is_active
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (now, now, identity.id, block.id, None, 10, None, True))
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (now, now, identity.id, block.id, None, None, True))
             await db.commit()
             
             user_id = cursor.lastrowid
@@ -89,7 +88,6 @@ async def get_or_create_letta_user(username: str = None, display_name: str = Non
                 letta_identity_id=identity.id,
                 letta_block_id=block.id,
                 agent_preferences=None,
-                conversation_history_limit=10,
                 custom_instructions=None,
                 is_active=True
             )
@@ -138,9 +136,8 @@ async def get_or_create_platform_profile(
                         last_active=user_row[2],
                         letta_identity_id=user_row[3],
                         agent_preferences=user_row[4],
-                        conversation_history_limit=user_row[5],
-                        custom_instructions=user_row[6],
-                        is_active=bool(user_row[7])
+                        custom_instructions=user_row[5],
+                        is_active=bool(user_row[6])
                     )
                 
                 profile = PlatformProfile(
