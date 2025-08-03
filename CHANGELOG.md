@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2024-12-28
+
+### Added
+- **Multi-Agent Installation Support**: New requirements.txt-based installation approach for multiple agent instances
+- **Agent-Specific Directory Structure**: Support for isolated agent instances under `~/sanctum/broca2/<AGENTID>/`
+- **Shared Virtual Environment**: Single venv at `~/sanctum/broca2/venv/` shared across all agents
+- **Installation Documentation**: New `INSTALL.md` with comprehensive multi-agent setup instructions
+
+### Changed
+- **Installation Method**: Switched from egg-info package installation to simple requirements.txt approach
+- **CLI Execution**: Updated CLI tools to use module-based execution (`python -m cli.btool`) instead of global commands
+- **Documentation Updates**: 
+  - Updated README with new multi-agent folder structure
+  - Revised installation instructions for agent-specific directories
+  - Updated CLI usage examples to reflect new execution method
+- **Project Structure**: Removed setup.py and egg-info in favor of requirements.txt approach
+
+### Fixed
+- **Global Installation Conflicts**: Eliminated conflicts when running multiple Broca instances
+- **Agent Isolation**: Each agent now has completely isolated configuration, database, and logs
+- **Resource Efficiency**: Shared base installation with agent-specific data directories
+
+### Removed
+- **setup.py**: Removed package installation configuration
+- **broca2.egg-info/**: Removed package metadata directory
+- **Global Console Scripts**: Removed `broca2` and `broca-admin` global commands
+
+### Technical Details
+- **Dependencies**: Maintained same dependency list in requirements.txt
+- **Execution**: Agents run with `python ../main.py` from agent-specific directories
+- **Configuration**: Each agent has its own `.env`, `settings.json`, and `sanctum.db`
+
+---
+
 ## [0.9.0] - 2024-12-28
 
 ### Added
