@@ -40,15 +40,32 @@ class MessageFormatter(BaseMessageFormatter):
         if not text:
             return text
             
-        # Basic Telegram MarkdownV2 escaping for common characters
-        # Characters that need escaping: _ * [ ] ( ) ~ ` > # + - = | { } . !
+        # Simple, direct approach - just preserve the original formatting
+        # Don't over-process or convert unnecessarily
         
-        # Escape special characters that could break MarkdownV2
-        escaped_text = re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', text)
+        # Only handle the specific cases that Telegram has trouble with
+        # Convert _italic_ to __italic__ (Telegram uses double underscores)
+        # Remove word boundary requirement - it's too restrictive
+        text = re.sub(r'_([^_]+)_', r'__\1__', text)
         
-        # Preserve newlines and basic formatting
-        # Keep markdown structure intact
-        return escaped_text.strip()
+        # Convert *italic* to __italic__ (standardize to Telegram format)
+        # But be careful not to break **bold** - only convert single asterisks
+        # First protect bold patterns
+        text = re.sub(r'\*\*([^*]+)\*\*', r'<BOLD>\1</BOLD>', text)
+        # Then convert remaining single asterisks
+        text = re.sub(r'\*([^*]+)\*', r'__\1__', text)
+        # Finally restore bold patterns
+        text = re.sub(r'<BOLD>([^<]+)</BOLD>', r'**\1**', text)
+        
+        # Handle non-standard code block delimiters
+        # Convert ..code.. to ```code```
+        text = re.sub(r'\.\.\n(.*?)\.\.', r'```\n\1\n```', text, flags=re.DOTALL)
+        
+        # Handle quote blocks - convert to italic prefix (more subtle)
+        text = re.sub(r'^>\s*(.*?)$', r'*Quote:* \1', text, flags=re.MULTILINE)
+        
+        # That's it - preserve everything else as-is
+        return text.strip()
 
 class MessageBuffer:
     """Buffers messages for batch processing."""

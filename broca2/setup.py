@@ -12,7 +12,8 @@ setup(
         "emoji",
         "rich",
         "typer",
-        "pydantic"
+        "pydantic",
+        "markdown"
     ],
     entry_points={
         "console_scripts": [
