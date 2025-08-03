@@ -1,5 +1,0 @@
-cli
-common
-database
-plugins
-runtime

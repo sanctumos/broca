@@ -95,7 +95,7 @@ broca2/
 
 2. Install dependencies:
    ```bash
-   pip install -e .
+   pip install -r requirements.txt
    ```
 
 3. Configure environment:
@@ -108,17 +108,17 @@ broca2/
 
 ### Running the Server
 ```bash
-python -m broca2.main
+python main.py
 ```
 
 ### CLI Tools
 ```bash
 # Queue management
-broca-admin queue list
-broca-admin queue flush
+python -m cli.btool queue list
+python -m cli.btool queue flush
 
 # User management
-broca-admin users list
+python -m cli.btool users list
 
 # Settings
 broca-admin settings set message_mode live
@@ -225,12 +225,12 @@ A new Management Control Panel server will be added to manage multiple Broca ins
 For managing multiple Broca instances on the same machine, use the following structure:
 
 ```
-~/sanctum/
-├── broca2/                    # Base Broca 2 installation
-│   ├── main.py
-│   ├── runtime/
-│   ├── plugins/
-│   └── ...
+~/sanctum/broca2/             # Base Broca 2 installation
+├── venv/                     # Shared virtual environment
+├── main.py
+├── runtime/
+├── plugins/
+├── requirements.txt
 ├── agent-721679f6-c8af-4e01-8677-dc042dc80368/  # Agent-specific instance
 │   ├── .env                   # Agent-specific environment
 │   ├── settings.json          # Agent-specific settings
@@ -259,14 +259,18 @@ For managing multiple Broca instances on the same machine, use the following str
    ```bash
    git clone https://github.com/yourusername/broca-2.git broca2
    cd broca2
-   pip install -e .
+   
+   # Create shared virtual environment
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
    ```
 
 3. **Create agent-specific instances:**
    ```bash
    # For each Letta agent, create a folder named after the agent ID
-   mkdir ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
-   cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   mkdir ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
    
    # Copy base configuration
    cp ~/sanctum/broca2/.env.example .env
@@ -280,11 +284,11 @@ For managing multiple Broca instances on the same machine, use the following str
 4. **Run agent-specific instances:**
    ```bash
    # From the agent folder
-   cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
-   python -m broca2.main
+   cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   python ../main.py
    
    # Or use the CLI tools
-   broca-admin queue list
+   python -m cli.btool queue list
    ```
 
 ### Master Sanctum Provisioning Suite Integration
@@ -302,40 +306,40 @@ If you're using the Master Sanctum Provisioning Suite:
 #### Starting Instances
 ```bash
 # Start a specific agent's Broca instance
-cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
-python -m broca2.main
+cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
+python ../main.py
 
 # Or use a process manager like PM2
-pm2 start "broca-agent-1" --interpreter python -- -m broca2.main
-pm2 start "broca-agent-2" --interpreter python -- -m broca2.main
+pm2 start "broca-agent-1" --interpreter python -- ../main.py
+pm2 start "broca-agent-2" --interpreter python -- ../main.py
 ```
 
 #### Configuration Management
 ```bash
 # Each agent has its own configuration
-~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
-~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/settings.json
+~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
+~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/settings.json
 
 # Shared configurations can be symlinked or copied
-ln -s ~/sanctum/shared/templates/telegram_config.json ~/sanctum/agent-*/telegram_config.json
+ln -s ~/sanctum/broca2/shared/templates/telegram_config.json ~/sanctum/broca2/agent-*/telegram_config.json
 ```
 
 #### Database Management
 ```bash
 # Each agent has its own database
-~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/sanctum.db
+~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/sanctum.db
 
 # Backup agent-specific databases
-cp ~/sanctum/agent-*/sanctum.db ~/sanctum/backups/
+cp ~/sanctum/broca2/agent-*/sanctum.db ~/sanctum/broca2/backups/
 ```
 
 #### Logging
 ```bash
 # Each agent has its own logs
-~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/logs/
+~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/logs/
 
 # Centralized logging (optional)
-ln -s ~/sanctum/logs/ ~/sanctum/agent-*/logs
+ln -s ~/sanctum/broca2/logs/ ~/sanctum/broca2/agent-*/logs
 ```
 
 ### Benefits of This Structure
