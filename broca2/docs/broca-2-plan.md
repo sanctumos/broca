@@ -1,4 +1,4 @@
-# Broca 2 Refactoring Plan (v0.9.0)
+# Broca 2 Refactoring Plan (v0.10.0)
 
 ## Project Overview
 This plan outlines the refactoring of Broca 2 to a CLI-first architecture with a plugin system.

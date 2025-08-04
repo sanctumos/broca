@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2025-01-04
+
+### Added
+- **Plugin Auto-Discovery System**: Dynamic plugin discovery and loading from `plugins/` directory
+  - Automatic plugin detection and instantiation
+  - Dynamic settings injection via `apply_settings()` method
+  - Platform-specific message handler registration
+- **Web Chat Plugin**: Complete polling-based web chat integration
+  - PHP API bridge architecture for secure web chat
+  - Pull-based message retrieval from external API
+  - Session management with unique user identification
+  - Full end-to-end message processing pipeline
+- **Enhanced Plugin Interface**: New `apply_settings()` method for dynamic configuration
+- **Platform-Agnostic Message Formatting**: Updated MessageFormatter to use platform-specific ID labels
+- **Database Integration Patterns**: Standardized user and profile creation patterns
+- **Comprehensive Plugin Development Guide**: Updated documentation with real-world examples and troubleshooting
+
+### Changed
+- **Plugin Architecture**: Transitioned from hardcoded plugin loading to dynamic auto-discovery
+- **Message Handler Requirements**: Standardized response handler pattern with `(response, profile, message_id)` signature
+- **Settings Management**: Implemented lazy initialization and fallback patterns for plugin settings
+- **Import Patterns**: Established lazy import patterns for self-contained plugins
+- **Documentation**: 
+  - Updated plugin development guide with critical implementation details
+  - Added troubleshooting section with common issues and solutions
+  - Enhanced examples with complete plugin implementations
+  - Added database integration patterns and error handling strategies
+
+### Fixed
+- **Plugin Loading Errors**: Resolved module import and dependency issues
+- **Message Routing**: Fixed response handler callable requirements
+- **User Details Lookup**: Corrected database integration for user and profile creation
+- **Settings Validation**: Improved error handling for missing or invalid settings
+- **Platform-Specific Labels**: Fixed hardcoded "Telegram ID" labels to use platform-specific naming
+
+### Technical Details
+- **Auto-Discovery**: Plugins automatically discovered and loaded from `plugins/` directory
+- **Lazy Loading**: External dependencies imported only when needed
+- **Database Integration**: Standardized patterns for user creation, message insertion, and queue processing
+- **Error Handling**: Comprehensive error handling with graceful degradation
+- **Resource Management**: Proper cleanup of connections and tasks in plugin lifecycle
+
+---
+
 ## [0.9.1] - 2024-12-28
 
 ### Added
