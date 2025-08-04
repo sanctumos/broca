@@ -75,9 +75,20 @@
 
 ### 1.2 API Contract Definition
 
-#### Core Endpoints
+**Note:** The actual API implementation has been completed and documented. The following is the final API specification that the Broca2 plugin will consume.
 
-**GET /api/inbox**
+#### **Final API Documentation**
+
+The complete API documentation is available at: `broca2/docs/web-chat-bridge-api-documentation.md`
+
+**Key API Details:**
+- **Base URL:** `http://localhost:8000/api/v1/index.php`
+- **Authentication:** Bearer token (API key for plugin, admin password for admin endpoints)
+- **Response Format:** Consistent JSON with `success`, `message`, `timestamp`, and `data` fields
+
+#### **Plugin-Relevant Endpoints**
+
+**GET /api/inbox** (Plugin polls for messages)
 ```json
 {
   "endpoint": "/api/inbox",
@@ -858,15 +869,15 @@ class WebChatAPIClient:
             'offset': 0
         }
         
-        async with self.session.get(
-            f"{self.settings.api_url}/api/inbox",
-            headers=headers,
-            params=params
-        ) as response:
+                        async with self.session.get(
+                    f"{self.settings.api_url}/api/v1/?action=inbox",
+                    headers=headers,
+                    params=params
+                ) as response:
             if response.status == 200:
                 data = await response.json()
                 if data.get('success'):
-                    messages = data.get('messages', [])
+                    messages = data.get('data', {}).get('messages', [])
                     
                     # Ensure each message has a UID
                     for message in messages:
@@ -903,11 +914,11 @@ class WebChatAPIClient:
             'timestamp': datetime.now().isoformat()
         }
         
-        async with self.session.post(
-            f"{self.settings.api_url}/api/outbox",
-            headers=headers,
-            json=data
-        ) as response:
+                        async with self.session.post(
+                    f"{self.settings.api_url}/api/v1/?action=outbox",
+                    headers=headers,
+                    json=data
+                ) as response:
             if response.status == 200:
                 response_data = await response.json()
                 return response_data.get('success', False)
@@ -924,8 +935,8 @@ The web chat plugin follows the same configuration pattern as existing Broca2 pl
 
 ```bash
 # Web Chat Plugin Configuration
-WEB_CHAT_API_URL=https://your-php-bridge.com
-WEB_CHAT_API_KEY=your-secure-api-key-here
+WEB_CHAT_API_URL=http://localhost:8000
+WEB_CHAT_API_KEY=api_h8hcbfg4uiqfz6sjy1h6ri
 
 # Optional settings (with defaults)
 WEB_CHAT_POLLING_INTERVAL=5
