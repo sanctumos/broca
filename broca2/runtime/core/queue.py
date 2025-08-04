@@ -146,6 +146,9 @@ class QueueProcessor:
             return False
             
         try:
+            # Debug logging
+            logger.info(f"🔵 Routing response through {profile.platform} handler: response={response[:50]}..., profile={profile}, message_id={message_id}")
+            
             # Route the response through the platform handler
             await handler(response, profile, message_id)
             return True

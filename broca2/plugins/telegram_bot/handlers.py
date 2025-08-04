@@ -7,7 +7,6 @@ from runtime.core.message import MessageFormatter
 from database.operations.users import get_or_create_platform_profile
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
-from runtime.core.letta_client import LettaClient
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ class MessageBuffer:
         """
         self.delay = delay
         self.messages: List[Dict[str, Any]] = []
-        self.letta_client = LettaClient()
+        self.letta_client = None  # Initialize lazily
         logger.info(f"Message buffer initialized with {delay}s delay")
     
     async def add_message(self, message: Dict[str, Any]) -> None:
@@ -47,6 +46,11 @@ class MessageBuffer:
             return
         
         try:
+            # Initialize letta_client lazily if needed
+            if self.letta_client is None:
+                from runtime.core.letta_client import LettaClient
+                self.letta_client = LettaClient()
+            
             # Add all messages to queue
             for message in self.messages:
                 await self.letta_client.add_to_queue(
@@ -56,6 +60,9 @@ class MessageBuffer:
                     first_name=message["first_name"],
                     timestamp=message["timestamp"]
                 )
+        except ImportError as e:
+            logger.error(f"letta_client not available: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error flushing messages: {e}")
             raise
@@ -76,7 +83,7 @@ class MessageHandler:
             buffer_delay: Delay in seconds before flushing messages
         """
         self.buffer = MessageBuffer(delay=buffer_delay)
-        self.letta_client = LettaClient()
+        self.letta_client = None  # Initialize lazily
     
     async def handle_message(self, message: Dict[str, Any]) -> None:
         """Handle a message.
@@ -92,13 +99,25 @@ class MessageHandler:
         Args:
             message: The message to process
         """
-        await self.letta_client.add_to_queue(
-            message=message["message"],
-            user_id=message["user_id"],
-            username=message["username"],
-            first_name=message["first_name"],
-            timestamp=message["timestamp"]
-        )
+        try:
+            # Initialize letta_client lazily if needed
+            if self.letta_client is None:
+                from runtime.core.letta_client import LettaClient
+                self.letta_client = LettaClient()
+            
+            await self.letta_client.add_to_queue(
+                message=message["message"],
+                user_id=message["user_id"],
+                username=message["username"],
+                first_name=message["first_name"],
+                timestamp=message["timestamp"]
+            )
+        except ImportError as e:
+            logger.error(f"letta_client not available: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+            raise
 
     def set_message_mode(self, mode: str) -> None:
         """Set the message handling mode.

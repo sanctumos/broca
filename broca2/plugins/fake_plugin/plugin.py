@@ -7,7 +7,7 @@ if Broca2 can discover and load plugins automatically.
 
 import logging
 from typing import Dict, Any, Optional
-from broca2.plugins import Plugin
+from plugins import Plugin
 
 
 class FakePlugin(Plugin):
@@ -49,10 +49,17 @@ class FakePlugin(Plugin):
     def get_settings(self) -> Dict[str, Any]:
         """Get plugin settings."""
         return {
-            'name': 'fake_plugin',
-            'platform': 'fake_platform',
-            'status': 'running' if self.is_running else 'stopped'
+            'enabled': True,
+            'message': 'Hello from fake plugin!',
+            'debug': False
         }
+    
+    def apply_settings(self, settings: Dict[str, Any]) -> None:
+        """Apply settings to the plugin."""
+        self.enabled = settings.get('enabled', True)
+        self.message = settings.get('message', 'Hello from fake plugin!')
+        self.debug = settings.get('debug', False)
+        self.logger.info(f"Applied settings: enabled={self.enabled}, message='{self.message}', debug={self.debug}")
     
     def validate_settings(self) -> bool:
         """Validate plugin settings."""

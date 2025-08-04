@@ -177,6 +177,61 @@ class PluginManager:
         """
         return self._platform_handlers.get(platform)
     
+    async def discover_plugins(self, plugins_dir: str = "plugins", config: dict = None) -> None:
+        """Discover and load all plugins in the plugins directory with dynamic settings.
+        
+        Args:
+            plugins_dir: Path to plugins directory (relative to current directory)
+            config: Optional configuration dict for plugin settings
+        """
+        plugins_path = Path(plugins_dir)
+        if not plugins_path.exists():
+            logger.warning(f"Plugins directory {plugins_dir} does not exist")
+            return
+        
+        for plugin_dir in plugins_path.iterdir():
+            if not plugin_dir.is_dir() or plugin_dir.name.startswith('_'):
+                continue
+            
+            plugin_file = plugin_dir / "plugin.py"
+            if plugin_file.exists():
+                try:
+                    # Load the plugin
+                    await self.load_plugin(str(plugin_file))
+                    
+                    # Get the loaded plugin instance
+                    plugin_name = plugin_dir.name
+                    plugin = self._plugins.get(plugin_name)
+                    
+                    if plugin is None:
+                        logger.error(f"Failed to load plugin {plugin_name} - plugin not found after loading")
+                        continue
+                    
+                    # Get plugin settings schema
+                    settings_schema = plugin.get_settings() if hasattr(plugin, 'get_settings') else {}
+                    
+                    # Load plugin-specific config if available
+                    plugin_config = {}
+                    if config and plugin_name in config:
+                        plugin_config = config[plugin_name]
+                    
+                    # Apply settings to plugin
+                    if hasattr(plugin, 'apply_settings'):
+                        plugin.apply_settings(plugin_config)
+                        logger.info(f"Applied settings to plugin: {plugin_name}")
+                    elif hasattr(plugin, 'validate_settings') and plugin.validate_settings(plugin_config):
+                        # Fallback for backward compatibility
+                        logger.warning(f"Plugin {plugin_name} should implement apply_settings()")
+                    else:
+                        logger.info(f"Plugin {plugin_name} loaded without settings")
+                    
+                    logger.info(f"Loaded plugin: {plugin_name}")
+                    
+                except PluginError as e:
+                    logger.error(f"Failed to load plugin {plugin_dir.name}: {e}")
+                except Exception as e:
+                    logger.error(f"Unexpected error loading plugin {plugin_dir.name}: {e}")
+    
     async def start(self) -> None:
         """Start all loaded plugins."""
         if self._running:
