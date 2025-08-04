@@ -1,4 +1,4 @@
-# Sanctum: Broca 2 (v0.9.0)
+# Sanctum: Broca 2 (v0.9.2)
 
 A CLI-first, plugin-based message processing system for agent communication.
 
