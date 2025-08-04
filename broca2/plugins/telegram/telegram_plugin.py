@@ -1,4 +1,5 @@
 """Telegram bot plugin."""
+import asyncio
 import logging
 import os
 import json
