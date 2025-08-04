@@ -1,70 +1,67 @@
-"""Telegram bot plugin."""
-import logging
-import os
-from typing import Optional, Callable, Any
-from telethon import TelegramClient, events
-from telethon.sessions import StringSession
-from dotenv import load_dotenv, set_key
+"""Telegram plugin entry point."""
+from plugins.telegram.telegram_plugin import TelegramPlugin
+from plugins import Plugin
 
-from common.config import get_env_var
-
-logger = logging.getLogger(__name__)
-
-class TelegramBot:
-    """Telegram bot using Telethon client."""
+class TelegramPluginWrapper(Plugin):
+    """Wrapper for TelegramPlugin to make it compatible with auto-discovery."""
     
     def __init__(self):
-        """Initialize the Telegram bot."""
-        self.api_id = get_env_var("TELEGRAM_API_ID")
-        self.api_hash = get_env_var("TELEGRAM_API_HASH")
-        self.session_string = get_env_var("TELEGRAM_SESSION_STRING", default="")
-        
-        # Initialize client
-        self.client = TelegramClient(
-            StringSession(self.session_string),
-            self.api_id,
-            self.api_hash
-        )
+        """Initialize the wrapper."""
+        self._plugin = TelegramPlugin()
     
-    def add_event_handler(self, callback: Callable, event: events.NewMessage) -> None:
-        """Add an event handler to the client.
-        
-        Args:
-            callback: The callback function to handle the event
-            event: The event to handle
-        """
-        if self.client:
-            self.client.add_event_handler(callback, event)
+    def get_name(self) -> str:
+        """Get the plugin name."""
+        return self._plugin.get_name()
     
-    async def start(self) -> None:
-        """Start the Telegram client."""
-        if not self.client:
-            logger.error("❌ Telegram client not initialized")
-            return
-        
-        try:
-            logger.info("🔄 Starting Telegram client...")
-            await self.client.start()
-            
-            if not await self.client.is_user_authorized():
-                logger.error("❌ Telegram client not authorized")
-                return
-            
-            # Save the session string if it's different from what we have
-            new_session_string = self.client.session.save()
-            if new_session_string != self.session_string:
-                logger.info("💾 Saving new Telegram session string...")
-                env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
-                set_key(env_path, "TELEGRAM_SESSION_STRING", new_session_string)
-                self.session_string = new_session_string
-            
-            logger.info("✅ Telegram client started successfully")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to start Telegram client: {str(e)}")
-            raise
+    def get_platform(self) -> str:
+        """Get the platform name."""
+        return self._plugin.get_platform()
     
-    async def stop(self) -> None:
-        """Stop the Telegram client."""
-        if self.client:
-            await self.client.disconnect()
+    def get_message_handler(self):
+        """Get the message handler."""
+        return self._plugin.get_message_handler()
+    
+    def get_settings(self):
+        """Get plugin settings."""
+        return self._plugin.get_settings()
+    
+    def apply_settings(self, settings):
+        """Apply settings to the plugin."""
+        if hasattr(self._plugin, 'apply_settings'):
+            self._plugin.apply_settings(settings)
+        else:
+            # Fallback for backward compatibility
+            if hasattr(self._plugin, 'validate_settings'):
+                self._plugin.validate_settings(settings)
+    
+    def validate_settings(self, settings):
+        """Validate plugin settings."""
+        if hasattr(self._plugin, 'validate_settings'):
+            return self._plugin.validate_settings(settings)
+        return True
+    
+    async def start(self):
+        """Start the plugin."""
+        await self._plugin.start()
+    
+    async def stop(self):
+        """Stop the plugin."""
+        await self._plugin.stop()
+    
+    def register_event_handler(self, event_type, handler):
+        """Register an event handler."""
+        if hasattr(self._plugin, 'register_event_handler'):
+            self._plugin.register_event_handler(event_type, handler)
+    
+    def emit_event(self, event):
+        """Emit an event."""
+        if hasattr(self._plugin, 'emit_event'):
+            self._plugin.emit_event(event)
+    
+    def add_message_handler(self, callback, event):
+        """Add a message handler."""
+        if hasattr(self._plugin, 'add_message_handler'):
+            self._plugin.add_message_handler(callback, event)
+
+# Export the wrapper class
+__all__ = ['TelegramPluginWrapper']

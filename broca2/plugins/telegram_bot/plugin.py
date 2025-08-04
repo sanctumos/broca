@@ -2,26 +2,78 @@
 import logging
 from typing import Dict, Any, Optional, Callable, Awaitable
 
-from aiogram import Bot, Dispatcher
-from aiogram.types import Message
-from aiogram.filters import Command
-from aiogram.exceptions import TelegramUnauthorizedError
-
 from plugins.telegram_bot.settings import TelegramBotSettings, MessageMode
 from plugins.telegram_bot.message_handler import TelegramMessageHandler
 from plugins.telegram_bot.handlers import MessageHandler
+from plugins import Plugin
 
 logger = logging.getLogger(__name__)
+
+class TelegramBotPluginWrapper(Plugin):
+    """Wrapper for TelegramBotPlugin to make it compatible with auto-discovery."""
+    
+    def __init__(self):
+        """Initialize the wrapper."""
+        self._plugin = TelegramBotPlugin()
+    
+    def get_name(self) -> str:
+        """Get the plugin name."""
+        return self._plugin.get_name()
+    
+    def get_platform(self) -> str:
+        """Get the platform name."""
+        return self._plugin.get_platform()
+    
+    def get_message_handler(self):
+        """Get the message handler."""
+        return self._plugin.get_message_handler()
+    
+    def get_settings(self):
+        """Get plugin settings."""
+        return self._plugin.get_settings()
+    
+    def apply_settings(self, settings):
+        """Apply settings to the plugin."""
+        if hasattr(self._plugin, 'apply_settings'):
+            self._plugin.apply_settings(settings)
+        else:
+            # Fallback for backward compatibility
+            if hasattr(self._plugin, 'validate_settings'):
+                self._plugin.validate_settings(settings)
+    
+    def validate_settings(self, settings):
+        """Validate plugin settings."""
+        if hasattr(self._plugin, 'validate_settings'):
+            return self._plugin.validate_settings(settings)
+        return True
+    
+    async def start(self):
+        """Start the plugin."""
+        await self._plugin.start()
+    
+    async def stop(self):
+        """Stop the plugin."""
+        await self._plugin.stop()
+    
+    def register_event_handler(self, event_type, handler):
+        """Register an event handler."""
+        if hasattr(self._plugin, 'register_event_handler'):
+            self._plugin.register_event_handler(event_type, handler)
+    
+    def emit_event(self, event):
+        """Emit an event."""
+        if hasattr(self._plugin, 'emit_event'):
+            self._plugin.emit_event(event)
 
 class TelegramBotPlugin:
     """Telegram bot plugin using aiogram."""
 
     def __init__(self):
         """Initialize the plugin."""
-        self.settings = TelegramBotSettings.from_env()
-        self.bot: Optional[Bot] = None
-        self.dp: Optional[Dispatcher] = None
-        self.message_handler = TelegramMessageHandler()
+        self.settings = None  # Initialize lazily
+        self.bot = None
+        self.dp = None
+        self.message_handler = None  # Initialize lazily
         self.event_handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[None]]] = {}
         logger.info("Initialized TelegramBotPlugin")
 
@@ -31,7 +83,7 @@ class TelegramBotPlugin:
         Returns:
             str: Plugin name
         """
-        return "Telegram Bot"
+        return "telegram_bot"
 
     def get_platform(self) -> str:
         """Get the platform name.
@@ -39,7 +91,7 @@ class TelegramBotPlugin:
         Returns:
             str: Platform name
         """
-        return "telegram"
+        return "telegram_bot"
 
     def get_message_handler(self) -> MessageHandler:
         """Get the message handler.
@@ -47,6 +99,12 @@ class TelegramBotPlugin:
         Returns:
             MessageHandler: Message handler instance
         """
+        if self.message_handler is None:
+            try:
+                self.message_handler = TelegramMessageHandler()
+            except Exception as e:
+                logger.warning(f"Could not initialize TelegramMessageHandler: {e}")
+                return None
         return self.message_handler
 
     def get_settings(self) -> TelegramBotSettings:
@@ -55,6 +113,17 @@ class TelegramBotPlugin:
         Returns:
             TelegramBotSettings: Settings instance
         """
+        if self.settings is None:
+            try:
+                self.settings = TelegramBotSettings.from_env()
+            except Exception as e:
+                logger.warning(f"Could not load Telegram bot settings: {e}")
+                # Return a minimal settings object
+                return TelegramBotSettings(
+                    bot_token="",
+                    owner_id=None,
+                    owner_username=None
+                )
         return self.settings
 
     def validate_settings(self, settings: TelegramBotSettings) -> bool:
@@ -100,8 +169,20 @@ class TelegramBotPlugin:
     async def start(self) -> None:
         """Start the plugin."""
         try:
+            # Import aiogram only when needed
+            from aiogram import Bot, Dispatcher
+            from aiogram.filters import Command
+            
+            # Get settings (this will initialize them if needed)
+            settings = self.get_settings()
+            
+            # Check if we have valid settings
+            if not settings.bot_token:
+                logger.warning("Telegram bot token not configured - plugin will not start")
+                return
+            
             # Initialize bot and dispatcher
-            self.bot = Bot(token=self.settings.bot_token)
+            self.bot = Bot(token=settings.bot_token)
             self.dp = Dispatcher()
 
             # Register command handlers
@@ -112,6 +193,9 @@ class TelegramBotPlugin:
             # Start polling
             await self.dp.start_polling(self.bot)
             logger.info("Plugin started successfully")
+        except ImportError as e:
+            logger.error(f"aiogram not available: {e}")
+            raise
         except Exception as e:
             logger.error(f"Failed to start plugin: {e}")
             raise
@@ -126,7 +210,7 @@ class TelegramBotPlugin:
             logger.error(f"Error stopping plugin: {e}")
             raise
 
-    async def _handle_message(self, message: Message) -> None:
+    async def _handle_message(self, message) -> None:
         """Handle incoming messages.
 
         Args:
@@ -149,7 +233,7 @@ class TelegramBotPlugin:
             logger.error(f"Error handling message: {e}")
             raise
 
-    async def _handle_response(self, response: str, message: Message) -> None:
+    async def _handle_response(self, response: str, message) -> None:
         """Handle outgoing responses.
 
         Args:
@@ -162,7 +246,7 @@ class TelegramBotPlugin:
             logger.error(f"Error handling response for message {response}: {e}")
             raise
 
-    async def _handle_start_command(self, message: Message) -> None:
+    async def _handle_start_command(self, message) -> None:
         """Handle /start command.
 
         Args:
@@ -170,7 +254,7 @@ class TelegramBotPlugin:
         """
         await message.answer("Welcome! I'm your Telegram bot.")
 
-    async def _handle_help_command(self, message: Message) -> None:
+    async def _handle_help_command(self, message) -> None:
         """Handle /help command.
 
         Args:

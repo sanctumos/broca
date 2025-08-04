@@ -6,8 +6,6 @@ from runtime.core.message import MessageFormatter
 from database.operations.users import get_or_create_platform_profile
 from database.operations.messages import insert_message, update_message_status
 from database.operations.queue import add_to_queue
-from aiogram.types import Message
-from runtime.core.letta_client import LettaClient
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +15,10 @@ class TelegramMessageHandler:
     def __init__(self):
         """Initialize the message handler."""
         self.formatter = MessageFormatter()
-        self.letta_client = LettaClient()
+        self.letta_client = None  # Initialize lazily
         logger.info("Initialized MessageHandler")
     
-    async def process_incoming_message(self, message: Message) -> Dict[str, Any]:
+    async def process_incoming_message(self, message) -> Dict[str, Any]:
         """Process an incoming message.
         
         Args:
@@ -74,7 +72,7 @@ class TelegramMessageHandler:
             logger.error(f"Error processing incoming message: {e}")
             raise
     
-    async def process_outgoing_message(self, message: Message, response: str) -> None:
+    async def process_outgoing_message(self, message, response: str) -> None:
         """Process an outgoing message.
         
         Args:
@@ -91,7 +89,7 @@ class TelegramMessageHandler:
             logger.error(f"Error processing outgoing message: {e}")
             raise
 
-    async def update_message_status(self, message: Message, status: str) -> None:
+    async def update_message_status(self, message, status: str) -> None:
         """Update the status of a message.
         
         Args:
@@ -99,16 +97,24 @@ class TelegramMessageHandler:
             status: The new status
         """
         try:
+            # Initialize letta_client lazily if needed
+            if self.letta_client is None:
+                from runtime.core.letta_client import LettaClient
+                self.letta_client = LettaClient()
+            
             # Update message status in database
             await self.letta_client.update_message_status(
                 message_id=message.message_id,
                 status=status
             )
+        except ImportError as e:
+            logger.error(f"letta_client not available: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error updating message status: {e}")
             raise
 
-    async def handle_private_message(self, message: Message) -> None:
+    async def handle_private_message(self, message) -> None:
         """Handle a private message.
         
         Args:
@@ -116,7 +122,7 @@ class TelegramMessageHandler:
         """
         await self.process_incoming_message(message)
 
-    async def handle_group_message(self, message: Message) -> None:
+    async def handle_group_message(self, message) -> None:
         """Handle a group message.
         
         Args:
@@ -124,7 +130,7 @@ class TelegramMessageHandler:
         """
         await message.answer("Group messages are not supported")
 
-    async def handle_channel_message(self, message: Message) -> None:
+    async def handle_channel_message(self, message) -> None:
         """Handle a channel message.
         
         Args:

@@ -6,15 +6,12 @@ import os
 import time
 import json
 from typing import Optional
-from telethon import events
 from dotenv import load_dotenv
 from pathlib import Path
 
 from runtime.core.agent import AgentClient
 from runtime.core.queue import QueueProcessor
 from runtime.core.plugin import PluginManager
-from plugins.telegram.telegram_plugin import TelegramPlugin
-from plugins.telegram.handlers import MessageHandler
 from database.operations.shared import initialize_database, check_and_migrate_db
 from common.config import get_env_var, get_settings, validate_settings
 from common.logging import setup_logging
@@ -50,23 +47,12 @@ class Application:
         
         # Initialize other components
         self.agent = AgentClient()
-        self.telegram = TelegramPlugin()  # Changed from TelegramBot to TelegramPlugin
-        self.message_handler = MessageHandler(telegram_plugin=self.telegram)
         
         # Initialize queue processor with plugin manager
         self.queue_processor = QueueProcessor(
             message_processor=self._process_message,
             plugin_manager=self.plugin_manager
         )
-        
-        # Load the telegram plugin
-        self.plugin_manager._plugins[self.telegram.get_name()] = self.telegram
-        platform = self.telegram.get_platform()
-        if platform:
-            handler = self.telegram.get_message_handler()
-            if handler:
-                self.plugin_manager._platform_handlers[platform] = handler
-                logger.info(f"Registered message handler for platform: {platform}")
         
         self._settings_file = "settings.json"
         self._settings_mtime = 0
@@ -87,14 +73,10 @@ class Application:
                 settings = get_settings()
                 validate_settings(settings)
                 
-                # Update message mode in all components
+                # Update message mode in queue processor
                 if 'message_mode' in settings:
                     new_mode = settings['message_mode']
                     logger.info(f"Updating message mode to: {new_mode}")
-                    
-                    # Update message handler
-                    self.message_handler.set_message_mode(new_mode)
-                    logger.info(f"Message handler mode set to: {new_mode}")
                     
                     # Update queue processor if it exists
                     if self.queue_processor:
@@ -126,14 +108,6 @@ class Application:
         except Exception as e:
             logger.error(f"Failed to reload settings: {str(e)}")
     
-    async def _handle_message(self, event: events.NewMessage.Event) -> None:
-        """Handle incoming Telegram messages.
-        
-        Args:
-            event: The Telegram message event
-        """
-        await self.message_handler.handle_private_message(event)
-    
     async def _process_message(self, message: str) -> Optional[str]:
         """Process a message through the agent.
         
@@ -149,11 +123,12 @@ class Application:
         """Handle processed messages.
         
         Args:
-            user_id: The Telegram user ID
+            user_id: The user ID
             response: The processed response message
         """
-        if self.telegram.client:
-            await self.telegram.client.send_message(user_id, response)
+        # Let the plugin manager handle message sending
+        # This will be handled by individual plugins
+        logger.info(f"Message processed for user {user_id}: {response}")
     
     async def start(self) -> None:
         """Start all application components."""
@@ -168,13 +143,17 @@ class Application:
                 logger.error("❌ Failed to initialize agent. Exiting...")
                 return
             
-            # Start plugin manager first
+            # Load configuration
+            logger.info("📋 Loading configuration...")
+            settings = get_settings()
+            
+            # Discover and load plugins
+            logger.info("🔄 Discovering plugins...")
+            await self.plugin_manager.discover_plugins(config=settings.get('plugins', {}))
+            
+            # Start plugin manager
             logger.info("🔄 Starting plugin manager...")
             await self.plugin_manager.start()
-            
-            # Start Telegram client
-            logger.info("🤖 Starting Telegram client...")
-            await self.telegram.start()
             
             # Initialize queue processor
             logger.info("📋 Initializing message queue processor...")
@@ -184,26 +163,22 @@ class Application:
             )
             
             # Set initial message mode
-            self.message_handler.set_message_mode('echo')
             self.queue_processor.set_message_mode('echo')
             
             # Start queue processor
             queue_task = asyncio.create_task(self.queue_processor.start())
-            
-            # Set up Telegram handlers
-            logger.info("📱 Setting up Telegram handlers...")
-            self.telegram.add_message_handler(
-                self._handle_message,
-                events.NewMessage(incoming=True)
-            )
             
             logger.info("✅ Application started successfully!")
             
             # Start settings monitor task
             settings_task = asyncio.create_task(self._monitor_settings())
             
-            # Wait for the Telegram client to disconnect
-            await self.telegram.client.run_until_disconnected()
+            # Keep application running until interrupted
+            try:
+                while True:
+                    await asyncio.sleep(1)
+            except KeyboardInterrupt:
+                logger.info("Shutdown requested")
             
         except KeyboardInterrupt:
             logger.warning("⚠️ Shutdown requested by user")
@@ -216,15 +191,11 @@ class Application:
                     pass
             # Clean up agent
             await self.agent.cleanup()
-            # Disconnect Telegram client
-            await self.telegram.client.disconnect()
             raise
         except Exception as e:
             logger.error(f"❌ Error: {str(e)}")
             # Clean up agent
             await self.agent.cleanup()
-            # Disconnect Telegram client
-            await self.telegram.client.disconnect()
             raise
     
     async def _monitor_settings(self):
@@ -240,10 +211,6 @@ class Application:
             if self.queue_processor:
                 logger.info("🛑 Stopping queue processor...")
                 await self.queue_processor.stop()
-            
-            if self.telegram:
-                logger.info("🛑 Stopping Telegram client...")
-                await self.telegram.stop()
             
             # Clean up agent
             logger.info("🛑 Cleaning up agent...")
@@ -274,7 +241,6 @@ class Application:
         if 'message_mode' in settings:
             new_mode = settings['message_mode']
             logger.info(f"Updating message mode to: {new_mode}")
-            self.message_handler.set_message_mode(new_mode)
             if self.queue_processor:
                 self.queue_processor.set_message_mode(new_mode)
         if 'debug_mode' in settings:

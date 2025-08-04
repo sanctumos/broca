@@ -9,7 +9,7 @@ from runtime.core.message import Message, MessageHandler, MessageFormatter as Ba
 from database.operations.users import get_or_create_platform_profile
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
-from .settings import TelegramSettings, MessageMode
+from plugins.telegram.settings import TelegramSettings, MessageMode
 
 class MessageFormatter(BaseMessageFormatter):
     """Telegram-specific message formatter."""

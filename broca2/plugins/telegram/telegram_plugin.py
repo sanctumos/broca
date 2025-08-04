@@ -3,17 +3,10 @@ import logging
 import os
 import json
 from typing import Dict, Any, Optional, Callable, List
-from telethon import TelegramClient, events
-from telethon.sessions import StringSession
 from dotenv import load_dotenv, set_key
 from pathlib import Path
 
-from common.config import get_env_var
 from plugins import Plugin, Event, EventType
-from database.models import PlatformProfile
-from database.operations.messages import update_message_status
-from .settings import TelegramSettings, MessageMode
-from .message_handler import MessageFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +15,12 @@ class TelegramPlugin(Plugin):
     
     def __init__(self):
         """Initialize the Telegram plugin."""
-        self.settings = TelegramSettings.from_env()
-        self.formatter = MessageFormatter()
+        self.settings = None  # Initialize lazily
+        self.formatter = None  # Initialize lazily
         self.ignored_bots: Dict[str, Dict[str, str]] = {}
         
-        # Initialize client
-        self.client = TelegramClient(
-            StringSession(self.settings.session_string),
-            self.settings.api_id,
-            self.settings.api_hash
-        )
+        # Initialize client lazily
+        self.client = None
         
         # Event handlers
         self._event_handlers: Dict[EventType, set[Callable[[Event], None]]] = {
@@ -106,7 +95,7 @@ class TelegramPlugin(Plugin):
         """Get the message handler for this platform."""
         return self._handle_response
     
-    async def _handle_response(self, response: str, profile: PlatformProfile, message_id: int) -> None:
+    async def _handle_response(self, response: str, profile, message_id: int) -> None:
         """Handle sending a response to a Telegram user.
         
         Args:
@@ -115,6 +104,17 @@ class TelegramPlugin(Plugin):
             message_id: The ID of the message being responded to
         """
         try:
+            # Debug logging
+            logger.info(f"🔵 _handle_response called with response: {response[:50]}..., profile: {profile}, message_id: {message_id}")
+            
+            # Import database operations lazily
+            from database.operations.messages import update_message_status
+            
+            # Initialize formatter lazily if needed
+            if self.formatter is None:
+                from plugins.telegram.message_handler import MessageFormatter
+                self.formatter = MessageFormatter()
+            
             # Format response for Telegram
             formatted = self.formatter.format_response(response)
             
@@ -154,23 +154,40 @@ class TelegramPlugin(Plugin):
                     response=formatted
                 )
                 
+        except ImportError as e:
+            logger.error(f"Database operations not available: {e}")
+            raise
         except Exception as e:
             error_msg = f"Failed to send response to {profile.platform_user_id}: {str(e)}"
             logger.error(error_msg)
             # Update message status to failed
-            await update_message_status(
-                message_id=message_id,
-                status="failed",
-                response=error_msg
-            )
+            try:
+                from database.operations.messages import update_message_status
+                await update_message_status(
+                    message_id=message_id,
+                    status="failed",
+                    response=error_msg
+                )
+            except ImportError:
+                logger.error("Could not update message status - database operations not available")
+            raise
     
     def get_settings(self) -> Optional[Dict[str, Any]]:
         """Get the plugin's settings."""
+        if self.settings is None:
+            try:
+                from plugins.telegram.settings import TelegramSettings
+                self.settings = TelegramSettings.from_env()
+            except Exception as e:
+                logger.warning(f"Could not load Telegram settings: {e}")
+                # Return a minimal settings object
+                return {}
         return self.settings.to_dict()
     
     def validate_settings(self, settings: Dict[str, Any]) -> bool:
         """Validate plugin settings."""
         try:
+            from plugins.telegram.settings import TelegramSettings
             TelegramSettings.from_dict(settings)
             return True
         except (KeyError, ValueError):
@@ -191,11 +208,25 @@ class TelegramPlugin(Plugin):
     
     async def start(self) -> None:
         """Start the Telegram client."""
-        if not self.client:
-            logger.error("❌ Telegram client not initialized")
-            return
-        
         try:
+            # Import telethon only when needed
+            from telethon import TelegramClient, events
+            from telethon.sessions import StringSession
+            
+            # Get settings (this will initialize them if needed)
+            settings = self.get_settings()
+            if not settings:
+                logger.warning("Telegram settings not configured - plugin will not start")
+                return
+            
+            # Initialize client if not already done
+            if not self.client:
+                self.client = TelegramClient(
+                    StringSession(self.settings.session_string),
+                    self.settings.api_id,
+                    self.settings.api_hash
+                )
+            
             logger.info("🔄 Starting Telegram client...")
             await self.client.start()
             
@@ -205,6 +236,80 @@ class TelegramPlugin(Plugin):
             
             # Load ignore list
             self._load_ignore_list()
+            
+            # Register message handler for incoming messages
+            @self.client.on(events.NewMessage(incoming=True))
+            async def handle_new_message(event):
+                """Handle incoming messages."""
+                logger.info(f"🔍 DEBUG: Message handler called! Event: {event}")
+                try:
+                    # Skip ignored bots
+                    if self.is_bot_ignored(event.sender_id, getattr(event.sender, 'username', None)):
+                        logger.info(f"🔍 DEBUG: Skipping ignored bot: {event.sender_id}")
+                        return
+                    
+                    # Skip messages from self
+                    if event.sender_id == await self.client.get_peer_id('me'):
+                        logger.info(f"🔍 DEBUG: Skipping message from self: {event.sender_id}")
+                        return
+                    
+                    # Get message details
+                    message = event.message.text
+                    user_id = event.sender_id
+                    
+                    # Try to get user info from event.sender, or fetch it if needed
+                    username = None
+                    first_name = 'Unknown'
+                    
+                    if event.sender:
+                        username = getattr(event.sender, 'username', None)
+                        first_name = getattr(event.sender, 'first_name', 'Unknown')
+                    else:
+                        # Fetch user info from Telegram API
+                        try:
+                            user = await self.client.get_entity(user_id)
+                            username = getattr(user, 'username', None)
+                            first_name = getattr(user, 'first_name', 'Unknown')
+                            logger.info(f"🔍 Debug - Fetched user info: {first_name} (@{username})")
+                        except Exception as e:
+                            logger.warning(f"🔍 Debug - Could not fetch user info: {e}")
+                    
+                    # Debug logging for user info
+                    logger.info(f"🔍 Debug - event.sender: {event.sender}")
+                    logger.info(f"🔍 Debug - event.sender_id: {event.sender_id}")
+                    logger.info(f"🔍 Debug - username: {username}, first_name: {first_name}")
+                    
+                    logger.info(f"📨 Received message from {first_name} (@{username}): {message[:50]}...")
+                    
+                    # Import database operations lazily
+                    from database.operations.users import get_or_create_platform_profile
+                    from database.operations.messages import insert_message
+                    from database.operations.queue import add_to_queue
+                    
+                    # Get or create user profile
+                    profile, letta_user = await get_or_create_platform_profile(
+                        platform="telegram",
+                        platform_user_id=str(user_id),
+                        username=username,
+                        display_name=first_name
+                    )
+                    
+                    # Insert message into database
+                    message_id = await insert_message(
+                        letta_user_id=letta_user.id,
+                        platform_profile_id=profile.id,
+                        role="user",
+                        message=message,
+                        timestamp=event.date.strftime("%Y-%m-%d %H:%M UTC")
+                    )
+                    
+                    # Add to processing queue
+                    await add_to_queue(letta_user.id, message_id)
+                    
+                    logger.info(f"✅ Message queued for processing: {message_id}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error handling incoming message: {str(e)}")
             
             # Save the session string if it's different from what we have
             if self.settings.auto_save_session:
@@ -217,6 +322,21 @@ class TelegramPlugin(Plugin):
             
             logger.info("✅ Telegram client started successfully")
             
+            # Test if client is properly connected
+            try:
+                me = await self.client.get_me()
+                logger.info(f"🔍 DEBUG: Connected as: {me.first_name} (@{me.username})")
+            except Exception as e:
+                logger.error(f"🔍 DEBUG: Error getting client info: {e}")
+            
+            # Start the client event loop in the background
+            logger.info("🔄 Starting Telegram event loop...")
+            asyncio.create_task(self.client.run_until_disconnected())
+            logger.info("✅ Telegram event loop started")
+            
+        except ImportError as e:
+            logger.error(f"telethon not available: {e}")
+            raise
         except Exception as e:
             logger.error(f"❌ Failed to start Telegram client: {str(e)}")
             raise
@@ -226,7 +346,7 @@ class TelegramPlugin(Plugin):
         if self.client:
             await self.client.disconnect()
     
-    def add_message_handler(self, callback: Callable, event: events.NewMessage) -> None:
+    def add_message_handler(self, callback: Callable, event) -> None:
         """Add a message handler to the client.
         
         Args:
@@ -236,11 +356,14 @@ class TelegramPlugin(Plugin):
         if self.client:
             self.client.add_event_handler(callback, event)
     
-    def set_message_mode(self, mode: MessageMode) -> None:
+    def set_message_mode(self, mode) -> None:
         """Set the message handling mode.
         
         Args:
             mode: The message mode
         """
+        from plugins.telegram.settings import MessageMode
+        if isinstance(mode, str):
+            mode = MessageMode(mode)
         self.settings.message_mode = mode
         logger.info(f"🔵 Message processing mode changed to: {mode.name}") 

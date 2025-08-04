@@ -6,4 +6,6 @@ emoji
 rich
 typer
 pydantic
-markdown 
+markdown
+letta-client
+aiogram 
