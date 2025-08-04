@@ -317,6 +317,30 @@ async def get_platform_profile_id(letta_user_id: int) -> Optional[Tuple[int, str
                 return row[0], row[1]
             return None
 
+async def get_platform_profile(profile_id: int) -> Optional[PlatformProfile]:
+    """Get platform profile by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT id, letta_user_id, platform, platform_user_id, username, 
+                   display_name, metadata, created_at, last_active
+            FROM platform_profiles 
+            WHERE id = ?
+        """, (profile_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return PlatformProfile(
+                    id=row[0],
+                    letta_user_id=row[1],
+                    platform=row[2],
+                    platform_user_id=row[3],
+                    username=row[4],
+                    display_name=row[5],
+                    metadata=row[6],
+                    created_at=row[7],
+                    last_active=row[8]
+                )
+            return None
+
 async def get_letta_user_block_id(letta_user_id: int) -> Optional[str]:
     """Get the Letta block ID for a user."""
     async with aiosqlite.connect(DB_PATH) as db:

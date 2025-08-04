@@ -40,6 +40,7 @@ class MessageFormatter:
         message: str,
         platform_user_id: Optional[int] = None,
         username: Optional[str] = None,
+        platform: Optional[str] = None,
         include_timestamp: bool = False,
         timestamp: Optional[datetime] = None
     ) -> str:
@@ -47,15 +48,16 @@ class MessageFormatter:
         
         Args:
             message: The message text to format
-            platform_user_id: Optional platform-specific user ID (Telegram ID)
+            platform_user_id: Optional platform-specific user ID
             username: Optional username
+            platform: Optional platform name for ID labeling
             include_timestamp: Whether to include timestamp in format
             timestamp: Optional timestamp for the message
             
         Returns:
             Formatted message with metadata
         """
-        # Format: [Username: @username, Telegram ID: id] message
+        # Format: [Username: @username, Platform ID: id] message
         parts = []
         
         # Add user info if provided
@@ -63,9 +65,11 @@ class MessageFormatter:
         if username:
             user_parts.append(f"Username: @{username}")
         if platform_user_id:
-            user_parts.append(f"Telegram ID: {platform_user_id}")
+            # Use platform-specific label or fallback to "Platform ID"
+            id_label = f"{platform.title()} ID" if platform else "Platform ID"
+            user_parts.append(f"{id_label}: {platform_user_id}")
         if user_parts:
-            # Ensure exact format: [Username: @username, Telegram ID: id]
+            # Ensure exact format: [Username: @username, Platform ID: id]
             parts.append(f"[{', '.join(user_parts)}]")
         
         # Add the message

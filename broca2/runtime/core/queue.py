@@ -213,10 +213,17 @@ class QueueProcessor:
                             continue
                             
                         platform_profile_id, platform_user_id = platform_profile
+                        
+                        # Get platform name from profile
+                        from database.operations.users import get_platform_profile
+                        profile = await get_platform_profile(platform_profile_id)
+                        platform_name = profile.platform if profile else None
+                        
                         formatted_message = self.formatter.format_message(
                             message=message_text,
                             platform_user_id=platform_user_id,
-                            username=username
+                            username=username,
+                            platform=platform_name
                         )
                         
                         # Process message according to mode
