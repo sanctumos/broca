@@ -3,15 +3,57 @@
 ## Overview
 Sanctum: Broca 2 is designed with a plugin-first architecture. **Plugins are the primary way to integrate new endpoints, services, and communication channels**—not just Telegram or CLI, but any system (APIs, bots, webhooks, etc.) that needs to send or receive messages through Sanctum: Broca.
 
-Plugins can:
+With the new multi-agent architecture, plugins can:
 - Connect Sanctum: Broca to external platforms (e.g., Telegram, Slack, REST APIs, custom bots)
 - Add diagnostic or testing surfaces (CLI, admin tools)
 - Extend Sanctum: Broca for automation, monitoring, or custom workflows
+- **Work with multiple agent instances** through shared base installation
 
 **CLI tools and plugins are built to be MCP'able:**
 - All CLI interfaces are designed so that agents (not just humans) can operate them programmatically.
 - This enables Sanctum: Broca to be managed, tested, and extended by other AI agents or automation systems.
 - MCP (Machine Control Protocol) compatibility is a core design goal for all admin and plugin interfaces.
+
+---
+
+## Multi-Agent Plugin Architecture
+
+### Plugin Location and Sharing
+- **Base Installation**: Plugins are installed in `broca2/plugins/` and shared across all agent instances
+- **Agent Instances**: Each agent instance can have its own plugin configuration and settings
+- **Shared Resources**: Plugin code and dependencies are shared, but configuration is per-agent
+
+### Plugin Configuration Hierarchy
+1. **Agent-specific settings** (`agent-{uuid}/settings.json`) - Highest priority
+2. **Agent-specific environment** (`agent-{uuid}/.env`) - Second priority
+3. **Base plugin settings** (`broca2/settings.json`) - Third priority
+4. **Base environment** (`broca2/.env`) - Fourth priority
+5. **Default values** (hardcoded in plugin) - Lowest priority
+
+### Example: Plugin Configuration
+```json
+// broca2/settings.json (base)
+{
+  "plugins": {
+    "telegram": {
+      "enabled": true,
+      "parse_mode": "MarkdownV2",
+      "session_timeout": 3600
+    }
+  }
+}
+
+// broca2/agent-{uuid}/settings.json (agent-specific)
+{
+  "plugins": {
+    "telegram": {
+      "enabled": true,
+      "parse_mode": "MarkdownV2",
+      "custom_setting": "agent_specific_value"
+    }
+  }
+}
+```
 
 ---
 
@@ -28,6 +70,7 @@ Plugins can:
 - Plugins are managed by the `PluginManager` (`runtime/core/plugin.py`).
 - Plugins are loaded, started, and stopped independently.
 - Each plugin must implement a standardized interface.
+- **Plugins can access agent-specific configuration** through the plugin manager.
 
 ---
 
@@ -40,28 +83,48 @@ Every plugin **must** implement:
 - `stop(self) -> Awaitable`: Async cleanup logic.
 - `apply_settings(self, settings: Dict[str, Any]) -> None`: Apply dynamic settings (NEW).
 
-### Example Skeleton
+### Example Skeleton with Multi-Agent Support
 ```python
 from plugins import Plugin
+from typing import Dict, Any, Optional
 
 class MyPlugin(Plugin):
+    def __init__(self, settings=None, agent_id=None):
+        self.settings = settings
+        self.agent_id = agent_id  # Track which agent this plugin instance serves
+        super().__init__()
+    
     def get_name(self):
         return "my_plugin"
+    
     def get_platform(self):
         return "my_platform"
+    
     def get_message_handler(self):
         return self._handle_response  # Must return a callable function
+    
     async def start(self):
-        # Startup logic
+        # Startup logic - can use agent_id for agent-specific initialization
+        if self.agent_id:
+            self.logger.info(f"Starting plugin for agent: {self.agent_id}")
         pass
+    
     async def stop(self):
         # Cleanup logic
         pass
+    
     def apply_settings(self, settings: Dict[str, Any]) -> None:
         """Apply dynamic settings to the plugin."""
         if settings:
             # Apply settings logic here
+            # Can merge agent-specific settings with base settings
             pass
+    
+    def get_agent_specific_setting(self, key: str, default=None):
+        """Get agent-specific setting with fallback to base setting."""
+        if self.agent_id and hasattr(self, 'agent_settings'):
+            return self.agent_settings.get(key, default)
+        return self.settings.get(key, default) if self.settings else default
 ```
 
 ---
@@ -71,22 +134,43 @@ class MyPlugin(Plugin):
 - `validate_settings(self, settings: dict) -> bool`: Validate settings.
 - `register_event_handler(self, event_type, handler)`: Register for core/plugin events.
 - `emit_event(self, event)`: Emit custom events.
+- `get_agent_specific_setting(self, key: str, default=None)`: Get agent-specific configuration.
 
 ## Critical Implementation Details
 
 ### Message Handler Requirements
 - **Must return a callable function**: `get_message_handler()` must return a function that can be called by the queue processor.
 - **Function signature**: The handler should accept `(response: str, profile, message_id: int)` parameters.
-- **Example implementation**:
+- **Agent awareness**: The handler can access agent-specific configuration through `self.agent_id`.
+
+### Example implementation with multi-agent support:
 ```python
 def get_message_handler(self):
     return self._handle_response
 
 async def _handle_response(self, response: str, profile, message_id: int) -> None:
     """Handle sending a response to the platform."""
-    # Extract platform-specific data from profile
-    # Send response via platform API
-    pass
+    try:
+        # Extract platform-specific data from profile
+        metadata = profile.metadata
+        if isinstance(metadata, str):
+            import json
+            metadata = json.loads(metadata)
+        
+        # Use agent-specific settings if available
+        api_key = self.get_agent_specific_setting('API_KEY', 'default_key')
+        endpoint = self.get_agent_specific_setting('API_ENDPOINT', 'default_endpoint')
+        
+        # Send response via platform API
+        success = await self.send_response(metadata.get('session_id'), response, api_key, endpoint)
+        
+        if success:
+            self.logger.info(f"Successfully sent response for agent {self.agent_id}")
+        else:
+            self.logger.error(f"Failed to send response for agent {self.agent_id}")
+            
+    except Exception as e:
+        self.logger.error(f"Error handling response for agent {self.agent_id}: {e}")
 ```
 
 ### Lazy Import Pattern
@@ -105,32 +189,49 @@ async def start(self):
     # Use imports here
 ```
 
-### Settings Management
+### Settings Management with Multi-Agent Support
 - **Lazy initialization**: Initialize settings in `__init__()` but load them lazily in `get_settings()`.
 - **Fallback values**: Provide sensible defaults when settings are `None`.
-- **Example**:
+- **Agent-specific overrides**: Support both base and agent-specific configuration.
+
 ```python
-def __init__(self, settings=None):
+def __init__(self, settings=None, agent_id=None):
     self.settings = settings  # Don't load immediately
+    self.agent_id = agent_id
+    self.agent_settings = None
 
 def get_settings(self):
     if self.settings is None:
         self.settings = self.load_settings_from_env()
+    
+    # Load agent-specific settings if available
+    if self.agent_id:
+        self.agent_settings = self.load_agent_specific_settings(self.agent_id)
+    
     return self.settings.to_dict()
 
-def get_name(self):
-    if self.settings is None:
-        return "my_plugin"  # Fallback
-    return self.settings.plugin_name
+def get_agent_specific_setting(self, key: str, default=None):
+    """Get setting with agent-specific override."""
+    # Check agent-specific settings first
+    if self.agent_settings and key in self.agent_settings:
+        return self.agent_settings[key]
+    
+    # Fall back to base settings
+    if self.settings and key in self.settings:
+        return self.settings[key]
+    
+    # Finally, use default
+    return default
 ```
 
 ---
 
-## Plugin Lifecycle
-- **Initialization:** Instantiated by PluginManager.
-- **Start:** `await plugin.start()` is called when the system starts.
-- **Stop:** `await plugin.stop()` is called on shutdown or reload.
-- **Settings:** Loaded from config and passed to the plugin if needed.
+## Plugin Lifecycle in Multi-Agent Environment
+- **Initialization:** Instantiated by PluginManager with agent context.
+- **Start:** `await plugin.start()` is called when the agent instance starts.
+- **Stop:** `await plugin.stop()` is called on agent shutdown or reload.
+- **Settings:** Loaded from both base config and agent-specific config.
+- **Agent Context:** Plugin maintains awareness of which agent instance it serves.
 
 ---
 
@@ -138,8 +239,9 @@ def get_name(self):
 - Each plugin must provide a message handler (function or coroutine).
 - The handler is registered with the PluginManager for its platform.
 - **Critical**: The handler must be callable and accept the correct parameters.
+- **Multi-Agent**: Handler can access agent-specific configuration and context.
 
-### Response Handler Pattern
+### Response Handler Pattern with Multi-Agent Support
 The queue processor calls your handler with: `(response: str, profile, message_id: int)`
 
 ```python
@@ -155,19 +257,23 @@ async def _handle_response(self, response: str, profile, message_id: int) -> Non
             import json
             metadata = json.loads(metadata)
         
+        # Use agent-specific configuration
+        api_key = self.get_agent_specific_setting('API_KEY')
+        endpoint = self.get_agent_specific_setting('API_ENDPOINT')
+        
         # Send response via platform API
         success = await self.send_response(metadata.get('session_id'), response)
         
         if success:
-            self.logger.info(f"Successfully sent response")
+            self.logger.info(f"Successfully sent response for agent {self.agent_id}")
         else:
-            self.logger.error(f"Failed to send response")
+            self.logger.error(f"Failed to send response for agent {self.agent_id}")
             
     except Exception as e:
-        self.logger.error(f"Error handling response: {e}")
+        self.logger.error(f"Error handling response for agent {self.agent_id}: {e}")
 ```
 
-### Incoming Message Processing
+### Incoming Message Processing with Multi-Agent Support
 For plugins that poll for messages (like web chat), process incoming messages in your polling loop:
 
 ```python
@@ -180,10 +286,10 @@ async def _process_message(self, message_data: Dict[str, Any]):
         message_id = await self.message_handler.process_incoming_message(message_data)
         
         if message_id:
-            self.logger.info(f"Message queued for processing")
+            self.logger.info(f"Message queued for processing by agent {self.agent_id}")
             
     except Exception as e:
-        self.logger.error(f"Error processing message: {e}")
+        self.logger.error(f"Error processing message for agent {self.agent_id}: {e}")
 ```
 
 ---
@@ -192,303 +298,209 @@ async def _process_message(self, message_data: Dict[str, Any]):
 - Plugins can register for core events (message, status, error).
 - Use `register_event_handler` and `emit_event` for custom workflows.
 - Handle errors gracefully and log using the core logger.
+- **Multi-Agent**: Include agent context in logging and error handling.
 
 ---
 
-## Settings and Configuration
+## Settings and Configuration with Multi-Agent Support
 - Plugin settings are defined in the plugin and/or loaded from config files.
 - Use `get_settings` and `validate_settings` for custom options.
-- **Dynamic settings**: Use `apply_settings()` for runtime configuration changes.
+- **Agent-specific overrides**: Support both base and agent-specific configuration.
+- **Configuration inheritance**: Implement proper fallback from agent-specific to base settings.
 
-### Settings Pattern
+### Example: Plugin Settings with Multi-Agent Support
 ```python
-from dataclasses import dataclass
-from typing import Optional
-
-@dataclass
-class MyPluginSettings:
-    api_key: Optional[str] = None
-    api_url: str = "https://api.example.com"
-    poll_interval: int = 5
-    debug: bool = False
-    
-    @classmethod
-    def from_env(cls):
-        """Load settings from environment variables."""
-        return cls(
-            api_key=os.getenv("MY_PLUGIN_API_KEY"),
-            api_url=os.getenv("MY_PLUGIN_API_URL", "https://api.example.com"),
-            poll_interval=int(os.getenv("MY_PLUGIN_POLL_INTERVAL", "5")),
-            debug=os.getenv("MY_PLUGIN_DEBUG", "false").lower() == "true"
-        )
-    
-    def to_dict(self):
-        return {
-            "api_key": self.api_key,
-            "api_url": self.api_url,
-            "poll_interval": self.poll_interval,
-            "debug": self.debug
-        }
-
 class MyPlugin(Plugin):
-    def __init__(self, settings=None):
-        self.settings = settings  # Lazy initialization
+    def __init__(self, settings=None, agent_id=None):
+        self.settings = settings
+        self.agent_id = agent_id
+        self.agent_settings = None
     
     def get_settings(self):
-        if self.settings is None:
-            self.settings = MyPluginSettings.from_env()
-        return self.settings.to_dict()
+        """Get merged settings (agent-specific + base)."""
+        base_settings = self.settings or {}
+        
+        if self.agent_id:
+            # Load agent-specific settings
+            agent_config_path = f"agent-{self.agent_id}/settings.json"
+            if os.path.exists(agent_config_path):
+                try:
+                    with open(agent_config_path, 'r') as f:
+                        self.agent_settings = json.load(f)
+                except Exception as e:
+                    self.logger.warning(f"Failed to load agent settings: {e}")
+        
+        # Merge settings (agent-specific overrides base)
+        merged_settings = base_settings.copy()
+        if self.agent_settings and 'plugins' in self.agent_settings:
+            plugin_settings = self.agent_settings['plugins'].get(self.get_name(), {})
+            merged_settings.update(plugin_settings)
+        
+        return merged_settings
     
-    def apply_settings(self, settings: Dict[str, Any]) -> None:
-        """Apply dynamic settings."""
-        if settings:
-            self.settings = MyPluginSettings(**settings)
+    def validate_settings(self, settings: dict) -> bool:
+        """Validate both base and agent-specific settings."""
+        # Validate base settings
+        if not super().validate_settings(settings):
+            return False
+        
+        # Validate agent-specific settings if present
+        if self.agent_settings:
+            agent_plugin_settings = self.agent_settings.get('plugins', {}).get(self.get_name(), {})
+            if not self._validate_agent_settings(agent_plugin_settings):
+                return False
+        
+        return True
 ```
 
 ---
 
-## Registering and Enabling Plugins
-- Plugins are discovered and loaded by the PluginManager.
-- To enable/disable a plugin, update the config and restart Sanctum: Broca 2.
-- Plugins should clean up all resources on stop.
+## Plugin Development Best Practices for Multi-Agent
+
+### 1. **Agent Context Awareness**
+- Always consider which agent instance the plugin is serving
+- Use agent-specific configuration when available
+- Log with agent context for easier debugging
+
+### 2. **Configuration Management**
+- Implement proper fallback from agent-specific to base settings
+- Validate both base and agent-specific configurations
+- Support dynamic configuration updates
+
+### 3. **Resource Isolation**
+- Ensure plugin resources are properly isolated between agents
+- Use agent-specific paths for files, databases, and logs
+- Avoid sharing mutable state between agent instances
+
+### 4. **Error Handling**
+- Include agent context in all error messages and logs
+- Implement proper cleanup for agent-specific resources
+- Handle configuration errors gracefully
+
+### 5. **Testing**
+- Test plugins with multiple agent instances
+- Verify configuration inheritance and overrides
+- Test agent isolation and resource separation
 
 ---
 
-## Best Practices
-- Keep plugins isolated: no cross-plugin dependencies.
-- Use async/await for all I/O.
-- Log all significant actions and errors.
-- Validate all external input.
-- Document your plugin's settings and usage.
-
-### Database Integration
-- **User creation**: Use `get_or_create_letta_user()` and `get_or_create_platform_profile()` for consistent user management.
-- **Message handling**: Use `insert_message()` and `add_to_queue()` for message processing.
-- **Profile metadata**: Store platform-specific data (like session IDs) in profile metadata.
+## Example: Complete Multi-Agent Plugin
 
 ```python
-# Create user and profile
-letta_user = await get_or_create_letta_user(
-    username=f"web_user_{platform_user_id}",
-    display_name=f"Web User ({platform_user_id[:8]})",
-    platform_user_id=platform_user_id
-)
+#!/usr/bin/env python3
+"""Example plugin with full multi-agent support."""
 
-platform_profile, _ = await get_or_create_platform_profile(
-    platform=self.platform_name,
-    platform_user_id=platform_user_id,
-    username=f"web_user_{platform_user_id}",
-    display_name=f"Web User ({platform_user_id[:8]})",
-    metadata={
-        'session_id': session_id,
-        'uid': uid,
-        'source': 'web_chat'
-    }
-)
-
-# Insert message
-message_id = await insert_message(
-    letta_user_id=letta_user.id,
-    platform_profile_id=platform_profile.id,
-    role="user",
-    message=message_text,
-    timestamp=timestamp
-)
-
-# Add to queue
-await add_to_queue(
-    letta_user_id=letta_user.id,
-    message_id=message_id
-)
-```
-
-### Error Handling
-- **Graceful degradation**: Handle missing settings, network errors, and invalid data.
-- **Logging**: Use structured logging with appropriate levels.
-- **Resource cleanup**: Always clean up connections and resources in `stop()`.
-
-### Platform-Specific Considerations
-- **Polling plugins**: Implement proper backoff and retry logic.
-- **API plugins**: Handle rate limits and authentication errors.
-- **Real-time plugins**: Manage connection state and reconnection logic.
-
----
-
-## Troubleshooting
-
-### Common Issues
-- **"Object is not callable"**: Ensure `get_message_handler()` returns a function, not an object.
-- **"Module not found"**: Use lazy imports for external dependencies.
-- **"User details not found"**: Check that users and profiles are created correctly.
-- **"Settings validation failed"**: Provide fallback values for missing settings.
-
-### Debugging Checklist
-- [ ] Plugin loads without errors during discovery
-- [ ] Plugin starts successfully
-- [ ] Message handler is callable
-- [ ] Database operations succeed
-- [ ] Queue processing works
-- [ ] Response routing functions
-
-### Logging Strategy
-```python
-import logging
-
-logger = logging.getLogger(__name__)
-
-# Use appropriate log levels
-logger.debug("Detailed debugging info")
-logger.info("General information")
-logger.warning("Warning messages")
-logger.error("Error conditions")
-```
-
-### Testing Your Plugin
-1. **Isolation testing**: Test plugin methods in isolation
-2. **Integration testing**: Test with the full system
-3. **Error testing**: Test with invalid data and network failures
-4. **Performance testing**: Test with high message volumes
-
----
-
-## Example: Complete Plugin
-```python
-from plugins import Plugin
-from typing import Dict, Any, Optional
-import asyncio
-import logging
-from dataclasses import dataclass
 import os
+import json
+import logging
+from typing import Dict, Any, Optional
+from plugins import Plugin
 
-@dataclass
-class MyPluginSettings:
-    api_key: Optional[str] = None
-    api_url: str = "https://api.example.com"
-    poll_interval: int = 5
-    
-    @classmethod
-    def from_env(cls):
-        return cls(
-            api_key=os.getenv("MY_PLUGIN_API_KEY"),
-            api_url=os.getenv("MY_PLUGIN_API_URL", "https://api.example.com"),
-            poll_interval=int(os.getenv("MY_PLUGIN_POLL_INTERVAL", "5"))
-        )
-    
-    def to_dict(self):
-        return {
-            "api_key": self.api_key,
-            "api_url": self.api_url,
-            "poll_interval": self.poll_interval
-        }
-
-class MyPlugin(Plugin):
-    def __init__(self, settings: Optional[MyPluginSettings] = None):
+class ExamplePlugin(Plugin):
+    def __init__(self, settings=None, agent_id=None):
         self.settings = settings
-        self.is_running = False
+        self.agent_id = agent_id
+        self.agent_settings = None
+        self.logger = logging.getLogger(f"ExamplePlugin.{agent_id or 'base'}")
+        
+        # Initialize plugin-specific attributes
+        self.api_client = None
         self.polling_task = None
-        self.logger = logging.getLogger(__name__)
     
-    def get_name(self) -> str:
-        if self.settings is None:
-            return "my_plugin"
-        return "my_plugin"
+    def get_name(self):
+        return "example_plugin"
     
-    def get_platform(self) -> str:
-        if self.settings is None:
-            return "my_platform"
-        return "my_platform"
+    def get_platform(self):
+        return "example_platform"
     
     def get_message_handler(self):
         return self._handle_response
     
-    def get_settings(self) -> Dict[str, Any]:
-        if self.settings is None:
-            self.settings = MyPluginSettings.from_env()
-        return self.settings.to_dict()
-    
-    def apply_settings(self, settings: Dict[str, Any]) -> None:
-        if settings:
-            self.settings = MyPluginSettings(**settings)
-            self.logger.info(f"Applied settings to plugin: {self.get_name()}")
-    
     async def start(self):
-        if self.is_running:
-            self.logger.warning("Plugin is already running")
-            return
-        
+        """Initialize the plugin for the specific agent."""
         try:
-            # Initialize API client (lazy import)
-            from my_plugin.api_client import APIClient
-            self.api_client = APIClient(self.settings)
+            # Load settings
+            settings = self.get_settings()
             
-            # Test connection
-            if not await self.api_client.test_connection():
-                self.logger.error("Failed to connect to API")
-                return
+            # Initialize API client with agent-specific configuration
+            api_key = self.get_agent_specific_setting('API_KEY')
+            endpoint = self.get_agent_specific_setting('API_ENDPOINT')
             
-            self.logger.info("My Plugin started successfully")
-            self.is_running = True
+            self.api_client = await self._create_api_client(api_key, endpoint)
             
-            # Start polling task
+            # Start polling for incoming messages
             self.polling_task = asyncio.create_task(self._poll_messages())
             
+            self.logger.info(f"Plugin started for agent {self.agent_id}")
+            
         except Exception as e:
-            self.logger.error(f"Error starting My Plugin: {e}")
+            self.logger.error(f"Failed to start plugin for agent {self.agent_id}: {e}")
             raise
     
     async def stop(self):
-        if not self.is_running:
-            return
-        
-        self.logger.info("Stopping My Plugin...")
-        self.is_running = False
-        
-        # Cancel polling task
-        if self.polling_task:
-            self.polling_task.cancel()
-            try:
-                await self.polling_task
-            except asyncio.CancelledError:
-                pass
-        
-        # Close API client
-        if hasattr(self, 'api_client') and self.api_client:
-            await self.api_client.close()
-        
-        self.logger.info("My Plugin stopped")
-    
-    async def _poll_messages(self):
-        """Poll for new messages from the API."""
-        while self.is_running:
-            try:
-                # Get messages from API
-                messages = await self.api_client.get_messages()
-                
-                for message_data in messages:
-                    if not self.is_running:
-                        break
-                    await self._process_message(message_data)
-                
-                await asyncio.sleep(self.settings.poll_interval)
-                
-            except asyncio.CancelledError:
-                self.logger.info("Message polling cancelled")
-                break
-            except Exception as e:
-                self.logger.error(f"Error in message polling: {e}")
-                await asyncio.sleep(self.settings.retry_delay)
-    
-    async def _process_message(self, message_data: Dict[str, Any]):
-        """Process a single message from the API."""
+        """Clean up plugin resources."""
         try:
-            # Process message with message handler
-            message_id = await self.message_handler.process_incoming_message(message_data)
+            if self.polling_task:
+                self.polling_task.cancel()
+                try:
+                    await self.polling_task
+                except asyncio.CancelledError:
+                    pass
             
-            if message_id:
-                self.logger.info(f"Message queued for processing")
-                
+            if self.api_client:
+                await self.api_client.close()
+            
+            self.logger.info(f"Plugin stopped for agent {self.agent_id}")
+            
         except Exception as e:
-            self.logger.error(f"Error processing message: {e}")
+            self.logger.error(f"Error stopping plugin for agent {self.agent_id}: {e}")
+    
+    def apply_settings(self, settings: Dict[str, Any]) -> None:
+        """Apply dynamic settings updates."""
+        if settings:
+            # Update plugin settings
+            self.settings.update(settings)
+            
+            # Reconfigure if needed
+            if self.api_client:
+                asyncio.create_task(self._reconfigure())
+    
+    def get_settings(self):
+        """Get merged settings (agent-specific + base)."""
+        base_settings = self.settings or {}
+        
+        if self.agent_id:
+            # Load agent-specific settings
+            agent_config_path = f"agent-{self.agent_id}/settings.json"
+            if os.path.exists(agent_config_path):
+                try:
+                    with open(agent_config_path, 'r') as f:
+                        self.agent_settings = json.load(f)
+                except Exception as e:
+                    self.logger.warning(f"Failed to load agent settings: {e}")
+        
+        # Merge settings (agent-specific overrides base)
+        merged_settings = base_settings.copy()
+        if self.agent_settings and 'plugins' in self.agent_settings:
+            plugin_settings = self.agent_settings['plugins'].get(self.get_name(), {})
+            merged_settings.update(plugin_settings)
+        
+        return merged_settings
+    
+    def get_agent_specific_setting(self, key: str, default=None):
+        """Get agent-specific setting with fallback to base setting."""
+        # Check agent-specific settings first
+        if self.agent_settings and 'plugins' in self.agent_settings:
+            plugin_settings = self.agent_settings['plugins'].get(self.get_name(), {})
+            if key in plugin_settings:
+                return plugin_settings[key]
+        
+        # Fall back to base settings
+        if self.settings and key in self.settings:
+            return self.settings[key]
+        
+        # Finally, use default
+        return default
     
     async def _handle_response(self, response: str, profile, message_id: int) -> None:
         """Handle sending a response to the platform."""
@@ -496,68 +508,81 @@ class MyPlugin(Plugin):
             # Extract platform-specific data from profile
             metadata = profile.metadata
             if isinstance(metadata, str):
-                import json
                 metadata = json.loads(metadata)
             
-            # Send response via API
-            success = await self.api_client.send_response(
-                metadata.get('session_id'), 
-                response
-            )
+            # Send response via platform API
+            success = await self._send_response(metadata.get('session_id'), response)
             
             if success:
-                self.logger.info(f"Successfully sent response")
+                self.logger.info(f"Successfully sent response for agent {self.agent_id}")
             else:
-                self.logger.error(f"Failed to send response")
+                self.logger.error(f"Failed to send response for agent {self.agent_id}")
                 
         except Exception as e:
-            self.logger.error(f"Error handling response: {e}")
+            self.logger.error(f"Error handling response for agent {self.agent_id}: {e}")
+    
+    async def _poll_messages(self):
+        """Poll for incoming messages from the platform."""
+        while True:
+            try:
+                # Poll for messages using agent-specific configuration
+                messages = await self._fetch_messages()
+                
+                for message in messages:
+                    await self._process_message(message)
+                
+                # Wait before next poll
+                await asyncio.sleep(self.get_agent_specific_setting('POLL_INTERVAL', 5))
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Error polling messages for agent {self.agent_id}: {e}")
+                await asyncio.sleep(5)  # Wait before retry
+    
+    async def _process_message(self, message_data: Dict[str, Any]):
+        """Process a single message from the platform."""
+        try:
+            # Create/update user and profile
+            # Insert message into database
+            # Add to processing queue
+            message_id = await self.message_handler.process_incoming_message(message_data)
+            
+            if message_id:
+                self.logger.info(f"Message queued for processing by agent {self.agent_id}")
+                
+        except Exception as e:
+            self.logger.error(f"Error processing message for agent {self.agent_id}: {e}")
+    
+    async def _create_api_client(self, api_key: str, endpoint: str):
+        """Create API client with agent-specific configuration."""
+        # Implementation depends on the specific platform
+        pass
+    
+    async def _send_response(self, session_id: str, response: str) -> bool:
+        """Send response via platform API."""
+        # Implementation depends on the specific platform
+        pass
+    
+    async def _fetch_messages(self) -> list:
+        """Fetch messages from the platform."""
+        # Implementation depends on the specific platform
+        pass
+    
+    async def _reconfigure(self):
+        """Reconfigure plugin with new settings."""
+        # Implementation for dynamic reconfiguration
+        pass
 ```
 
 ---
 
 ## Cross-References
-- See `plugins/__init__.py` for the Plugin base class.
-- See `runtime/core/plugin.py` for PluginManager logic.
-- See `plugins/telegram/` for a real-world plugin example.
-- See `plugins/web_chat/` for a complete polling plugin example.
-- See `broca2/docs/cli_reference.md` for CLI plugin details.
-- See `broca2/docs/configuration.md` for settings integration.
-
-## Key Learnings from Web Chat Plugin Development
-
-### Auto-Discovery System
-- **Plugin discovery**: Plugins are automatically discovered from the `plugins/` directory.
-- **Dynamic loading**: Plugins are loaded, configured, and started automatically.
-- **Settings injection**: Plugin settings are injected via `apply_settings()` method.
-
-### Message Flow Architecture
-1. **Incoming messages**: Polled from external APIs or received via webhooks
-2. **User creation**: Users and profiles are created/updated in the database
-3. **Message insertion**: Messages are stored in the database
-4. **Queue processing**: Messages are queued for agent processing
-5. **Agent response**: Agent processes messages and generates responses
-6. **Response routing**: Responses are routed back to the original platform
-
-### Database Integration Patterns
-- **User management**: Use `get_or_create_letta_user()` for consistent user creation
-- **Profile management**: Use `get_or_create_platform_profile()` for platform-specific data
-- **Message handling**: Use `insert_message()` and `add_to_queue()` for message processing
-- **Metadata storage**: Store platform-specific data (session IDs, etc.) in profile metadata
-
-### Error Handling Patterns
-- **Graceful degradation**: Handle missing settings and network failures
-- **Resource cleanup**: Always clean up connections and tasks in `stop()`
-- **Logging**: Use structured logging with appropriate levels
-- **Retry logic**: Implement exponential backoff for polling operations
+- See `plugins/` directory for existing plugin implementations
+- See `broca2/docs/multi-agent-architecture.md` for multi-agent setup
+- See `broca2/docs/configuration.md` for configuration details
+- See `broca2/docs/cli_reference.md` for CLI tool usage
 
 ---
 
-## Extending Sanctum: Broca 2
-- Add new plugins in `plugins/`.
-- Register them in your config or via PluginManager.
-- Follow the interface and lifecycle requirements above.
-
----
-
-For questions or advanced use cases, see the main README or contact the maintainers. 
+For more details, see the main README or contact the maintainers. 

@@ -187,6 +187,7 @@ class MyPlugin(Plugin):
 
 ## 📚 Documentation
 
+- [Multi-Agent Architecture Guide](broca2/docs/multi-agent-architecture.md) - Complete guide to running multiple agent instances
 - [Plugin Development Guide](broca2/docs/plugin_development.md)
 - [CLI Tools Reference](broca2/docs/cli_reference.md)
 - [Configuration Guide](broca2/docs/configuration.md)
