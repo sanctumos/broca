@@ -1,3 +1,11 @@
+# ⚠️ REPOSITORY MOVED ⚠️
+
+**This repository has moved to: [http://github.com/sanctumos/broca](http://github.com/sanctumos/broca)**
+
+Please update your git remotes and use the new repository location for all future development and contributions.
+
+---
+
 # Sanctum: Broca 2 (v0.10.0)
 
 A CLI-first, plugin-based message processing system for agent communication.
@@ -89,8 +97,8 @@ broca2/
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/broca-2.git
-   cd broca-2
+   git clone https://github.com/sanctumos/broca.git
+   cd broca
    ```
 
 2. Install dependencies:
@@ -258,7 +266,7 @@ For managing multiple Broca instances on the same machine, use the following str
 
 2. **Clone the base Broca 2 installation:**
    ```bash
-   git clone https://github.com/yourusername/broca-2.git broca2
+   git clone https://github.com/sanctumos/broca.git broca2
    cd broca2
    
    # Create shared virtual environment

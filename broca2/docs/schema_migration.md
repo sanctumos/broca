@@ -1,3 +1,11 @@
+# ⚠️ REPOSITORY MOVED ⚠️
+
+**This repository has moved to: [http://github.com/sanctumos/broca](http://github.com/sanctumos/broca)**
+
+Please update your git remotes and use the new repository location for all future development and contributions.
+
+---
+
 # Schema Migration Documentation
 
 ## Current Schema (v1)

@@ -1,3 +1,11 @@
+# ⚠️ REPOSITORY MOVED ⚠️
+
+**This repository has moved to: [http://github.com/sanctumos/broca](http://github.com/sanctumos/broca)**
+
+Please update your git remotes and use the new repository location for all future development and contributions.
+
+---
+
 # **Prismatic Broca2 – Telegram BOT Plugin (aiogram) MVP**
 
 > **PLUGIN-ONLY task. Absolutely NO changes to Broca2 core, runtime, DB schema, or queue logic.**

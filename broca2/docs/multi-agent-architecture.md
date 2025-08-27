@@ -1,3 +1,11 @@
+# ⚠️ REPOSITORY MOVED ⚠️
+
+**This repository has moved to: [http://github.com/sanctumos/broca](http://github.com/sanctumos/broca)**
+
+Please update your git remotes and use the new repository location for all future development and contributions.
+
+---
+
 # Multi-Agent Architecture Guide
 
 ## Overview
@@ -61,7 +69,7 @@ mkdir ~/sanctum
 cd ~/sanctum
 
 # Clone the base Broca 2 installation
-git clone https://github.com/yourusername/broca-2.git broca2
+git clone https://github.com/sanctumos/broca.git broca2
 cd broca2
 
 # Create shared virtual environment

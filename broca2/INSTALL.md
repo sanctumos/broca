@@ -1,3 +1,11 @@
+# ⚠️ REPOSITORY MOVED ⚠️
+
+**This repository has moved to: [http://github.com/sanctumos/broca](http://github.com/sanctumos/broca)**
+
+Please update your git remotes and use the new repository location for all future development and contributions.
+
+---
+
 # Broca 2 Installation Guide
 
 ## Overview
@@ -8,8 +16,8 @@ Broca 2 now uses a simple `requirements.txt` approach instead of package install
 ### Method 1: Single Instance (Development)
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/broca-2.git
-cd broca-2/broca2
+git clone https://github.com/sanctumos/broca.git
+cd broca/broca2
 
 # Install dependencies
 pip install -r requirements.txt
@@ -25,7 +33,7 @@ mkdir ~/sanctum
 cd ~/sanctum
 
 # Clone the base installation
-git clone https://github.com/yourusername/broca-2.git broca2
+git clone https://github.com/sanctumos/broca.git broca2
 cd broca2
 
 # Create shared virtual environment
