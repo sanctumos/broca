@@ -16,7 +16,7 @@ We've identified a critical issue with **504 Gateway Timeout errors** occurring 
 
 ```
 [2025-06-24 21:22:27] [INFO] 🔵 Processing message with attached core block block-94...
-[2025-06-24 21:23:27] [INFO] HTTP Request: POST https://devletta.zero1.network:8283/v1/agents/agent-616a7368-7fe5-4c18-a836-2d57a1e92231/messages "HTTP/1.1 504 Gateway Time-out"
+[2025-06-24 21:23:27] [INFO] HTTP Request: POST https://your-letta-server.com:8283/v1/agents/agent-{uuid}/messages "HTTP/1.1 504 Gateway Time-out"
 [2025-06-24 21:23:27] [ERROR] Error processing message: status_code: 504, body: <html>
 <head><title>504 Gateway Time-out</title></head>
 <body>
@@ -26,7 +26,7 @@ We've identified a critical issue with **504 Gateway Timeout errors** occurring 
 </html>
 
 [2025-06-24 21:23:27] [INFO] 🔵 Detaching core block block-94... from agent
-[2025-06-24 21:23:28] [INFO] HTTP Request: PATCH https://devletta.zero1.network:8283/v1/agents/agent-616a7368-7fe5-4c18-a836-2d57a1e92231/core-memory/blocks/detach/block-940d783a-971a-45d0-9f94-60620ce25396 "HTTP/1.1 200 OK"
+[2025-06-24 21:23:28] [INFO] HTTP Request: PATCH https://your-letta-server.com:8283/v1/agents/agent-{uuid}/core-memory/blocks/detach/block-{uuid} "HTTP/1.1 200 OK"
 [2025-06-24 21:23:28] [WARNING] ⚠️ No response received from agent - Message processing failed
 [2025-06-24 21:23:28] [WARNING] ⚠️ No response received from agent - Message processing failed
 ```

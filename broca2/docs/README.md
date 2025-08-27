@@ -245,6 +245,7 @@ Broca 2 supports a plugin-based architecture for extensible message handling:
 
 ## 📚 Additional Documentation
 
+### User Documentation
 - [Plugin Development Guide](plugin_development.md)
 - [CLI Tools Reference](cli_reference.md)
 - [Configuration Guide](configuration.md)
@@ -252,6 +253,12 @@ Broca 2 supports a plugin-based architecture for extensible message handling:
 - [Telegram Bot Plugin](telegram-bot-plugin.md)
 - [CLI-Test Plugin](cli-test-plugin.md)
 - [Telegram Markdown Guide](telegram-markdown-guide.md)
+- [Multi-Agent Architecture Guide](multi-agent-architecture.md)
+- [Web Chat Bridge API](web-chat-bridge-api-documentation.md)
+- [Web Chat Bridge Project Plan](web-chat-bridge-project-plan.md)
+
+### Developer Documentation
+For internal development documentation, technical analysis, and project planning, see the [dev-docs/](dev-docs/) folder.
 
 ## 🤖 Agent/MCP-Ready Design
 
