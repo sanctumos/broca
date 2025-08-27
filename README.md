@@ -195,6 +195,7 @@ class MyPlugin(Plugin):
 
 ## 📚 Documentation
 
+### User Documentation
 - [Multi-Agent Architecture Guide](broca2/docs/multi-agent-architecture.md) - Complete guide to running multiple agent instances
 - [Plugin Development Guide](broca2/docs/plugin_development.md)
 - [CLI Tools Reference](broca2/docs/cli_reference.md)
@@ -202,6 +203,11 @@ class MyPlugin(Plugin):
 - [Telegram Plugin](broca2/docs/telegram-plugin-spec.md)
 - [Telegram Bot Plugin](broca2/docs/telegram-bot-plugin.md)
 - [CLI-Test Plugin](broca2/docs/cli-test-plugin.md)
+- [Web Chat Bridge API](broca2/docs/web-chat-bridge-api-documentation.md)
+- [Web Chat Bridge Project Plan](broca2/docs/web-chat-bridge-project-plan.md)
+
+### Developer Documentation
+For internal development documentation, technical analysis, and project planning, see the [broca2/docs/dev-docs/](broca2/docs/dev-docs/) folder.
 
 ## 🤖 Agent/MCP-Ready Design
 

@@ -34,8 +34,8 @@ client = Letta(token="LETTA_API_KEY")
 
 (( our server is not localhost. We'll be connecting to a VPS server.
 
-https://devletta.zero1.network:8283
-pw abc123 <- literally that. not a placeholder.
+https://your-letta-server.com:8283
+pw YOUR_PASSWORD <- configure this in your environment
 
 We'll want to configure this in the admin dashboard settings.
 
