@@ -199,9 +199,6 @@ class MyPlugin(Plugin):
 - [CLI-Test Plugin](https://github.com/sanctumos/broca/blob/main/docs/cli-test-plugin.md)
 - [Web Chat Bridge API](https://github.com/sanctumos/broca/blob/main/docs/web-chat-bridge-api-documentation.md)
 
-### Developer Documentation
-For internal development documentation, technical analysis, and project planning, see the [docs/dev-docs/](https://github.com/sanctumos/broca/tree/main/docs/dev-docs) folder.
-
 ## 🤖 Agent/MCP-Ready Design
 
 Sanctum: Broca 2 is built so that all CLI tools and plugin interfaces are **MCP'able** (machine-controllable by agents):
