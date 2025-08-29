@@ -10,53 +10,59 @@
 
 ## Overview
 
-Broca 2 now supports running multiple Letta agent instances from a single base installation. This architecture provides isolation between agents while sharing common resources, making it efficient to manage multiple AI agents on the same system.
+Broca 2 supports running multiple Letta agent instances through a complete isolation approach. Each agent runs in its own completely isolated Broca instance with its own repository clone, configuration, database, and plugin instances. This architecture provides maximum isolation between agents while sharing only the Sanctum-wide virtual environment.
 
 ## 🏗️ Architecture Principles
 
-### 1. **Instance Isolation**
-- Each agent runs in its own directory with separate configuration
-- Independent databases prevent data cross-contamination
-- Separate log files for easy debugging and monitoring
+### 1. **Complete Instance Isolation**
+- Each agent runs in its own directory with a complete Broca repository clone
+- Independent databases prevent any data cross-contamination
+- Separate configuration files and plugin instances
+- Independent log files for easy debugging and monitoring
 
-### 2. **Shared Resources**
-- Base Broca 2 installation shared across all instances
-- Common virtual environment reduces disk usage and maintenance
-- Shared plugins and runtime components
+### 2. **Shared Resources (Minimal)**
+- Only the Sanctum-wide virtual environment is shared (not Broca-specific)
+- No shared Broca code, plugins, or runtime components between agents
+- Each agent maintains its own complete Broca installation
 
 ### 3. **Simple Management**
 - Clear 1:1 mapping between agent IDs and instance folders
 - Standardized folder structure for easy automation
-- Git-based updates that preserve agent-specific configurations
+- Each agent can be updated independently by pulling from their own Broca repository
 
 ## 📁 Directory Structure
 
 ```
-~/sanctum/broca2/             # Base Broca 2 installation
-├── venv/                     # Shared virtual environment
-├── main.py                   # Core runtime entry point
-├── runtime/                  # Core system components
-├── plugins/                  # Available plugins
-├── cli/                      # CLI tools
-├── common/                   # Shared utilities
-├── database/                 # Database models
-├── requirements.txt          # Python dependencies
-├── .env.example             # Base configuration template
-├── settings.json            # Base settings template
+~/sanctum/                    # Sanctum home directory
+├── venv/                     # Sanctum-wide virtual environment (shared by all tools)
 ├── agent-{uuid}/            # Agent-specific instance
+│   ├── broca/               # Complete Broca repository clone for this agent
+│   │   ├── main.py          # Core runtime entry point
+│   │   ├── runtime/         # Core system components
+│   │   ├── plugins/         # Available plugins
+│   │   ├── cli/             # CLI tools
+│   │   ├── common/          # Shared utilities
+│   │   ├── database/        # Database models
+│   │   ├── requirements.txt # Python dependencies
+│   │   ├── .env.example     # Base configuration template
+│   │   └── settings.json    # Base settings template
 │   ├── .env                 # Agent-specific environment
 │   ├── settings.json        # Agent-specific settings
 │   ├── sanctum.db          # Agent-specific database
 │   └── logs/               # Agent-specific logs
 ├── agent-{uuid}/            # Another agent instance
+│   ├── broca/               # Complete Broca repository clone for this agent
+│   │   ├── main.py
+│   │   ├── runtime/
+│   │   ├── plugins/
+│   │   └── ...
 │   ├── .env
 │   ├── settings.json
 │   ├── sanctum.db
 │   └── logs/
-└── shared/                  # Shared resources (optional)
-    ├── templates/           # Common templates
-    ├── configs/            # Shared configurations
-    └── backups/            # Backup storage
+└── other-sanctum-tools/     # Other Sanctum tools (shared venv)
+    ├── tool1/
+    └── tool2/
 ```
 
 ## 🚀 Setup Instructions
@@ -68,40 +74,31 @@ Broca 2 now supports running multiple Letta agent instances from a single base i
 mkdir ~/sanctum
 cd ~/sanctum
 
-# Clone the base Broca 2 installation
-git clone https://github.com/sanctumos/broca.git broca2
-cd broca2
-
-# Create shared virtual environment
+# Create shared virtual environment (Sanctum-wide, not Broca-specific)
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
 ```
 
-### Step 2: Configure Base Installation
-
-```bash
-# Copy and configure base environment
-cp .env.example .env
-nano .env
-
-# Set base configuration (shared across all agents)
-TELEGRAM_API_ID=your_telegram_api_id
-TELEGRAM_API_HASH=your_telegram_api_hash
-TELEGRAM_PHONE=your_phone_number
-DEBUG_MODE=false
-```
-
-### Step 3: Create Agent Instances
+### Step 2: Create Agent Instances
 
 ```bash
 # For each Letta agent, create a folder named after the agent ID
 mkdir agent-721679f6-c8af-4e01-8677-dc042dc80368
 cd agent-721679f6-c8af-4e01-8677-dc042dc80368
 
-# Copy base configuration templates
-cp ../.env.example .env
-cp ../settings.json .
+# Clone a complete Broca repository for this agent
+git clone https://github.com/sanctumos/broca.git broca
+
+# Note: Virtual environment is managed at the Sanctum level, not per Broca instance
+# The venv in ~/sanctum/venv/ is shared by all Sanctum tools
+```
+
+### Step 3: Configure Agent Instances
+
+```bash
+# Copy base configuration from the cloned repository
+cp broca/.env.example .env
+cp broca/settings.json .
 
 # Edit agent-specific configuration
 nano .env
@@ -114,14 +111,19 @@ DEBUG_MODE=false
 MESSAGE_MODE=live
 ```
 
-### Step 4: Run Agent Instances
+### Step 4: Install Dependencies and Run Agent Instances
 
 ```bash
-# From the agent folder
-cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
+# Activate the Sanctum-wide virtual environment
+cd ~/sanctum
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install Broca dependencies
+cd agent-721679f6-c8af-4e01-8677-dc042dc80368/broca
+pip install -r requirements.txt
 
 # Run the agent instance
-python ../main.py
+python main.py
 
 # Or use CLI tools
 python -m cli.btool queue list
@@ -131,18 +133,6 @@ python -m cli.btool users list
 ## 🔧 Configuration Management
 
 ### Environment Variables
-
-#### Base Installation (.env in broca2 root)
-```bash
-# Telegram API configuration (shared)
-TELEGRAM_API_ID=your_api_id
-TELEGRAM_API_HASH=your_api_hash
-TELEGRAM_PHONE=your_phone_number
-
-# System configuration
-DEBUG_MODE=false
-LOG_LEVEL=INFO
-```
 
 #### Agent Instance (.env in agent-{uuid}/)
 ```bash
@@ -161,23 +151,6 @@ DEBUG_MODE=false
 ```
 
 ### Settings Files
-
-#### Base Settings (settings.json in broca2 root)
-```json
-{
-  "system": {
-    "log_level": "INFO",
-    "max_workers": 4,
-    "timeout": 30
-  },
-  "plugins": {
-    "telegram": {
-      "enabled": true,
-      "parse_mode": "MarkdownV2"
-    }
-  }
-}
-```
 
 #### Agent Settings (settings.json in agent-{uuid}/)
 ```json
@@ -207,12 +180,22 @@ DEBUG_MODE=false
 
 ```bash
 # Terminal 1: Start first agent
-cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
-python ../main.py
+cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+
+# Activate the Sanctum-wide virtual environment
+source ~/sanctum/venv/bin/activate
+
+# Run the instance from the agent's Broca clone
+python broca/main.py
 
 # Terminal 2: Start second agent
-cd ~/sanctum/broca2/agent-9a2b3c4d-5e6f-7890-abcd-ef1234567890
-python ../main.py
+cd ~/sanctum/agent-9a2b3c4d-5e6f-7890-abcd-ef1234567890
+
+# Activate the Sanctum-wide virtual environment
+source ~/sanctum/venv/bin/activate
+
+# Run the instance from the agent's Broca clone
+python broca/main.py
 ```
 
 ### Process Manager (PM2)
@@ -222,10 +205,10 @@ python ../main.py
 npm install -g pm2
 
 # Start agents with PM2
-cd ~/sanctum/broca2
+cd ~/sanctum
 
-pm2 start "broca-agent-1" --interpreter python -- agent-721679f6-c8af-4e01-8677-dc042dc80368/main.py
-pm2 start "broca-agent-2" --interpreter python -- agent-9a2b3c4d-5e6f-7890-abcd-ef1234567890/main.py
+pm2 start "broca-agent-1" --interpreter venv/bin/python -- agent-721679f6-c8af-4e01-8677-dc042dc80368/broca/main.py
+pm2 start "broca-agent-2" --interpreter venv/bin/python -- agent-9a2b3c4d-5e6f-7890-abcd-ef1234567890/broca/main.py
 
 # Monitor processes
 pm2 list
@@ -249,8 +232,8 @@ After=network.target
 [Service]
 Type=simple
 User=your_username
-WorkingDirectory=/home/your_username/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
-ExecStart=/home/your_username/sanctum/broca2/venv/bin/python ../main.py
+WorkingDirectory=/home/your_username/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+ExecStart=/home/your_username/sanctum/venv/bin/python broca/main.py
 Restart=always
 RestartSec=10
 
@@ -269,37 +252,39 @@ sudo systemctl status broca-agent-1
 
 ```bash
 # Queue management for specific agent
-cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
-python -m cli.btool queue list
-python -m cli.btool queue flush
+cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+
+# Activate the Sanctum-wide virtual environment
+source ~/sanctum/venv/bin/activate
+
+# Use CLI tools from the agent's Broca clone
+python -m broca.cli.btool queue list
+python -m broca.cli.btool queue flush
 
 # User management
-python -m cli.btool users list
+python -m broca.cli.btool users list
 
 # Settings management
-python -m cli.ctool settings show
-python -m cli.ctool settings set message_mode live
+python -m broca.cli.ctool settings show
+python -m broca.cli.ctool settings set message_mode live
 ```
 
 ### Log Management
 
 ```bash
 # View agent-specific logs
-cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
+cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
 tail -f logs/broca.log
 
-# Centralized log viewing (if symlinked)
-tail -f ~/sanctum/broca2/logs/agent-721679f6-c8af-4e01-8677-dc042dc80368.log
-
-# Log rotation and cleanup
-find ~/sanctum/broca2/agent-*/logs -name "*.log" -mtime +7 -delete
+# Note: No centralized logging - each agent maintains its own log files
+# For centralized monitoring, use external log aggregation tools
 ```
 
 ### Database Management
 
 ```bash
 # Backup agent-specific databases
-cd ~/sanctum/broca2
+cd ~/sanctum
 mkdir -p backups/$(date +%Y%m%d)
 
 # Backup all agent databases
@@ -318,25 +303,27 @@ cp backups/20241201/agent-721679f6-c8af-4e01-8677-dc042dc80368_sanctum.db \
 ### Base Installation Updates
 
 ```bash
-# Update base Broca 2 installation
-cd ~/sanctum/broca2
+# Each agent can be updated independently
+cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/broca
 git pull origin main
 
-# Update shared virtual environment
+# Update dependencies in the shared virtual environment
+cd ~/sanctum
 source venv/bin/activate
+cd agent-721679f6-c8af-4e01-8677-dc042dc80368/broca
 pip install -r requirements.txt
 
-# Restart all agent instances
-pm2 restart all
+# Restart specific agent instance
+pm2 restart broca-agent-1
 # or
-sudo systemctl restart broca-agent-*
+sudo systemctl restart broca-agent-1
 ```
 
 ### Agent-Specific Updates
 
 ```bash
 # Update agent configuration
-cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
+cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
 
 # Edit configuration
 nano .env
@@ -351,42 +338,41 @@ sudo systemctl restart broca-agent-1
 ### Plugin Updates
 
 ```bash
-# Update plugins in base installation
-cd ~/sanctum/broca2
+# Update plugins in each agent's Broca instance
+cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/broca
 git pull origin main
 
-# Restart agents to pick up plugin changes
-pm2 restart all
+# Restart agent to pick up plugin changes
+pm2 restart broca-agent-1
 ```
 
 ## 🛡️ Security Considerations
 
 ### Isolation
 
-- Each agent runs with its own database and configuration
-- No shared credentials between agents
+- Each agent runs with its own complete Broca repository, database, and configuration
+- No shared credentials or data between agents
 - Separate log files prevent information leakage
 
 ### Access Control
 
 ```bash
 # Set proper permissions for agent directories
-chmod 700 ~/sanctum/broca2/agent-*/
-chmod 600 ~/sanctum/broca2/agent-*/.env
-chmod 600 ~/sanctum/broca2/agent-*/settings.json
+chmod 700 ~/sanctum/agent-*/
+chmod 600 ~/sanctum/agent-*/.env
+chmod 600 ~/sanctum/agent-*/settings.json
 
-# Restrict access to shared resources
-chmod 755 ~/sanctum/broca2/shared/
-chmod 644 ~/sanctum/broca2/shared/*
+# Restrict access to shared virtual environment
+chmod 755 ~/sanctum/venv/
 ```
 
 ### Backup Security
 
 ```bash
 # Encrypt backups
-tar -czf - ~/sanctum/broca2/agent-*/sanctum.db | \
+tar -czf - ~/sanctum/agent-*/sanctum.db | \
 gpg --encrypt --recipient your-email@example.com > \
-~/sanctum/broca2/backups/$(date +%Y%m%d)_encrypted.tar.gz.gpg
+~/sanctum/backups/$(date +%Y%m%d)_encrypted.tar.gz.gpg
 ```
 
 ## 🔍 Troubleshooting
@@ -396,11 +382,12 @@ gpg --encrypt --recipient your-email@example.com > \
 #### 1. **Agent Can't Start**
 ```bash
 # Check environment variables
-cd ~/sanctum/broca2/agent-{uuid}
+cd ~/sanctum/agent-{uuid}
 cat .env
 
 # Verify virtual environment activation
-source ../venv/bin/activate
+source ~/sanctum/venv/bin/activate
+cd broca
 python -c "import telethon; print('Telethon OK')"
 
 # Check logs
@@ -410,26 +397,27 @@ tail -f logs/broca.log
 #### 2. **Database Connection Issues**
 ```bash
 # Verify database file exists
-ls -la ~/sanctum/broca2/agent-{uuid}/sanctum.db
+ls -la ~/sanctum/agent-{uuid}/sanctum.db
 
 # Check database permissions
-chmod 644 ~/sanctum/broca2/agent-{uuid}/sanctum.db
+chmod 644 ~/sanctum/agent-{uuid}/sanctum.db
 
 # Test database connection
-cd ~/sanctum/broca2/agent-{uuid}
-python -m cli.btool queue list
+cd ~/sanctum/agent-{uuid}
+source ~/sanctum/venv/bin/activate
+python -m broca.cli.btool queue list
 ```
 
 #### 3. **Plugin Loading Issues**
 ```bash
 # Check plugin configuration
-cat ~/sanctum/broca2/agent-{uuid}/settings.json
+cat ~/sanctum/agent-{uuid}/settings.json
 
 # Verify plugin files exist
-ls -la ~/sanctum/broca2/plugins/
+ls -la ~/sanctum/agent-{uuid}/broca/plugins/
 
 # Check plugin logs
-tail -f ~/sanctum/broca2/agent-{uuid}/logs/broca.log
+tail -f ~/sanctum/agent-{uuid}/logs/broca.log
 ```
 
 ### Performance Monitoring
@@ -445,24 +433,12 @@ ps aux | grep "agent-"
 lsof | grep "agent-"
 
 # Monitor database performance
-cd ~/sanctum/broca2/agent-{uuid}
-python -m cli.btool queue stats
+cd ~/sanctum/agent-{uuid}
+source ~/sanctum/venv/bin/activate
+python -m broca.cli.btool queue stats
 ```
 
 ## 🚀 Advanced Features
-
-### Shared Resources
-
-```bash
-# Create shared templates
-mkdir -p ~/sanctum/broca2/shared/templates
-cp ~/sanctum/broca2/plugins/telegram/templates/* ~/sanctum/broca2/shared/templates/
-
-# Symlink shared resources to agent instances
-cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
-ln -s ../shared/templates templates
-ln -s ../shared/configs configs
-```
 
 ### Automated Deployment
 
@@ -479,15 +455,18 @@ if [ -z "$AGENT_ID" ] || [ -z "$AGENT_ENDPOINT" ] || [ -z "$AGENT_API_KEY" ]; th
     exit 1
 fi
 
-cd ~/sanctum/broca2
+cd ~/sanctum
 
 # Create agent directory
 mkdir -p "agent-${AGENT_ID}"
 cd "agent-${AGENT_ID}"
 
+# Clone Broca repository for this agent
+git clone https://github.com/sanctumos/broca.git broca
+
 # Copy configuration templates
-cp ../.env.example .env
-cp ../settings.json .
+cp broca/.env.example .env
+cp broca/settings.json .
 
 # Configure agent-specific settings
 sed -i "s/AGENT_ID=.*/AGENT_ID=${AGENT_ID}/" .env
@@ -498,7 +477,7 @@ sed -i "s/LETTA_API_KEY=.*/LETTA_API_KEY=${AGENT_API_KEY}/" .env
 mkdir -p logs
 
 echo "Agent ${AGENT_ID} deployed successfully!"
-echo "Start with: cd agent-${AGENT_ID} && python ../main.py"
+echo "Start with: cd agent-${AGENT_ID} && source ~/sanctum/venv/bin/activate && python broca/main.py"
 ```
 
 ### Health Monitoring
@@ -507,7 +486,7 @@ echo "Start with: cd agent-${AGENT_ID} && python ../main.py"
 #!/bin/bash
 # health-check.sh - Monitor all agent instances
 
-cd ~/sanctum/broca2
+cd ~/sanctum
 
 echo "Broca 2 Agent Health Check"
 echo "=========================="
@@ -532,6 +511,12 @@ for agent_dir in agent-*/; do
         echo -n "LOGS ✓ "
     else
         echo -n "LOGS ✗ "
+    fi
+    
+    if [ -d "${agent_dir}/broca" ]; then
+        echo -n "BROCA ✓ "
+    else
+        echo -n "BROCA ✗ "
     fi
     
     echo ""
@@ -560,8 +545,19 @@ fi
 
 When contributing to the multi-agent architecture:
 
-1. **Maintain Isolation**: Ensure changes don't break agent isolation
-2. **Shared Resources**: Consider impact on shared components
-3. **Configuration**: Support both base and agent-specific settings
+1. **Maintain Complete Isolation**: Ensure changes don't break agent isolation
+2. **Repository Independence**: Each agent should maintain its own complete Broca installation
+3. **Configuration**: Support agent-specific settings without shared configurations
 4. **Testing**: Test with multiple agent instances
 5. **Documentation**: Update this guide for any architectural changes
+
+## 🎯 Benefits of This Architecture
+
+- **Complete Isolation**: Each agent runs independently with its own complete Broca repository, configuration, database, and plugin instances
+- **Scalability**: Easy to add new agents without affecting existing ones
+- **Maintenance**: Each agent can be updated independently by pulling from their own Broca repository
+- **Backup**: Simple to backup individual agent configurations and data
+- **Resource Efficiency**: Only the virtual environment is shared (Sanctum-wide, not Broca-specific)
+- **Flexibility**: Each agent can have different plugins, settings, and configurations
+- **Security**: No cross-agent data leakage or configuration conflicts
+- **Version Control**: Each agent can run different versions of Broca if needed
