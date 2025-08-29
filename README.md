@@ -235,17 +235,24 @@ For managing multiple Broca instances on the same machine, use the following str
 ```
 ~/sanctum/                    # Sanctum home directory
 ├── venv/                     # Sanctum-wide virtual environment (shared by all tools)
-├── broca2/                   # Base Broca 2 installation
-│   ├── main.py
-│   ├── runtime/
-│   ├── plugins/
-│   └── requirements.txt
 ├── agent-721679f6-c8af-4e01-8677-dc042dc80368/  # Agent-specific instance
+│   ├── broca/                # Complete Broca repository clone for this agent
+│   │   ├── main.py
+│   │   ├── runtime/
+│   │   ├── plugins/
+│   │   ├── requirements.txt
+│   │   └── ...
 │   ├── .env                   # Agent-specific environment
 │   ├── settings.json          # Agent-specific settings
 │   ├── sanctum.db            # Agent-specific database
 │   └── logs/                 # Agent-specific logs
 ├── agent-9a2b3c4d-5e6f-7890-abcd-ef1234567890/  # Another agent
+│   ├── broca/                # Complete Broca repository clone for this agent
+│   │   ├── main.py
+│   │   ├── runtime/
+│   │   ├── plugins/
+│   │   ├── requirements.txt
+│   │   └── ...
 │   ├── .env
 │   ├── settings.json
 │   ├── sanctum.db
@@ -264,43 +271,43 @@ For managing multiple Broca instances on the same machine, use the following str
    cd ~/sanctum
    ```
 
-2. **Clone the base Broca 2 installation:**
+2. **Create agent-specific instances:**
    ```bash
-   git clone https://github.com/sanctumos/broca.git broca2
-   cd broca2
+   # For each Letta agent, create a folder named after the agent ID
+   mkdir ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   
+   # Clone a complete Broca repository for this agent
+   git clone https://github.com/sanctumos/broca.git broca
    
    # Note: Virtual environment is managed at the Sanctum level, not per Broca instance
    # The venv in ~/sanctum/venv/ is shared by all Sanctum tools
    ```
 
-3. **Create agent-specific instances:**
+3. **Configure agent-specific instances:**
    ```bash
-   # For each Letta agent, create a folder named after the agent ID
-   mkdir ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
-   cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
-   
-   # Copy base configuration
-   cp ~/sanctum/broca2/.env.example .env
-   cp ~/sanctum/broca2/settings.json .
+   # Copy base configuration from the cloned repository
+   cp ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/broca/.env.example ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
+   cp ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/broca/settings.json ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/
    
    # Edit agent-specific configuration
-   nano .env
+   nano ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
    # Set AGENT_ENDPOINT, AGENT_API_KEY, and other agent-specific settings
    ```
 
 4. **Run agent-specific instances:**
    ```bash
    # From the agent folder
-   cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
+   cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
    
    # Activate the Sanctum-wide virtual environment
    source ~/sanctum/venv/bin/activate  # On Windows: ~/sanctum/venv/Scripts/activate
    
-   # Run the instance
-   python ~/sanctum/broca2/main.py
+   # Run the instance from the agent's Broca clone
+   python broca/main.py
    
    # Or use the CLI tools
-   python -m cli.btool queue list
+   python -m broca.cli.btool queue list
    ```
 
 ### Master Sanctum Provisioning Suite Integration
@@ -318,24 +325,24 @@ If you're using the Master Sanctum Provisioning Suite:
 #### Starting Instances
 ```bash
 # Start a specific agent's Broca instance
-cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
+cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
 
 # Activate the Sanctum-wide virtual environment
 source ~/sanctum/venv/bin/activate  # On Windows: ~/sanctum/venv/Scripts/activate
 
-# Run the instance
-python ~/sanctum/broca2/main.py
+# Run the instance from the agent's Broca clone
+python broca/main.py
 
 # Or use a process manager like PM2
-pm2 start "broca-agent-1" --interpreter ~/sanctum/venv/bin/python -- ~/sanctum/broca2/main.py
-pm2 start "broca-agent-2" --interpreter ~/sanctum/venv/bin/python -- ~/sanctum/broca2/main.py
+pm2 start "broca-agent-1" --interpreter ~/sanctum/venv/bin/python -- ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/broca/main.py
+pm2 start "broca-agent-2" --interpreter ~/sanctum/venv/bin/python -- ~/sanctum/agent-9a2b3c4d-5e6f-7890-abcd-ef1234567890/broca/main.py
 ```
 
 #### Configuration Management
 ```bash
 # Each agent has its own configuration
-~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
-~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/settings.json
+~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
+~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/settings.json
 
 # Note: No shared configurations - each agent is completely isolated
 # If you need similar configs, copy and modify them manually
@@ -344,16 +351,16 @@ pm2 start "broca-agent-2" --interpreter ~/sanctum/venv/bin/python -- ~/sanctum/b
 #### Database Management
 ```bash
 # Each agent has its own database
-~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/sanctum.db
+~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/sanctum.db
 
 # Backup agent-specific databases
-cp ~/sanctum/broca2/agent-*/sanctum.db ~/sanctum/broca2/backups/
+cp ~/sanctum/agent-*/sanctum.db ~/sanctum/backups/
 ```
 
 #### Logging
 ```bash
 # Each agent has its own logs
-~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/logs/
+~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/logs/
 
 # Note: No centralized logging - each agent maintains its own log files
 # For centralized monitoring, use external log aggregation tools
@@ -361,13 +368,14 @@ cp ~/sanctum/broca2/agent-*/sanctum.db ~/sanctum/broca2/backups/
 
 ### Benefits of This Structure
 
-- **Complete Isolation**: Each agent runs independently with its own configuration, database, and plugin instances
+- **Complete Isolation**: Each agent runs independently with its own complete Broca repository, configuration, database, and plugin instances
 - **Scalability**: Easy to add new agents without affecting existing ones
-- **Maintenance**: Update the base Broca 2 installation once, affects all agents
+- **Maintenance**: Each agent can be updated independently by pulling from their own Broca repository
 - **Backup**: Simple to backup individual agent configurations and data
 - **Resource Efficiency**: Only the virtual environment is shared (Sanctum-wide, not Broca-specific)
 - **Flexibility**: Each agent can have different plugins, settings, and configurations
 - **Security**: No cross-agent data leakage or configuration conflicts
+- **Version Control**: Each agent can run different versions of Broca if needed
 
 ## 🤖 Acknowledgments
 
