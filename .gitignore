@@ -69,3 +69,13 @@ broca2/plugins/web_chat/README.md
 broca2/plugins/web_chat/settings.py
 broca2/plugins/web_chat/simple_test.py
 broca2/plugins/web_chat/test_plugin.py
+
+# Documentation files not linked from README.md
+# Developer documentation (internal use only)
+docs/dev-docs/
+# Plugin documentation not linked from README
+plugins/web_chat/BUILD_SUMMARY.md
+plugins/fake_plugin/README.md
+# User documentation not linked from README
+docs/telegram-markdown-guide.md
+docs/web-chat-bridge-project-plan.md
