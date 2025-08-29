@@ -190,18 +190,17 @@ class MyPlugin(Plugin):
 ## 📚 Documentation
 
 ### User Documentation
-- [Multi-Agent Architecture Guide](broca2/docs/multi-agent-architecture.md) - Complete guide to running multiple agent instances
-- [Plugin Development Guide](broca2/docs/plugin_development.md)
-- [CLI Tools Reference](broca2/docs/cli_reference.md)
-- [Configuration Guide](broca2/docs/configuration.md)
-- [Telegram Plugin](broca2/docs/telegram-plugin-spec.md)
-- [Telegram Bot Plugin](broca2/docs/telegram-bot-plugin.md)
-- [CLI-Test Plugin](broca2/docs/cli-test-plugin.md)
-- [Web Chat Bridge API](broca2/docs/web-chat-bridge-api-documentation.md)
-- [Web Chat Bridge Project Plan](broca2/docs/web-chat-bridge-project-plan.md)
+- [Multi-Agent Architecture Guide](https://github.com/sanctumos/broca/blob/main/docs/multi-agent-architecture.md) - Complete guide to running multiple agent instances
+- [Plugin Development Guide](https://github.com/sanctumos/broca/blob/main/docs/plugin_development.md)
+- [CLI Tools Reference](https://github.com/sanctumos/broca/blob/main/docs/cli_reference.md)
+- [Configuration Guide](https://github.com/sanctumos/broca/blob/main/docs/configuration.md)
+- [Telegram Plugin](https://github.com/sanctumos/broca/blob/main/docs/telegram-plugin-spec.md)
+- [Telegram Bot Plugin](https://github.com/sanctumos/broca/blob/main/docs/telegram-bot-plugin.md)
+- [CLI-Test Plugin](https://github.com/sanctumos/broca/blob/main/docs/cli-test-plugin.md)
+- [Web Chat Bridge API](https://github.com/sanctumos/broca/blob/main/docs/web-chat-bridge-api-documentation.md)
 
 ### Developer Documentation
-For internal development documentation, technical analysis, and project planning, see the [broca2/docs/dev-docs/](broca2/docs/dev-docs/) folder.
+For internal development documentation, technical analysis, and project planning, see the [docs/dev-docs/](https://github.com/sanctumos/broca/tree/main/docs/dev-docs) folder.
 
 ## 🤖 Agent/MCP-Ready Design
 
@@ -215,9 +214,9 @@ Sanctum: Broca 2 is built so that all CLI tools and plugin interfaces are **MCP'
 
 ### Multi-Agent Architecture
 Sanctum: Broca 2 will support multiple Letta agents through a simple, efficient architecture:
-- Each agent will run in its own Broca instance
-- Instances will share a common virtual environment to minimize resource usage
-- Simple git-based update system that preserves agent-specific configurations
+- Each agent will run in its own completely isolated Broca instance
+- Instances share only the Sanctum-wide virtual environment (not Broca-specific)
+- Each agent has its own configuration, database, and plugin instances
 - Clear 1:1 mapping between Broca instances and Letta agents
 
 ### Broca MCP Server
@@ -234,12 +233,13 @@ A new Management Control Panel server will be added to manage multiple Broca ins
 For managing multiple Broca instances on the same machine, use the following structure:
 
 ```
-~/sanctum/broca2/             # Base Broca 2 installation
-├── venv/                     # Shared virtual environment
-├── main.py
-├── runtime/
-├── plugins/
-├── requirements.txt
+~/sanctum/                    # Sanctum home directory
+├── venv/                     # Sanctum-wide virtual environment (shared by all tools)
+├── broca2/                   # Base Broca 2 installation
+│   ├── main.py
+│   ├── runtime/
+│   ├── plugins/
+│   └── requirements.txt
 ├── agent-721679f6-c8af-4e01-8677-dc042dc80368/  # Agent-specific instance
 │   ├── .env                   # Agent-specific environment
 │   ├── settings.json          # Agent-specific settings
@@ -250,9 +250,9 @@ For managing multiple Broca instances on the same machine, use the following str
 │   ├── settings.json
 │   ├── sanctum.db
 │   └── logs/
-└── shared/                   # Shared resources (optional)
-    ├── templates/
-    └── configs/
+└── other-sanctum-tools/      # Other Sanctum tools (shared venv)
+    ├── tool1/
+    └── tool2/
 ```
 
 ### Setup Instructions
@@ -269,10 +269,8 @@ For managing multiple Broca instances on the same machine, use the following str
    git clone https://github.com/sanctumos/broca.git broca2
    cd broca2
    
-   # Create shared virtual environment
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+   # Note: Virtual environment is managed at the Sanctum level, not per Broca instance
+   # The venv in ~/sanctum/venv/ is shared by all Sanctum tools
    ```
 
 3. **Create agent-specific instances:**
@@ -294,7 +292,12 @@ For managing multiple Broca instances on the same machine, use the following str
    ```bash
    # From the agent folder
    cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
-   python ../main.py
+   
+   # Activate the Sanctum-wide virtual environment
+   source ~/sanctum/venv/bin/activate  # On Windows: ~/sanctum/venv/Scripts/activate
+   
+   # Run the instance
+   python ~/sanctum/broca2/main.py
    
    # Or use the CLI tools
    python -m cli.btool queue list
@@ -316,11 +319,16 @@ If you're using the Master Sanctum Provisioning Suite:
 ```bash
 # Start a specific agent's Broca instance
 cd ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368
-python ../main.py
+
+# Activate the Sanctum-wide virtual environment
+source ~/sanctum/venv/bin/activate  # On Windows: ~/sanctum/venv/Scripts/activate
+
+# Run the instance
+python ~/sanctum/broca2/main.py
 
 # Or use a process manager like PM2
-pm2 start "broca-agent-1" --interpreter python -- ../main.py
-pm2 start "broca-agent-2" --interpreter python -- ../main.py
+pm2 start "broca-agent-1" --interpreter ~/sanctum/venv/bin/python -- ~/sanctum/broca2/main.py
+pm2 start "broca-agent-2" --interpreter ~/sanctum/venv/bin/python -- ~/sanctum/broca2/main.py
 ```
 
 #### Configuration Management
@@ -329,8 +337,8 @@ pm2 start "broca-agent-2" --interpreter python -- ../main.py
 ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
 ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/settings.json
 
-# Shared configurations can be symlinked or copied
-ln -s ~/sanctum/broca2/shared/templates/telegram_config.json ~/sanctum/broca2/agent-*/telegram_config.json
+# Note: No shared configurations - each agent is completely isolated
+# If you need similar configs, copy and modify them manually
 ```
 
 #### Database Management
@@ -347,18 +355,19 @@ cp ~/sanctum/broca2/agent-*/sanctum.db ~/sanctum/broca2/backups/
 # Each agent has its own logs
 ~/sanctum/broca2/agent-721679f6-c8af-4e01-8677-dc042dc80368/logs/
 
-# Centralized logging (optional)
-ln -s ~/sanctum/broca2/logs/ ~/sanctum/broca2/agent-*/logs
+# Note: No centralized logging - each agent maintains its own log files
+# For centralized monitoring, use external log aggregation tools
 ```
 
 ### Benefits of This Structure
 
-- **Isolation**: Each agent runs independently with its own configuration and database
+- **Complete Isolation**: Each agent runs independently with its own configuration, database, and plugin instances
 - **Scalability**: Easy to add new agents without affecting existing ones
 - **Maintenance**: Update the base Broca 2 installation once, affects all agents
 - **Backup**: Simple to backup individual agent configurations and data
-- **Resource Efficiency**: Shared base installation reduces disk usage
+- **Resource Efficiency**: Only the virtual environment is shared (Sanctum-wide, not Broca-specific)
 - **Flexibility**: Each agent can have different plugins, settings, and configurations
+- **Security**: No cross-agent data leakage or configuration conflicts
 
 ## 🤖 Acknowledgments
 
