@@ -174,4 +174,9 @@ The plugin follows Broca2's plugin development guidelines:
 
 ## License
 
-This plugin is part of the Broca2 project and follows the same licensing terms. 
+This plugin is part of the Broca2 project and follows the same licensing terms:
+
+- **Source Code**: [GNU Affero General Public License v3.0](../../../LICENSE) (AGPLv3)
+- **Documentation & Data**: [Creative Commons Attribution-ShareAlike 4.0 International](../../../LICENSE-DOCS) (CC-BY-SA 4.0)
+
+For complete license details, see the respective LICENSE files in the project root. 
