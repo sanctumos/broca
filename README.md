@@ -4,6 +4,14 @@
 
 A CLI-first, plugin-based message processing system for agent communication.
 
+## 📄 License
+
+This project uses dual licensing:
+- **Source Code**: [GNU Affero General Public License v3.0](LICENSE) (AGPLv3)
+- **Documentation & Data**: [Creative Commons Attribution-ShareAlike 4.0 International](LICENSE-DOCS) (CC-BY-SA 4.0)
+
+For complete license details, see the respective LICENSE files or read our comprehensive [Licensing Guide](LICENSING.md).
+
 ## 🚀 Overview
 
 Sanctum: Broca 2 is a refactored version of Broca, focusing on:
