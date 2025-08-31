@@ -26,7 +26,7 @@ def load_settings() -> Dict[str, Any]:
         "debug_mode": False,
         "queue_refresh": 5,
         "max_retries": 3,
-        "message_mode": "echo"
+        "message_mode": "live"
     }
     # logger.info(f"Created default settings as {SETTINGS_PATH.absolute()} does not exist")
     return default_settings
@@ -111,7 +111,26 @@ def set_max_retries(args) -> None:
     settings['max_retries'] = args.retries
     save_settings(settings)
     # logger.info(f"Max retries set to: {args.retries}")
-    print_output({"max_retries": args.retries}, args.json)
+            print_output({"max_retries": args.retries}, args.json)
+
+def reload_settings(args) -> None:
+    """Force reload of settings by touching the settings file"""
+    try:
+        import os
+        import time
+        
+        # Touch the settings file to trigger reload
+        settings_file = "settings.json"
+        if os.path.exists(settings_file):
+            current_time = time.time()
+            os.utime(settings_file, (current_time, current_time))
+            print_output({"status": "Settings file touched, reload should occur within 1 second"}, args.json)
+        else:
+            print_output({"error": "Settings file not found"}, args.json)
+            sys.exit(1)
+    except Exception as e:
+        print_output({"error": f"Failed to reload settings: {str(e)}"}, args.json)
+        sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(description='Broca2 Settings Management Tool')
@@ -141,6 +160,9 @@ def main():
     retries_parser = subparsers.add_parser('retries', help='Maximum retries management')
     retries_parser.add_argument('retries', type=int, help='Maximum number of retries')
 
+    # Reload settings command
+    subparsers.add_parser('reload', help='Force reload of settings file')
+
     args = parser.parse_args()
 
     if args.command == 'get':
@@ -153,6 +175,8 @@ def main():
         set_queue_refresh(args)
     elif args.command == 'retries':
         set_max_retries(args)
+    elif args.command == 'reload':
+        reload_settings(args)
     else:
         parser.print_help()
 
