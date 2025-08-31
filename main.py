@@ -50,7 +50,7 @@ def create_default_settings() -> None:
             "debug_mode": False,
             "queue_refresh": 5,
             "max_retries": 3,
-            "message_mode": "echo"
+            "message_mode": "live"
         }
         with open(settings_path, 'w') as f:
             json.dump(default_settings, f, indent=4)
@@ -92,7 +92,7 @@ class Application:
                 settings = get_settings()
                 validate_settings(settings)
                 
-                # Update message mode in queue processor
+                # Update message mode in queue processor and plugins
                 if 'message_mode' in settings:
                     new_mode = settings['message_mode']
                     logger.info(f"Updating message mode to: {new_mode}")
@@ -102,10 +102,10 @@ class Application:
                         self.queue_processor.set_message_mode(new_mode)
                         logger.info(f"🔵 Message processing mode changed to: {new_mode.upper()}")
                     
-                    # Force immediate mode change
-                    if self.queue_processor:
-                        self.queue_processor.message_mode = new_mode
-                        logger.info(f"🔵 Forced immediate mode change to: {new_mode.upper()}")
+                    # Update all plugins that support message mode changes
+                    if self.plugin_manager:
+                        await self.plugin_manager.update_message_mode(new_mode)
+                        logger.info(f"🔵 Plugin message modes updated to: {new_mode.upper()}")
                 
                 # Update debug mode
                 if 'debug_mode' in settings:
@@ -181,8 +181,10 @@ class Application:
                 plugin_manager=self.plugin_manager
             )
             
-            # Set initial message mode
-            self.queue_processor.set_message_mode('echo')
+            # Set initial message mode from settings
+            settings = get_settings()
+            initial_mode = settings.get('message_mode', 'echo')
+            self.queue_processor.set_message_mode(initial_mode)
             
             # Start queue processor
             queue_task = asyncio.create_task(self.queue_processor.start())

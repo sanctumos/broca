@@ -300,4 +300,21 @@ class PluginManager:
         Returns:
             bool: True if running, False otherwise
         """
-        return self._running 
+        return self._running
+    
+    async def update_message_mode(self, new_mode: str) -> None:
+        """Update message mode for all plugins that support it.
+        
+        Args:
+            new_mode: The new message mode ('echo', 'listen', or 'live')
+        """
+        for plugin_name, plugin in self._plugins.items():
+            try:
+                if hasattr(plugin, 'set_message_mode'):
+                    plugin.set_message_mode(new_mode)
+                    logger.info(f"Updated message mode to {new_mode} for plugin: {plugin_name}")
+                elif hasattr(plugin, 'update_message_mode'):
+                    plugin.update_message_mode(new_mode)
+                    logger.info(f"Updated message mode to {new_mode} for plugin: {plugin_name}")
+            except Exception as e:
+                logger.warning(f"Failed to update message mode for plugin {plugin_name}: {str(e)}") 

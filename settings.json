@@ -2,5 +2,5 @@
     "debug_mode": false,
     "queue_refresh": 5,
     "max_retries": 3,
-    "message_mode": "echo"
+    "message_mode": "live"
 }
