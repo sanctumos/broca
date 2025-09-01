@@ -22,7 +22,7 @@ async def test_plugin_initialization():
     try:
         # Create settings with test values
         settings = WebChatSettings(
-            api_url="http://localhost:8000",
+            api_url="http://test.example.com",
             api_key="test_api_key",
             poll_interval=5,
             max_retries=3,

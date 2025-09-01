@@ -16,27 +16,27 @@ from typing import Dict, Any, Optional
 class SimpleWebChatSettings:
     """Simplified settings for testing."""
     
-    api_url: str = field(default="http://localhost:8000")
+    api_url: str = field(default="")
     api_key: str = field(default="")
-    poll_interval: int = field(default=5)
-    max_retries: int = field(default=3)
-    retry_delay: int = field(default=10)
-    plugin_name: str = field(default="web_chat")
-    platform_name: str = field(default="web_chat")
+    poll_interval: int = field(default=0)
+    max_retries: int = field(default=0)
+    retry_delay: int = field(default=0)
+    plugin_name: str = field(default="")
+    platform_name: str = field(default="")
     
     def __post_init__(self):
         """Validate settings after initialization."""
         if not self.api_url:
-            raise ValueError("API URL is required")
+            raise ValueError("WEB_CHAT_API_URL environment variable is required")
         
         if not self.api_key:
-            raise ValueError("API key is required")
+            raise ValueError("WEB_CHAT_API_KEY environment variable is required")
     
     @classmethod
     def from_env(cls) -> 'SimpleWebChatSettings':
         """Create settings from environment variables."""
         return cls(
-            api_url=os.getenv('WEB_CHAT_API_URL', 'http://localhost:8000'),
+            api_url=os.getenv('WEB_CHAT_API_URL', ''),
             api_key=os.getenv('WEB_CHAT_API_KEY', 'test_key'),
             poll_interval=int(os.getenv('WEB_CHAT_POLL_INTERVAL', '5')),
             max_retries=int(os.getenv('WEB_CHAT_MAX_RETRIES', '3')),
@@ -98,7 +98,7 @@ async def test_basic_functionality():
     try:
         # Test settings creation
         settings = SimpleWebChatSettings(
-            api_url="http://localhost:8000",
+            api_url="http://test.example.com",
             api_key="test_api_key",
             poll_interval=5
         )

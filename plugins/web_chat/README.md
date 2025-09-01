@@ -33,11 +33,13 @@ The Web Chat Plugin polls a PHP API for new messages, processes them through the
 
 ### Environment Variables
 
+**Important**: The plugin now requires all configuration to come from environment variables. No hardcoded defaults are provided.
+
 Set the following environment variables for the plugin:
 
 ```bash
 # Required
-WEB_CHAT_API_URL=http://localhost:8000
+WEB_CHAT_API_URL=http://localhost:5000
 WEB_CHAT_API_KEY=your_api_key_here
 
 # Optional (with defaults)
@@ -54,7 +56,7 @@ WEB_CHAT_ENABLE_MESSAGE_LOGGING=true
 
 ```env
 # Web Chat Plugin Configuration
-WEB_CHAT_API_URL=http://localhost:8000
+WEB_CHAT_API_URL=http://localhost:5000
 WEB_CHAT_API_KEY=api_h8hcbfg4uiqfz6sjy1h6ri
 WEB_CHAT_POLL_INTERVAL=5
 WEB_CHAT_MAX_RETRIES=3
