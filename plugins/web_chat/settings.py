@@ -15,43 +15,43 @@ class WebChatSettings:
     """Settings for the Web Chat Plugin."""
     
     # API Configuration
-    api_url: str = field(default="http://localhost:8000")
+    api_url: str = field(default="")
     api_key: str = field(default="")
     
     # Polling Configuration
-    poll_interval: int = field(default=5)  # seconds
-    max_retries: int = field(default=3)
-    retry_delay: int = field(default=10)  # seconds
+    poll_interval: int = field(default=0)  # seconds
+    max_retries: int = field(default=0)
+    retry_delay: int = field(default=0)  # seconds
     
     # Plugin Configuration
-    plugin_name: str = field(default="web_chat")
-    platform_name: str = field(default="web_chat")
+    plugin_name: str = field(default="")
+    platform_name: str = field(default="")
     
     # Database Configuration (for Broca2 integration)
-    enable_user_creation: bool = field(default=True)
-    enable_message_logging: bool = field(default=True)
+    enable_user_creation: bool = field(default=False)
+    enable_message_logging: bool = field(default=False)
     
     def __post_init__(self):
         """Validate settings after initialization."""
         if not self.api_url:
-            raise ValueError("API URL is required")
+            raise ValueError("WEB_CHAT_API_URL environment variable is required")
         
         # Make API key optional for development/testing
         # if not self.api_key:
         #     raise ValueError("API key is required")
         
         if self.poll_interval < 1:
-            raise ValueError("Poll interval must be at least 1 second")
+            raise ValueError("WEB_CHAT_POLL_INTERVAL must be at least 1 second")
         
         if self.max_retries < 0:
-            raise ValueError("Max retries must be non-negative")
+            raise ValueError("WEB_CHAT_MAX_RETRIES must be non-negative")
     
     @classmethod
     def from_env(cls) -> 'WebChatSettings':
         """Create settings from environment variables."""
         try:
             return cls(
-                api_url=os.getenv('WEB_CHAT_API_URL', 'http://localhost:8000'),
+                api_url=os.getenv('WEB_CHAT_API_URL', ''),
                 api_key=os.getenv('WEB_CHAT_API_KEY', ''),
                 poll_interval=int(os.getenv('WEB_CHAT_POLL_INTERVAL', '5')),
                 max_retries=int(os.getenv('WEB_CHAT_MAX_RETRIES', '3')),
@@ -64,7 +64,7 @@ class WebChatSettings:
         except (ValueError, TypeError) as e:
             # Return a minimal settings object if environment variables are invalid
             return cls(
-                api_url='http://localhost:8000',
+                api_url='',
                 api_key='',
                 poll_interval=5,
                 max_retries=3,
