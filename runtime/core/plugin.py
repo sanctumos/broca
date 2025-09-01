@@ -214,12 +214,14 @@ class PluginManager:
             
             plugin_file = plugin_dir / "plugin.py"
             if plugin_file.exists():
+                plugin_name = plugin_dir.name
+                logger.info(f"Attempting to load plugin: {plugin_name}")
+                
                 try:
                     # Load the plugin
                     await self.load_plugin(str(plugin_file))
                     
                     # Get the loaded plugin instance
-                    plugin_name = plugin_dir.name
                     plugin = self._plugins.get(plugin_name)
                     
                     if plugin is None:
@@ -244,12 +246,14 @@ class PluginManager:
                     else:
                         logger.info(f"Plugin {plugin_name} loaded without settings")
                     
-                    logger.info(f"Loaded plugin: {plugin_name}")
+                    logger.info(f"✅ Successfully loaded plugin: {plugin_name}")
                     
                 except PluginError as e:
-                    logger.error(f"Failed to load plugin {plugin_dir.name}: {e}")
+                    logger.warning(f"⚠️ Skipping plugin {plugin_name} - configuration error: {e}")
+                    continue
                 except Exception as e:
-                    logger.error(f"Unexpected error loading plugin {plugin_dir.name}: {e}")
+                    logger.warning(f"⚠️ Skipping plugin {plugin_name} - unexpected error: {e}")
+                    continue
     
     async def start(self) -> None:
         """Start all loaded plugins."""
@@ -317,4 +321,6 @@ class PluginManager:
                     plugin.update_message_mode(new_mode)
                     logger.info(f"Updated message mode to {new_mode} for plugin: {plugin_name}")
             except Exception as e:
-                logger.warning(f"Failed to update message mode for plugin {plugin_name}: {str(e)}") 
+                logger.warning(f"Failed to update message mode for plugin {plugin_name}: {str(e)}")
+    
+ 
