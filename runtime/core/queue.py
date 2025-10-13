@@ -12,7 +12,11 @@ from database.operations.messages import (
     get_message_text,
     update_message_with_response,
 )
-from database.operations.queue import get_pending_queue_item, update_queue_status
+from database.operations.queue import (
+    atomic_dequeue_item,
+    requeue_failed_item,
+    update_queue_status,
+)
 from database.operations.users import (
     get_letta_user_block_id,
     get_platform_profile_id,
@@ -187,19 +191,17 @@ class QueueProcessor:
         try:
             while self.is_running and not self._stop_event.is_set():
                 try:
-                    # Get next message from queue
-                    queue_item = await get_pending_queue_item()
+                    # Atomically dequeue next message from queue
+                    queue_item = await atomic_dequeue_item()
                     if not queue_item:
                         await asyncio.sleep(1)  # Wait before checking again
                         continue
 
-                    # Skip if already processing this message
-                    if queue_item.id in self.processing_messages:
-                        await asyncio.sleep(1)
-                        continue
-
+                    # Track this message as being processed
                     self.processing_messages.add(queue_item.id)
-                    logger.info(f"Found pending message (Queue ID: {queue_item.id})")
+                    logger.info(
+                        f"Atomically dequeued message (Queue ID: {queue_item.id})"
+                    )
 
                     try:
                         # Get message details
@@ -208,7 +210,8 @@ class QueueProcessor:
                             logger.warning(
                                 f"Message {queue_item.message_id} not found in database"
                             )
-                            await update_queue_status(queue_item.id, "failed")
+                            # Try to requeue, if max attempts exceeded it will be marked as failed
+                            await requeue_failed_item(queue_item.id)
                             self.processing_messages.remove(queue_item.id)
                             continue
 
@@ -223,7 +226,8 @@ class QueueProcessor:
                             logger.warning(
                                 f"User details not found for Letta user {queue_item.letta_user_id}"
                             )
-                            await update_queue_status(queue_item.id, "failed")
+                            # Try to requeue, if max attempts exceeded it will be marked as failed
+                            await requeue_failed_item(queue_item.id)
                             self.processing_messages.remove(queue_item.id)
                             continue
 
@@ -237,7 +241,8 @@ class QueueProcessor:
                             logger.warning(
                                 f"Platform profile not found for Letta user {queue_item.letta_user_id}"
                             )
-                            await update_queue_status(queue_item.id, "failed")
+                            # Try to requeue, if max attempts exceeded it will be marked as failed
+                            await requeue_failed_item(queue_item.id)
                             self.processing_messages.remove(queue_item.id)
                             continue
 
@@ -289,8 +294,8 @@ class QueueProcessor:
                                     "Failed to route response through platform handler"
                                 )
                         else:
-                            # Mark as failed if no response
-                            await update_queue_status(queue_item.id, "failed")
+                            # Try to requeue if no response, if max attempts exceeded it will be marked as failed
+                            await requeue_failed_item(queue_item.id)
                             logger.warning(
                                 "No response received from agent - Message processing failed"
                             )
@@ -299,7 +304,8 @@ class QueueProcessor:
                         logger.error(
                             f"Error processing queue item {queue_item.id}: {str(e)}"
                         )
-                        await update_queue_status(queue_item.id, "failed")
+                        # Try to requeue on error, if max attempts exceeded it will be marked as failed
+                        await requeue_failed_item(queue_item.id)
 
                     finally:
                         # Always remove from processing set
