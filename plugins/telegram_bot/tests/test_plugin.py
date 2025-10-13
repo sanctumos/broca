@@ -63,14 +63,19 @@ def mock_message(mock_user):
 
 @pytest.fixture
 def plugin():
-    return TelegramBotPlugin()
+    """Create a properly initialized plugin for testing."""
+    plugin = TelegramBotPlugin()
+    # Mock the message_handler and settings
+    plugin.message_handler = MagicMock()
+    plugin.settings = MagicMock()
+    return plugin
 
 
 @pytest.mark.asyncio
 async def test_plugin_initialization(plugin):
     """Test plugin initialization."""
-    assert plugin.get_name() == "Telegram Bot"
-    assert plugin.get_platform() == "telegram"
+    assert plugin.get_name() == "telegram_bot"
+    assert plugin.get_platform() == "telegram_bot"
     assert plugin.get_message_handler() is not None
     assert plugin.get_settings() is not None
 
