@@ -7,6 +7,7 @@ from typing import Any
 
 import aiosqlite
 
+from ...common.retry import RetryConfig, exponential_backoff, is_retryable_exception
 from ..models import QueueItem
 
 # Database file path
@@ -14,6 +15,14 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "sanctum.db")
 
 # Set up logger
 logger = logging.getLogger(__name__)
+
+# Retry configuration for database operations
+DB_RETRY_CONFIG = RetryConfig(
+    max_retries=3,
+    base_delay=0.5,
+    max_delay=10.0,
+    jitter=True,
+)
 
 
 async def add_to_queue(letta_user_id: int, message_id: int) -> None:
@@ -135,47 +144,59 @@ async def requeue_failed_item(queue_id: int, max_attempts: int = 3) -> bool:
     Returns:
         True if item was requeued, False if max attempts exceeded
     """
-    async with aiosqlite.connect(DB_PATH) as db:
-        # Check current attempts
-        async with db.execute(
-            "SELECT attempts FROM queue WHERE id = ?", (queue_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            if not row:
-                return False
 
-            attempts = row[0]
+    async def _requeue_operation():
+        async with aiosqlite.connect(DB_PATH) as db:
+            # Check current attempts
+            async with db.execute(
+                "SELECT attempts FROM queue WHERE id = ?", (queue_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return False
 
-            if attempts >= max_attempts:
-                # Mark as permanently failed
+                attempts = row[0]
+
+                if attempts >= max_attempts:
+                    # Mark as permanently failed
+                    await db.execute(
+                        """
+                        UPDATE queue
+                        SET status = 'failed', timestamp = ?
+                        WHERE id = ?
+                    """,
+                        (datetime.utcnow().isoformat(), queue_id),
+                    )
+                    await db.commit()
+                    logger.warning(
+                        f"Queue item {queue_id} exceeded max attempts ({max_attempts}), marking as failed"
+                    )
+                    return False
+
+                # Requeue as pending
                 await db.execute(
                     """
                     UPDATE queue
-                    SET status = 'failed', timestamp = ?
+                    SET status = 'pending', timestamp = ?
                     WHERE id = ?
                 """,
                     (datetime.utcnow().isoformat(), queue_id),
                 )
                 await db.commit()
-                logger.warning(
-                    f"Queue item {queue_id} exceeded max attempts ({max_attempts}), marking as failed"
+                logger.info(
+                    f"Requeued item {queue_id} (attempt {attempts + 1}/{max_attempts})"
                 )
-                return False
+                return True
 
-            # Requeue as pending
-            await db.execute(
-                """
-                UPDATE queue
-                SET status = 'pending', timestamp = ?
-                WHERE id = ?
-            """,
-                (datetime.utcnow().isoformat(), queue_id),
-            )
-            await db.commit()
-            logger.info(
-                f"Requeued item {queue_id} (attempt {attempts + 1}/{max_attempts})"
-            )
-            return True
+    try:
+        return await exponential_backoff(
+            _requeue_operation,
+            config=DB_RETRY_CONFIG,
+            retry_on_exception=is_retryable_exception,
+        )
+    except Exception as e:
+        logger.error(f"Failed to requeue item {queue_id} after retries: {e}")
+        return False
 
 
 async def update_queue_status(
