@@ -57,12 +57,13 @@ async def get_message_text(message_id: int) -> tuple[str, str] | None:
 
 
 async def update_message_with_response(message_id: int, agent_response: str) -> None:
-    """Update a message with the agent's response."""
+    """Update a message with the agent's response and mark as processed."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """
             UPDATE messages
-            SET agent_response = ?
+            SET agent_response = ?,
+                processed = 1
             WHERE id = ?
         """,
             (agent_response, message_id),
