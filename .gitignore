@@ -19,20 +19,37 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual Environment
 venv/
 env/
 ENV/
+python/
+.venv/
+.env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 
 # Logs
 *.log
+logs/
 
 # Local development
 .env
@@ -47,28 +64,8 @@ broca2.db
 Thumbs.db
 
 # Project specific
-telegram_session_*.json 
+telegram_session_*.json
 workspace.code-workspace
-broca2/plugins/__pycache__/__init__.cpython-312.pyc
-broca2/plugins/telegram/__pycache__/__init__.cpython-312.pyc
-broca2/plugins/telegram/__pycache__/handlers.cpython-312.pyc
-broca2/plugins/telegram/__pycache__/plugin.cpython-312.pyc
-broca2/plugins/telegram/__pycache__/__init__.cpython-312.pyc
-broca2/plugins/telegram/__pycache__/handlers.cpython-312.pyc
-broca2/plugins/telegram/__pycache__/plugin.cpython-312.pyc
-broca2/runtime/core/__pycache__/message.cpython-312.pyc
-
-# Ignore database backup files
-broca2/sanctum.db.bak
-broca2/plugins/web_chat/__init__.py
-broca2/plugins/web_chat/api_client.py
-broca2/plugins/web_chat/BUILD_SUMMARY.md
-broca2/plugins/web_chat/message_handler.py
-broca2/plugins/web_chat/plugin.py
-broca2/plugins/web_chat/README.md
-broca2/plugins/web_chat/settings.py
-broca2/plugins/web_chat/simple_test.py
-broca2/plugins/web_chat/test_plugin.py
 
 # Documentation files not linked from README.md
 # Developer documentation (internal use only)
@@ -79,3 +76,13 @@ plugins/fake_plugin/README.md
 # User documentation not linked from README
 docs/telegram-markdown-guide.md
 docs/web-chat-bridge-project-plan.md
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Backup files
+*.bak
+*.backup
