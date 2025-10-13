@@ -7,6 +7,7 @@ import logging
 from letta_client import Letta
 
 from common.config import get_env_var
+from common.logging import log_safe_value
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class LettaClient:
         self.api_key = get_env_var("AGENT_API_KEY")
 
         logger.debug(f"Initializing Letta client with endpoint: {self.api_endpoint}")
-        logger.debug(f"Using API key: {self.api_key[:4]}...")
+        logger.debug(f"Using API key: {log_safe_value(self.api_key, 4)}")
 
         # Initialize the official Letta client
         self._client = Letta(base_url=self.api_endpoint, token=self.api_key)

@@ -6,7 +6,6 @@ from collections.abc import Callable
 from typing import Any
 
 from common.config import get_env_var
-from common.logging import setup_logging
 from database.operations.messages import (
     get_message_platform_profile,
     get_message_text,
@@ -26,27 +25,7 @@ from runtime.core.letta_client import get_letta_client
 
 from .message import MessageFormatter
 
-# Setup logging with emojis
-setup_logging()
 logger = logging.getLogger(__name__)
-
-
-# Add emoji mapping to log records
-def add_emoji(record):
-    """Add emoji to log record based on level."""
-    emojis = {
-        logging.INFO: "🔵",
-        logging.WARNING: "⚠️",
-        logging.ERROR: "❌",
-        logging.DEBUG: "🔍",
-        logging.CRITICAL: "🚨",
-    }
-    record.msg = f"{emojis.get(record.levelno, '')} {record.msg}"
-    return True
-
-
-# Add emoji filter to logger
-logger.addFilter(add_emoji)
 
 
 class QueueProcessor:
