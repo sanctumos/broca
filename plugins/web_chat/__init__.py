@@ -8,4 +8,4 @@ It follows the pull-based architecture where the plugin polls for new messages a
 from plugins.web_chat.plugin import WebChatPlugin
 from plugins.web_chat.settings import WebChatSettings
 
-__all__ = ['WebChatPlugin', 'WebChatSettings'] 
+__all__ = ["WebChatPlugin", "WebChatSettings"]

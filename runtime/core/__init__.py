@@ -1,1 +1,1 @@
-"""Core runtime components for broca2.""" 
+"""Core runtime components for broca2."""

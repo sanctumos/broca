@@ -1,20 +1,24 @@
 """Settings for the Telegram bot plugin."""
+
 from dataclasses import dataclass
-from typing import Optional
 from enum import Enum
+
 
 class MessageMode(Enum):
     """Message handling modes."""
+
     ECHO = "echo"
     LISTEN = "listen"
     LIVE = "live"
 
+
 @dataclass
 class TelegramBotSettings:
     """Settings for the Telegram bot plugin."""
+
     bot_token: str
-    owner_id: Optional[int] = None
-    owner_username: Optional[str] = None
+    owner_id: int | None = None
+    owner_username: str | None = None
     message_mode: MessageMode = MessageMode.ECHO
     buffer_delay: int = 5
 
@@ -22,21 +26,21 @@ class TelegramBotSettings:
         """Validate settings after initialization."""
         if not self.bot_token:
             raise ValueError("Bot token is required")
-        
+
         if not self.owner_id and not self.owner_username:
             raise ValueError("Either owner_id or owner_username must be set")
-        
+
         if self.owner_id and self.owner_username:
             raise ValueError("Only one of owner_id or owner_username should be set")
-        
+
         if not isinstance(self.message_mode, MessageMode):
             self.message_mode = MessageMode(self.message_mode)
-        
+
         if not isinstance(self.buffer_delay, int):
             self.buffer_delay = int(self.buffer_delay)
 
     @classmethod
-    def from_env(cls) -> 'TelegramBotSettings':
+    def from_env(cls) -> "TelegramBotSettings":
         """Create settings from environment variables.
 
         Returns:
@@ -66,7 +70,7 @@ class TelegramBotSettings:
             owner_id=owner_id,
             owner_username=owner_username,
             message_mode=message_mode,
-            buffer_delay=buffer_delay
+            buffer_delay=buffer_delay,
         )
 
     def to_dict(self) -> dict:
@@ -80,11 +84,11 @@ class TelegramBotSettings:
             "owner_id": self.owner_id,
             "owner_username": self.owner_username,
             "message_mode": self.message_mode.value,
-            "buffer_delay": self.buffer_delay
+            "buffer_delay": self.buffer_delay,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'TelegramBotSettings':
+    def from_dict(cls, data: dict) -> "TelegramBotSettings":
         """Create settings from dictionary.
 
         Args:
@@ -101,5 +105,5 @@ class TelegramBotSettings:
             owner_id=data.get("owner_id"),
             owner_username=data.get("owner_username"),
             message_mode=data.get("message_mode", "echo"),
-            buffer_delay=data.get("buffer_delay", 5)
-        ) 
+            buffer_delay=data.get("buffer_delay", 5),
+        )
