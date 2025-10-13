@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import sys
 from pathlib import Path
 
@@ -74,6 +75,8 @@ class Application:
 
         self._settings_file = "settings.json"
         self._settings_mtime = 0
+        self._shutdown_event = asyncio.Event()
+        self._tasks = set()
 
         # Create default settings if needed
         create_default_settings()
@@ -81,6 +84,20 @@ class Application:
         # Save PID to file
         with open("broca2.pid", "w") as f:
             f.write(str(os.getpid()))
+
+        # Set up signal handlers for graceful shutdown
+        self._setup_signal_handlers()
+
+    def _setup_signal_handlers(self):
+        """Set up signal handlers for graceful shutdown."""
+
+        def signal_handler(signum, frame):
+            logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+            self._shutdown_event.set()
+
+        # Handle SIGTERM and SIGINT
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
 
     async def _check_settings(self):
         """Check if settings file has been modified."""
@@ -196,47 +213,50 @@ class Application:
             self.queue_processor.set_message_mode(initial_mode)
 
             # Start queue processor
-            queue_task = asyncio.create_task(self.queue_processor.start())
+            asyncio.create_task(self.queue_processor.start())
 
             logger.info("✅ Application started successfully!")
 
             # Start settings monitor task
             asyncio.create_task(self._monitor_settings())
 
-            # Keep application running until interrupted
-            try:
-                while True:
-                    await asyncio.sleep(1)
-            except KeyboardInterrupt:
-                logger.info("Shutdown requested")
+            # Keep application running until shutdown signal
+            await self._shutdown_event.wait()
 
-        except KeyboardInterrupt:
-            logger.warning("⚠️ Shutdown requested by user")
-            # Cancel the queue processor task
-            if self.queue_processor:
-                queue_task.cancel()
-                try:
-                    await queue_task
-                except asyncio.CancelledError:
-                    pass
-            # Clean up agent
-            await self.agent.cleanup()
-            raise
         except Exception as e:
-            logger.error(f"❌ Error: {str(e)}")
-            # Clean up agent
-            await self.agent.cleanup()
+            logger.error(f"❌ Error during startup: {str(e)}")
             raise
+        finally:
+            # Always ensure cleanup happens
+            await self.stop()
 
     async def _monitor_settings(self):
         """Monitor settings file for changes."""
-        while True:
-            await self._check_settings()
-            await asyncio.sleep(1)  # Check every second
+        while not self._shutdown_event.is_set():
+            try:
+                await self._check_settings()
+                await asyncio.sleep(1)  # Check every second
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error monitoring settings: {e}")
+                await asyncio.sleep(5)  # Wait longer on error
 
     async def stop(self) -> None:
         """Stop all application components."""
         try:
+            logger.info("🛑 Initiating graceful shutdown...")
+
+            # Cancel all running tasks
+            if self._tasks:
+                logger.info("🛑 Cancelling running tasks...")
+                for task in self._tasks:
+                    task.cancel()
+
+                # Wait for tasks to complete cancellation
+                if self._tasks:
+                    await asyncio.gather(*self._tasks, return_exceptions=True)
+
             # Stop components in reverse order
             if self.queue_processor:
                 logger.info("🛑 Stopping queue processor...")
@@ -250,17 +270,17 @@ class Application:
             logger.info("🛑 Stopping plugin manager...")
             await self.plugin_manager.stop()
 
-            # Remove PID file
-            try:
-                os.remove("broca2.pid")
-            except OSError:
-                pass
-
             logger.info("✅ Application stopped successfully")
 
         except Exception as e:
             logger.error(f"❌ Error during shutdown: {str(e)}")
-            raise
+        finally:
+            # Always remove PID file, even if other cleanup fails
+            try:
+                os.remove("broca2.pid")
+                logger.info("🗑️ PID file removed")
+            except OSError:
+                pass  # PID file might not exist
 
     def update_settings(self, settings: dict) -> None:
         """Update application settings.
@@ -279,16 +299,24 @@ class Application:
 
 def main() -> None:
     """Application entry point."""
+    app = None
     try:
         logger.info("🚀 Starting application...")
         app = Application()
         asyncio.run(app.start())
     except KeyboardInterrupt:
         logger.warning("⚠️ Shutdown requested by user")
-        sys.exit(0)
     except Exception as e:
         logger.error(f"❌ Fatal error: {str(e)}")
         sys.exit(1)
+    finally:
+        # Ensure cleanup happens even if main() exits unexpectedly
+        if app:
+            try:
+                asyncio.run(app.stop())
+            except Exception as e:
+                logger.error(f"❌ Error during final cleanup: {str(e)}")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
