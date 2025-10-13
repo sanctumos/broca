@@ -7,7 +7,8 @@ from typing import Any
 
 import aiosqlite
 
-from ...common.retry import RetryConfig, exponential_backoff, is_retryable_exception
+from common.retry import RetryConfig, exponential_backoff, is_retryable_exception
+
 from ..models import QueueItem
 
 # Database file path

@@ -60,6 +60,14 @@ class FakePlugin(Plugin):
             f"Applied settings: enabled={self.enabled}, message='{self.message}', debug={self.debug}"
         )
 
-    def validate_settings(self) -> bool:
+    def validate_settings(self, settings: dict[str, Any]) -> bool:
         """Validate plugin settings."""
         return True  # Always valid for fake plugin
+
+    def register_event_handler(self, event_type, handler):
+        """Register an event handler."""
+        pass  # No-op for fake plugin
+
+    def emit_event(self, event):
+        """Emit an event."""
+        pass  # No-op for fake plugin
