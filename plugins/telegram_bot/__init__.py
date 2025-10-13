@@ -2,4 +2,4 @@
 
 from plugins.telegram_bot.plugin import TelegramBotPlugin
 
-__all__ = ['TelegramBotPlugin'] 
+__all__ = ["TelegramBotPlugin"]

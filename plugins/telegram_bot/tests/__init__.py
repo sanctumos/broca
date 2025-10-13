@@ -1,1 +1,1 @@
-"""Test package for Telegram bot plugin.""" 
+"""Test package for Telegram bot plugin."""

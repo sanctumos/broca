@@ -1,69 +1,73 @@
 """Telegram bot plugin using aiogram."""
-import logging
-from typing import Dict, Any, Optional, Callable, Awaitable
 
-from plugins.telegram_bot.settings import TelegramBotSettings, MessageMode
-from plugins.telegram_bot.message_handler import TelegramMessageHandler
-from plugins.telegram_bot.handlers import MessageHandler
+import logging
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 from plugins import Plugin
+from plugins.telegram_bot.handlers import MessageHandler
+from plugins.telegram_bot.message_handler import TelegramMessageHandler
+from plugins.telegram_bot.settings import TelegramBotSettings
 
 logger = logging.getLogger(__name__)
 
+
 class TelegramBotPluginWrapper(Plugin):
     """Wrapper for TelegramBotPlugin to make it compatible with auto-discovery."""
-    
+
     def __init__(self):
         """Initialize the wrapper."""
         self._plugin = TelegramBotPlugin()
-    
+
     def get_name(self) -> str:
         """Get the plugin name."""
         return self._plugin.get_name()
-    
+
     def get_platform(self) -> str:
         """Get the platform name."""
         return self._plugin.get_platform()
-    
+
     def get_message_handler(self):
         """Get the message handler."""
         return self._plugin.get_message_handler()
-    
+
     def get_settings(self):
         """Get plugin settings."""
         return self._plugin.get_settings()
-    
+
     def apply_settings(self, settings):
         """Apply settings to the plugin."""
-        if hasattr(self._plugin, 'apply_settings'):
+        if hasattr(self._plugin, "apply_settings"):
             self._plugin.apply_settings(settings)
         else:
             # Fallback for backward compatibility
-            if hasattr(self._plugin, 'validate_settings'):
+            if hasattr(self._plugin, "validate_settings"):
                 self._plugin.validate_settings(settings)
-    
+
     def validate_settings(self, settings):
         """Validate plugin settings."""
-        if hasattr(self._plugin, 'validate_settings'):
+        if hasattr(self._plugin, "validate_settings"):
             return self._plugin.validate_settings(settings)
         return True
-    
+
     async def start(self):
         """Start the plugin."""
         await self._plugin.start()
-    
+
     async def stop(self):
         """Stop the plugin."""
         await self._plugin.stop()
-    
+
     def register_event_handler(self, event_type, handler):
         """Register an event handler."""
-        if hasattr(self._plugin, 'register_event_handler'):
+        if hasattr(self._plugin, "register_event_handler"):
             self._plugin.register_event_handler(event_type, handler)
-    
+
     def emit_event(self, event):
         """Emit an event."""
-        if hasattr(self._plugin, 'emit_event'):
+        if hasattr(self._plugin, "emit_event"):
             self._plugin.emit_event(event)
+
 
 class TelegramBotPlugin:
     """Telegram bot plugin using aiogram."""
@@ -74,7 +78,7 @@ class TelegramBotPlugin:
         self.bot = None
         self.dp = None
         self.message_handler = None  # Initialize lazily
-        self.event_handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[None]]] = {}
+        self.event_handlers: dict[str, Callable[[dict[str, Any]], Awaitable[None]]] = {}
         logger.info("Initialized TelegramBotPlugin")
 
     def get_name(self) -> str:
@@ -120,9 +124,7 @@ class TelegramBotPlugin:
                 logger.warning(f"Could not load Telegram bot settings: {e}")
                 # Return a minimal settings object
                 return TelegramBotSettings(
-                    bot_token="",
-                    owner_id=None,
-                    owner_username=None
+                    bot_token="", owner_id=None, owner_username=None
                 )
         return self.settings
 
@@ -147,7 +149,9 @@ class TelegramBotPlugin:
             logger.error(f"Invalid settings: {e}")
             return False
 
-    async def register_event_handler(self, event: str, handler: Callable[[Dict[str, Any]], Awaitable[None]]) -> None:
+    async def register_event_handler(
+        self, event: str, handler: Callable[[dict[str, Any]], Awaitable[None]]
+    ) -> None:
         """Register an event handler.
 
         Args:
@@ -156,7 +160,7 @@ class TelegramBotPlugin:
         """
         self.event_handlers[event] = handler
 
-    async def emit_event(self, event: str, data: Dict[str, Any]) -> None:
+    async def emit_event(self, event: str, data: dict[str, Any]) -> None:
         """Emit an event.
 
         Args:
@@ -172,22 +176,28 @@ class TelegramBotPlugin:
             # Import aiogram only when needed
             from aiogram import Bot, Dispatcher
             from aiogram.filters import Command
-            
+
             # Get settings (this will initialize them if needed)
             settings = self.get_settings()
-            
+
             # Check if we have valid settings
             if not settings.bot_token:
-                logger.warning("Telegram bot token not configured - plugin will not start")
+                logger.warning(
+                    "Telegram bot token not configured - plugin will not start"
+                )
                 return
-            
+
             # Initialize bot and dispatcher
             self.bot = Bot(token=settings.bot_token)
             self.dp = Dispatcher()
 
             # Register command handlers
-            self.dp.message.register(self._handle_start_command, Command(commands=["start"]))
-            self.dp.message.register(self._handle_help_command, Command(commands=["help"]))
+            self.dp.message.register(
+                self._handle_start_command, Command(commands=["start"])
+            )
+            self.dp.message.register(
+                self._handle_help_command, Command(commands=["help"])
+            )
             self.dp.message.register(self._handle_message)
 
             # Start polling
@@ -267,7 +277,7 @@ Available commands:
         """
         await message.answer(help_text)
 
-    def _verify_owner(self, user_id: int, username: Optional[str]) -> bool:
+    def _verify_owner(self, user_id: int, username: str | None) -> bool:
         """Verify if a user is the owner.
 
         Args:
@@ -281,4 +291,4 @@ Available commands:
             return True
         if self.settings.owner_username and username == self.settings.owner_username:
             return True
-        return False 
+        return False

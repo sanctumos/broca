@@ -7,4 +7,4 @@ to test if Broca2 can discover and load plugins automatically.
 
 from .plugin import FakePlugin
 
-__all__ = ['FakePlugin'] 
+__all__ = ["FakePlugin"]
