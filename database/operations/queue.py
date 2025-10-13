@@ -60,6 +60,124 @@ async def get_pending_queue_item() -> QueueItem | None:
             return None
 
 
+async def atomic_dequeue_item() -> QueueItem | None:
+    """Atomically dequeue the next pending item and mark it as processing.
+
+    This prevents race conditions where multiple processes could pick up
+    the same queue item. Uses a single transaction to both select and update.
+
+    Returns:
+        QueueItem if a pending item was found and marked as processing, None otherwise
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Start transaction
+        await db.execute("BEGIN IMMEDIATE")
+
+        try:
+            # Find the next pending item
+            async with db.execute(
+                """
+                SELECT * FROM queue
+                WHERE status = 'pending'
+                ORDER BY timestamp ASC
+                LIMIT 1
+            """
+            ) as cursor:
+                row = await cursor.fetchone()
+
+                if not row:
+                    await db.execute("ROLLBACK")
+                    return None
+
+                queue_id = row[0]
+
+                # Atomically mark as processing
+                await db.execute(
+                    """
+                    UPDATE queue
+                    SET status = 'processing', timestamp = ?
+                    WHERE id = ? AND status = 'pending'
+                """,
+                    (datetime.utcnow().isoformat(), queue_id),
+                )
+
+                # Check if the update affected any rows (prevents race condition)
+                if db.total_changes == 0:
+                    await db.execute("ROLLBACK")
+                    return None
+
+                # Commit the transaction
+                await db.execute("COMMIT")
+
+                # Return the updated item
+                return QueueItem(
+                    id=row[0],
+                    letta_user_id=row[1],
+                    message_id=row[2],
+                    status="processing",  # Status is now processing
+                    attempts=row[4],
+                    timestamp=datetime.utcnow().isoformat(),
+                )
+
+        except Exception as e:
+            await db.execute("ROLLBACK")
+            logger.error(f"Error in atomic dequeue: {str(e)}")
+            return None
+
+
+async def requeue_failed_item(queue_id: int, max_attempts: int = 3) -> bool:
+    """Requeue a failed item if it hasn't exceeded max attempts.
+
+    Args:
+        queue_id: ID of the queue item to requeue
+        max_attempts: Maximum number of attempts before giving up
+
+    Returns:
+        True if item was requeued, False if max attempts exceeded
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Check current attempts
+        async with db.execute(
+            "SELECT attempts FROM queue WHERE id = ?", (queue_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return False
+
+            attempts = row[0]
+
+            if attempts >= max_attempts:
+                # Mark as permanently failed
+                await db.execute(
+                    """
+                    UPDATE queue
+                    SET status = 'failed', timestamp = ?
+                    WHERE id = ?
+                """,
+                    (datetime.utcnow().isoformat(), queue_id),
+                )
+                await db.commit()
+                logger.warning(
+                    f"Queue item {queue_id} exceeded max attempts ({max_attempts}), marking as failed"
+                )
+                return False
+
+            # Requeue as pending
+            await db.execute(
+                """
+                UPDATE queue
+                SET status = 'pending', timestamp = ?
+                WHERE id = ?
+            """,
+                (datetime.utcnow().isoformat(), queue_id),
+            )
+            await db.commit()
+            logger.info(
+                f"Requeued item {queue_id} (attempt {attempts + 1}/{max_attempts})"
+            )
+            return True
+
+
 async def update_queue_status(
     queue_id: int, status: str, increment_attempt: bool = False
 ) -> QueueItem:
@@ -137,6 +255,33 @@ async def get_all_queue_items() -> list[dict[str, Any]]:
                 }
                 for row in rows
             ]
+
+
+async def get_queue_statistics() -> dict[str, int]:
+    """Get queue statistics by status.
+
+    Returns:
+        Dictionary with counts for each status
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT status, COUNT(*) as count
+            FROM queue
+            WHERE status IN ('pending', 'processing', 'failed', 'completed', 'flushed')
+            GROUP BY status
+        """
+        ) as cursor:
+            rows = await cursor.fetchall()
+            stats = {row[0]: row[1] for row in rows}
+
+            # Ensure all statuses are present with 0 count
+            all_statuses = ["pending", "processing", "failed", "completed", "flushed"]
+            for status in all_statuses:
+                if status not in stats:
+                    stats[status] = 0
+
+            return stats
 
 
 async def flush_all_queue_items(current_mode: str) -> bool:
