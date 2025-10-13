@@ -17,8 +17,6 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-"""Configuration management module."""
-
 import json
 import os
 from collections.abc import Callable
@@ -59,7 +57,9 @@ def get_env_var(
         try:
             return cast_type(value)
         except (ValueError, TypeError) as e:
-            raise ValueError(f"Failed to cast {name} to {cast_type.__name__}: {str(e)}")
+            raise ValueError(
+                f"Failed to cast {name} to {cast_type.__name__}: {str(e)}"
+            ) from e
 
     return value
 
@@ -88,20 +88,20 @@ def get_settings(settings_file: str = "settings.json") -> dict:
     try:
         with open(settings_file) as f:
             content = f.read()
-    except PermissionError:
-        raise ValueError("Permission denied")
-    except FileNotFoundError:
-        raise FileNotFoundError("Settings file not found")
+    except PermissionError as e:
+        raise ValueError("Permission denied") from e
+    except FileNotFoundError as e:
+        raise FileNotFoundError("Settings file not found") from e
     except OSError as e:
-        raise ValueError(f"Failed to read settings file: {str(e)}")
+        raise ValueError(f"Failed to read settings file: {str(e)}") from e
 
     try:
         _SETTINGS_CACHE = json.loads(content)
         return _SETTINGS_CACHE
-    except json.JSONDecodeError:
-        raise ValueError("Failed to parse settings file")
+    except json.JSONDecodeError as e:
+        raise ValueError("Failed to parse settings file") from e
     except Exception as e:
-        raise ValueError(f"Failed to parse settings file: {str(e)}")
+        raise ValueError(f"Failed to parse settings file: {str(e)}") from e
 
 
 # Reset the settings cache (for testing)
@@ -128,9 +128,9 @@ def save_settings(settings: dict, settings_file: str = "settings.json") -> None:
             json.dump(settings, f)
         _SETTINGS_CACHE = settings
     except (OSError, PermissionError) as e:
-        raise ValueError(f"Failed to save settings: {str(e)}")
+        raise ValueError(f"Failed to save settings: {str(e)}") from e
     except Exception as e:
-        raise ValueError(f"Failed to save settings: {str(e)}")
+        raise ValueError(f"Failed to save settings: {str(e)}") from e
 
 
 def validate_settings(settings: dict) -> None:
@@ -156,7 +156,7 @@ def validate_settings(settings: dict) -> None:
 
         # Try to convert to correct type
         try:
-            if field_type == bool:
+            if field_type is bool:
                 # Handle string 'on'/'off' or 'true'/'false'
                 if isinstance(settings[field], str):
                     settings[field] = settings[field].lower() in ("on", "true", "1")
@@ -164,8 +164,8 @@ def validate_settings(settings: dict) -> None:
                     settings[field] = bool(settings[field])
             else:
                 settings[field] = field_type(settings[field])
-        except (ValueError, TypeError):
-            raise ValueError(f"Invalid value for {field}: {settings[field]}")
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid value for {field}: {settings[field]}") from e
 
     # Validate message_mode
     valid_modes = ["echo", "listen", "live"]

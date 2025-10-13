@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class EventType(Enum):
@@ -105,6 +105,7 @@ class Plugin(ABC):
         """
         return True
 
+    @abstractmethod
     def register_event_handler(
         self, event_type: EventType, handler: Callable[[Event], None]
     ) -> None:
@@ -119,6 +120,7 @@ class Plugin(ABC):
         """
         pass
 
+    @abstractmethod
     def emit_event(self, event: Event) -> None:
         """Emit an event.
 

@@ -17,7 +17,6 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-"""Main application entry point."""
 import asyncio
 import json
 import logging
@@ -202,7 +201,7 @@ class Application:
             logger.info("✅ Application started successfully!")
 
             # Start settings monitor task
-            settings_task = asyncio.create_task(self._monitor_settings())
+            asyncio.create_task(self._monitor_settings())
 
             # Keep application running until interrupted
             try:
@@ -254,7 +253,7 @@ class Application:
             # Remove PID file
             try:
                 os.remove("broca2.pid")
-            except:
+            except OSError:
                 pass
 
             logger.info("✅ Application stopped successfully")

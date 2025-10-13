@@ -1,6 +1,13 @@
 """Unit tests for the Telegram bot plugin."""
 
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from aiogram import Bot, Dispatcher
+
+from plugins.telegram_bot.plugin import TelegramBotPlugin
+from plugins.telegram_bot.settings import MessageMode, TelegramBotSettings
 
 # Patch DB and LettaClient at the module level before any code under test is imported
 patch(
@@ -10,14 +17,6 @@ patch(
     "database.operations.users.get_or_create_platform_profile", new_callable=AsyncMock
 ).start()
 patch("runtime.core.letta_client.LettaClient").start()
-
-from datetime import datetime
-
-import pytest
-from aiogram import Bot, Dispatcher
-
-from plugins.telegram_bot.plugin import TelegramBotPlugin
-from plugins.telegram_bot.settings import MessageMode, TelegramBotSettings
 
 
 @pytest.fixture
@@ -65,13 +64,6 @@ def mock_message(mock_user):
 @pytest.fixture
 def plugin():
     return TelegramBotPlugin()
-
-
-@pytest.fixture
-def mock_bot():
-    bot = MagicMock()
-    bot.send_message = AsyncMock()
-    return bot
 
 
 @pytest.mark.asyncio

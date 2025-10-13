@@ -154,7 +154,7 @@ class WebChatAPIClient:
             True if connection is successful, False otherwise
         """
         try:
-            messages = await self.get_messages(limit=1)
+            await self.get_messages(limit=1)
             return True
         except Exception as e:
             self.logger.error(f"Connection test failed: {e}")

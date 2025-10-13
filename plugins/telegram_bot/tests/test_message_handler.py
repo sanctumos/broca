@@ -1,6 +1,12 @@
 """Unit tests for the Telegram message handler."""
 
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from plugins.telegram_bot.handlers import MessageBuffer
+from plugins.telegram_bot.message_handler import TelegramMessageHandler
 
 # Patch DB functions in the module where they are used
 patch(
@@ -21,13 +27,6 @@ patch(
     "plugins.telegram_bot.message_handler.get_or_create_platform_profile",
     new=AsyncMock(return_value=(MagicMock(), MagicMock())),
 ).start()
-
-from datetime import datetime
-
-import pytest
-
-from plugins.telegram_bot.handlers import MessageBuffer
-from plugins.telegram_bot.message_handler import TelegramMessageHandler
 
 
 @pytest.fixture

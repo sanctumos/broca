@@ -88,7 +88,7 @@ class WebChatMessageHandler:
                 )
 
             # Create message object
-            message = Message(
+            Message(
                 content=message_text,
                 user_id=platform_user_id,
                 username=f"web_user_{platform_user_id}",
