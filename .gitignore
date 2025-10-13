@@ -40,6 +40,11 @@ coverage.xml
 *.py,cover
 .hypothesis/
 
+# Tool caches
+.ruff_cache/
+.mypy_cache/
+.cache/
+
 # IDE
 .idea/
 .vscode/
