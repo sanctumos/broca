@@ -7,8 +7,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from common.logging import setup_logging
+
 # Setup logging
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+setup_logging(use_emojis=False)
 logger = logging.getLogger(__name__)
 
 # Get the path to the settings file (relative to broca2 directory)
