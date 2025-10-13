@@ -17,7 +17,6 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-"""Plugin management system for broca2."""
 import importlib.util
 import logging
 import sys
@@ -61,7 +60,7 @@ class PluginManager:
             spec.loader.exec_module(module)
 
             # Find and instantiate the plugin class
-            for name, obj in module.__dict__.items():
+            for _name, obj in module.__dict__.items():
                 if isinstance(obj, type) and issubclass(obj, Plugin) and obj != Plugin:
                     plugin = obj()
                     plugin_name = plugin.get_name()
@@ -86,7 +85,9 @@ class PluginManager:
             raise PluginError(f"No plugin class found in {plugin_path}")
 
         except Exception as e:
-            raise PluginError(f"Failed to load plugin from {plugin_path}: {str(e)}")
+            raise PluginError(
+                f"Failed to load plugin from {plugin_path}: {str(e)}"
+            ) from e
 
     async def unload_plugin(self, plugin_name: str) -> None:
         """Unload a plugin.
@@ -113,7 +114,7 @@ class PluginManager:
             del self._plugins[plugin_name]
             logger.info(f"Unloaded plugin: {plugin_name}")
         except Exception as e:
-            raise PluginError(f"Failed to unload plugin {plugin_name}: {str(e)}")
+            raise PluginError(f"Failed to unload plugin {plugin_name}: {str(e)}") from e
 
     async def start_plugin(self, plugin_name: str) -> None:
         """Start a plugin.
@@ -132,7 +133,7 @@ class PluginManager:
             await plugin.start()
             logger.info(f"Started plugin: {plugin_name}")
         except Exception as e:
-            raise PluginError(f"Failed to start plugin {plugin_name}: {str(e)}")
+            raise PluginError(f"Failed to start plugin {plugin_name}: {str(e)}") from e
 
     async def stop_plugin(self, plugin_name: str) -> None:
         """Stop a plugin.
@@ -151,7 +152,7 @@ class PluginManager:
             await plugin.stop()
             logger.info(f"Stopped plugin: {plugin_name}")
         except Exception as e:
-            raise PluginError(f"Failed to stop plugin {plugin_name}: {str(e)}")
+            raise PluginError(f"Failed to stop plugin {plugin_name}: {str(e)}") from e
 
     def register_event_handler(
         self, event_type: EventType, handler: Callable[[Event], None]
@@ -239,9 +240,7 @@ class PluginManager:
                         continue
 
                     # Get plugin settings schema
-                    settings_schema = (
-                        plugin.get_settings() if hasattr(plugin, "get_settings") else {}
-                    )
+                    (plugin.get_settings() if hasattr(plugin, "get_settings") else {})
 
                     # Load plugin-specific config if available
                     plugin_config = {}
