@@ -86,6 +86,7 @@ class MessageHandler:
         """
         self.buffer = MessageBuffer(delay=buffer_delay)
         self.letta_client = None  # Initialize lazily
+        self.message_mode = "listen"  # Default message mode
 
     async def handle_message(self, message: dict[str, Any]) -> None:
         """Handle a message.
