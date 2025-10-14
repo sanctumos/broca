@@ -221,7 +221,7 @@ class TestMessageHandler:
         }
 
         with patch(
-            "plugins.telegram_bot.handlers.LettaClient", return_value=mock_letta_client
+            "runtime.core.letta_client.LettaClient", return_value=mock_letta_client
         ):
             await handler.process_message(message)
 
