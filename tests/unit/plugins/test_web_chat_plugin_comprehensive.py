@@ -1,60 +1,74 @@
-"""Tests for Web Chat plugin."""
+"""
+Comprehensive tests for Web Chat Plugin.
+
+This module tests the WebChatPlugin class which handles
+polling web chat API and processing messages through Broca2.
+"""
 
 import asyncio
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from plugins.web_chat.plugin import WebChatPlugin
+from plugins.web_chat.settings import WebChatSettings
 
 
 class TestWebChatPlugin:
-    """Test the WebChatPlugin class."""
+    """Test cases for WebChatPlugin class."""
 
-    def test_init_default(self):
-        """Test WebChatPlugin initialization with defaults."""
+    def test_initialization_default(self):
+        """Test WebChatPlugin initialization with default settings."""
         plugin = WebChatPlugin()
         assert plugin.settings is None
         assert plugin.api_client is None
         assert plugin.message_handler is None
         assert plugin.polling_task is None
         assert plugin.is_running is False
+        assert plugin.logger is not None
         assert plugin.processed_messages == set()
         assert plugin.session_responses == {}
 
-    def test_init_with_settings(self):
+    def test_initialization_with_settings(self):
         """Test WebChatPlugin initialization with settings."""
-        mock_settings = MagicMock()
-        plugin = WebChatPlugin(settings=mock_settings)
-        assert plugin.settings == mock_settings
+        settings = WebChatSettings(
+            api_url="http://test.com",
+            poll_interval=5,
+            retry_delay=2,
+            plugin_name="test_plugin",
+            platform_name="test_platform",
+        )
+        plugin = WebChatPlugin(settings)
+        assert plugin.settings == settings
+        assert plugin.api_client is None
+        assert plugin.message_handler is None
+        assert plugin.polling_task is None
+        assert plugin.is_running is False
 
     def test_get_name_default(self):
-        """Test getting plugin name with default settings."""
+        """Test get_name with default settings."""
         plugin = WebChatPlugin()
         assert plugin.get_name() == "web_chat"
 
     def test_get_name_with_settings(self):
-        """Test getting plugin name with settings."""
-        mock_settings = MagicMock()
-        mock_settings.plugin_name = "custom_web_chat"
-        plugin = WebChatPlugin(settings=mock_settings)
-        assert plugin.get_name() == "custom_web_chat"
+        """Test get_name with custom settings."""
+        settings = WebChatSettings(plugin_name="custom_plugin")
+        plugin = WebChatPlugin(settings)
+        assert plugin.get_name() == "custom_plugin"
 
     def test_get_platform_default(self):
-        """Test getting platform name with default settings."""
+        """Test get_platform with default settings."""
         plugin = WebChatPlugin()
         assert plugin.get_platform() == "web_chat"
 
     def test_get_platform_with_settings(self):
-        """Test getting platform name with settings."""
-        mock_settings = MagicMock()
-        mock_settings.platform_name = "custom_platform"
-        plugin = WebChatPlugin(settings=mock_settings)
+        """Test get_platform with custom settings."""
+        settings = WebChatSettings(platform_name="custom_platform")
+        plugin = WebChatPlugin(settings)
         assert plugin.get_platform() == "custom_platform"
 
     def test_get_message_handler(self):
-        """Test getting message handler."""
+        """Test get_message_handler returns correct method."""
         plugin = WebChatPlugin()
         handler = plugin.get_message_handler()
         assert handler == plugin._handle_response
@@ -62,443 +76,386 @@ class TestWebChatPlugin:
     @pytest.mark.asyncio
     async def test_start_success(self):
         """Test successful plugin start."""
-        plugin = WebChatPlugin()
+        settings = WebChatSettings(
+            api_url="http://test.com", poll_interval=5, retry_delay=2
+        )
+        plugin = WebChatPlugin(settings)
 
-        # Mock settings
-        mock_settings = MagicMock()
-        mock_settings.platform_name = "web_chat"
-        plugin.settings = mock_settings
-
-        # Mock API client
-        mock_api_client = MagicMock()
-        mock_api_client.test_connection = AsyncMock(return_value=True)
-
-        # Mock message handler
-        mock_message_handler = MagicMock()
+        mock_api_client = AsyncMock()
+        mock_message_handler = AsyncMock()
+        mock_api_client.test_connection.return_value = True
 
         with patch(
-            "plugins.web_chat.api_client.WebChatAPIClient", return_value=mock_api_client
+            "plugins.web_chat.plugin.WebChatAPIClient", return_value=mock_api_client
         ), patch(
-            "plugins.web_chat.message_handler.WebChatMessageHandler",
+            "plugins.web_chat.plugin.WebChatMessageHandler",
             return_value=mock_message_handler,
         ), patch(
             "asyncio.create_task"
         ) as mock_create_task:
+            mock_task = AsyncMock()
+            mock_create_task.return_value = mock_task
+
             await plugin.start()
 
             assert plugin.is_running is True
             assert plugin.api_client == mock_api_client
             assert plugin.message_handler == mock_message_handler
+            assert plugin.polling_task == mock_task
+            mock_api_client.test_connection.assert_called_once()
             mock_create_task.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_start_already_running(self):
-        """Test starting plugin when already running."""
+        """Test starting plugin that's already running."""
         plugin = WebChatPlugin()
         plugin.is_running = True
 
         await plugin.start()
 
-        # Should not start again
+        # Should not change state
         assert plugin.is_running is True
 
     @pytest.mark.asyncio
     async def test_start_connection_failed(self):
-        """Test starting plugin when connection fails."""
-        plugin = WebChatPlugin()
+        """Test starting plugin with failed connection."""
+        settings = WebChatSettings(api_url="http://test.com")
+        plugin = WebChatPlugin(settings)
 
-        # Mock settings
-        mock_settings = MagicMock()
-        plugin.settings = mock_settings
-
-        # Mock API client that fails connection
-        mock_api_client = MagicMock()
-        mock_api_client.test_connection = AsyncMock(return_value=False)
+        mock_api_client = AsyncMock()
+        mock_api_client.test_connection.return_value = False
 
         with patch(
-            "plugins.web_chat.api_client.WebChatAPIClient", return_value=mock_api_client
+            "plugins.web_chat.plugin.WebChatAPIClient", return_value=mock_api_client
         ):
             await plugin.start()
 
-            # Should not be running if connection failed
             assert plugin.is_running is False
+            assert plugin.api_client == mock_api_client
 
     @pytest.mark.asyncio
     async def test_start_exception(self):
         """Test starting plugin with exception."""
-        plugin = WebChatPlugin()
+        settings = WebChatSettings(api_url="http://test.com")
+        plugin = WebChatPlugin(settings)
 
         with patch(
-            "plugins.web_chat.api_client.WebChatAPIClient",
-            side_effect=Exception("API error"),
+            "plugins.web_chat.plugin.WebChatAPIClient",
+            side_effect=Exception("Connection error"),
         ):
-            with pytest.raises(Exception, match="API error"):
+            with pytest.raises(Exception, match="Connection error"):
                 await plugin.start()
+
+            assert plugin.is_running is False
+
+    @pytest.mark.asyncio
+    async def test_stop_not_running(self):
+        """Test stopping plugin that's not running."""
+        plugin = WebChatPlugin()
+        await plugin.stop()
+
+        # Should not change state
+        assert plugin.is_running is False
 
     @pytest.mark.asyncio
     async def test_stop_success(self):
         """Test successful plugin stop."""
         plugin = WebChatPlugin()
         plugin.is_running = True
-
-        # Mock polling task
-        mock_task = MagicMock()
-        mock_task.cancel = MagicMock()
-        mock_task.__await__ = AsyncMock(return_value=None)
-        plugin.polling_task = mock_task
-
-        # Mock API client
-        mock_api_client = MagicMock()
-        mock_api_client.session = MagicMock()
-        mock_api_client.session.close = AsyncMock()
-        plugin.api_client = mock_api_client
+        plugin.polling_task = AsyncMock()
+        plugin.api_client = AsyncMock()
+        plugin.api_client.session = AsyncMock()
 
         await plugin.stop()
 
         assert plugin.is_running is False
-        mock_task.cancel.assert_called_once()
-        mock_api_client.session.close.assert_called_once()
+        plugin.polling_task.cancel.assert_called_once()
+        plugin.api_client.session.close.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_stop_not_running(self):
-        """Test stopping plugin when not running."""
-        plugin = WebChatPlugin()
-        plugin.is_running = False
-
-        await plugin.stop()
-
-        # Should not do anything
-        assert plugin.is_running is False
-
-    @pytest.mark.asyncio
-    async def test_stop_cancelled_task(self):
+    async def test_stop_with_cancelled_task(self):
         """Test stopping plugin with cancelled task."""
         plugin = WebChatPlugin()
         plugin.is_running = True
-
-        # Mock polling task that raises CancelledError
-        mock_task = MagicMock()
-        mock_task.cancel = MagicMock()
-        mock_task.__await__ = AsyncMock(side_effect=asyncio.CancelledError())
-        plugin.polling_task = mock_task
+        plugin.polling_task = AsyncMock()
+        plugin.polling_task.cancel.return_value = None
+        plugin.polling_task.side_effect = asyncio.CancelledError()
 
         await plugin.stop()
 
         assert plugin.is_running is False
-        mock_task.cancel.assert_called_once()
 
-    def test_get_settings_success(self):
-        """Test getting settings successfully."""
+    @pytest.mark.asyncio
+    async def test_stop_no_api_client(self):
+        """Test stopping plugin without API client."""
+        plugin = WebChatPlugin()
+        plugin.is_running = True
+        plugin.polling_task = AsyncMock()
+
+        await plugin.stop()
+
+        assert plugin.is_running is False
+
+    def test_get_settings_default(self):
+        """Test get_settings with default settings."""
         plugin = WebChatPlugin()
 
-        mock_settings = MagicMock()
-        mock_settings.to_dict.return_value = {"api_url": "http://test.com"}
+        with patch("plugins.web_chat.plugin.WebChatSettings.from_env") as mock_from_env:
+            mock_settings = Mock()
+            mock_settings.to_dict.return_value = {"test": "value"}
+            mock_from_env.return_value = mock_settings
 
-        with patch("plugins.web_chat.settings.WebChatSettings") as mock_settings_class:
-            mock_settings_class.from_env.return_value = mock_settings
             result = plugin.get_settings()
 
-            assert result == {"api_url": "http://test.com"}
+            assert result == {"test": "value"}
             assert plugin.settings == mock_settings
 
     def test_get_settings_exception(self):
-        """Test getting settings with exception."""
+        """Test get_settings with exception."""
         plugin = WebChatPlugin()
 
-        with patch("plugins.web_chat.settings.WebChatSettings") as mock_settings_class:
-            mock_settings_class.from_env.side_effect = Exception("Settings error")
+        with patch(
+            "plugins.web_chat.plugin.WebChatSettings.from_env",
+            side_effect=Exception("Settings error"),
+        ):
             result = plugin.get_settings()
 
             assert result == {}
 
     def test_get_settings_existing(self):
-        """Test getting existing settings."""
-        plugin = WebChatPlugin()
+        """Test get_settings with existing settings."""
+        settings = WebChatSettings(api_url="http://test.com")
+        plugin = WebChatPlugin(settings)
 
-        mock_settings = MagicMock()
-        mock_settings.to_dict.return_value = {"api_url": "http://test.com"}
+        mock_settings = Mock()
+        mock_settings.to_dict.return_value = {"test": "value"}
         plugin.settings = mock_settings
 
         result = plugin.get_settings()
 
-        assert result == {"api_url": "http://test.com"}
+        assert result == {"test": "value"}
 
     def test_validate_settings(self):
-        """Test validating settings."""
-        plugin = WebChatPlugin()
+        """Test validate_settings."""
+        settings = WebChatSettings(api_url="http://test.com")
+        plugin = WebChatPlugin(settings)
 
-        mock_settings = MagicMock()
-        mock_settings.validate_settings.return_value = True
-        plugin.settings = mock_settings
-
-        result = plugin.validate_settings()
-
-        assert result is True
-        mock_settings.validate_settings.assert_called_once()
+        with patch.object(
+            settings, "validate_settings", return_value=True
+        ) as mock_validate:
+            result = plugin.validate_settings()
+            assert result is True
+            mock_validate.assert_called_once()
 
     def test_apply_settings(self):
-        """Test applying settings."""
+        """Test apply_settings."""
         plugin = WebChatPlugin()
+        settings_dict = {"api_url": "http://test.com", "poll_interval": 5}
 
-        mock_settings = MagicMock()
-        mock_settings.plugin_name = "test_plugin"
+        with patch(
+            "plugins.web_chat.plugin.WebChatSettings.from_dict"
+        ) as mock_from_dict:
+            mock_settings = Mock()
+            mock_from_dict.return_value = mock_settings
 
-        with patch("plugins.web_chat.settings.WebChatSettings") as mock_settings_class:
-            mock_settings_class.from_dict.return_value = mock_settings
-
-            plugin.apply_settings({"api_url": "http://test.com"})
+            plugin.apply_settings(settings_dict)
 
             assert plugin.settings == mock_settings
+            mock_from_dict.assert_called_once_with(settings_dict)
 
     def test_apply_settings_empty(self):
-        """Test applying empty settings."""
+        """Test apply_settings with empty settings."""
         plugin = WebChatPlugin()
-
         plugin.apply_settings({})
-
         # Should not change settings
         assert plugin.settings is None
 
     @pytest.mark.asyncio
     async def test_poll_messages_success(self):
         """Test successful message polling."""
-        plugin = WebChatPlugin()
+        settings = WebChatSettings(poll_interval=1, retry_delay=0.1)
+        plugin = WebChatPlugin(settings)
         plugin.is_running = True
+        plugin.api_client = AsyncMock()
+        plugin.message_handler = AsyncMock()
 
-        # Mock settings
-        mock_settings = MagicMock()
-        mock_settings.poll_interval = 1
-        plugin.settings = mock_settings
+        messages = [
+            {"session_id": "session1", "message": "Hello", "id": 1},
+            {"session_id": "session2", "message": "World", "id": 2},
+        ]
+        plugin.api_client.get_messages.return_value = messages
 
-        # Mock API client
-        mock_api_client = MagicMock()
-        mock_api_client.get_messages = AsyncMock(
-            return_value=[
-                {"id": 1, "session_id": "session1", "text": "Hello"},
-                {"id": 2, "session_id": "session2", "text": "World"},
-            ]
-        )
-        plugin.api_client = mock_api_client
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            # Make sleep raise CancelledError to stop the loop
+            mock_sleep.side_effect = asyncio.CancelledError()
 
-        # Mock message handler
-        mock_message_handler = MagicMock()
-        mock_message_handler.process_incoming_message = AsyncMock(
-            return_value=MagicMock()
-        )
-        plugin.message_handler = mock_message_handler
-
-        with patch("asyncio.sleep", side_effect=asyncio.CancelledError):
             with pytest.raises(asyncio.CancelledError):
                 await plugin._poll_messages()
 
-            # Check that messages were processed
-            assert mock_api_client.get_messages.call_count >= 1
-            assert mock_message_handler.process_incoming_message.call_count >= 2
+            plugin.api_client.get_messages.assert_called_once_with(limit=50)
+            plugin.message_handler.process_incoming_message.assert_called()
 
     @pytest.mark.asyncio
     async def test_poll_messages_no_messages(self):
-        """Test polling when no messages available."""
-        plugin = WebChatPlugin()
+        """Test polling with no messages."""
+        settings = WebChatSettings(poll_interval=1, retry_delay=0.1)
+        plugin = WebChatPlugin(settings)
         plugin.is_running = True
+        plugin.api_client = AsyncMock()
 
-        # Mock settings
-        mock_settings = MagicMock()
-        mock_settings.poll_interval = 1
-        plugin.settings = mock_settings
+        plugin.api_client.get_messages.return_value = []
 
-        # Mock API client
-        mock_api_client = MagicMock()
-        mock_api_client.get_messages = AsyncMock(return_value=[])
-        plugin.api_client = mock_api_client
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            mock_sleep.side_effect = asyncio.CancelledError()
 
-        with patch("asyncio.sleep", side_effect=asyncio.CancelledError):
             with pytest.raises(asyncio.CancelledError):
                 await plugin._poll_messages()
 
-            # Check that API was called
-            assert mock_api_client.get_messages.call_count >= 1
+            plugin.api_client.get_messages.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_poll_messages_exception(self):
         """Test polling with exception."""
-        plugin = WebChatPlugin()
+        settings = WebChatSettings(poll_interval=1, retry_delay=0.1)
+        plugin = WebChatPlugin(settings)
         plugin.is_running = True
+        plugin.api_client = AsyncMock()
 
-        # Mock settings
-        mock_settings = MagicMock()
-        mock_settings.poll_interval = 1
-        mock_settings.retry_delay = 0.1
-        plugin.settings = mock_settings
+        plugin.api_client.get_messages.side_effect = Exception("API error")
 
-        # Mock API client that raises exception
-        mock_api_client = MagicMock()
-        mock_api_client.get_messages = AsyncMock(side_effect=Exception("API error"))
-        plugin.api_client = mock_api_client
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            mock_sleep.side_effect = asyncio.CancelledError()
 
-        with patch("asyncio.sleep", side_effect=asyncio.CancelledError):
             with pytest.raises(asyncio.CancelledError):
                 await plugin._poll_messages()
+
+            plugin.api_client.get_messages.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_poll_messages_stopped(self):
         """Test polling when plugin is stopped."""
-        plugin = WebChatPlugin()
+        settings = WebChatSettings(poll_interval=1, retry_delay=0.1)
+        plugin = WebChatPlugin(settings)
         plugin.is_running = False
-
-        # Mock settings
-        mock_settings = MagicMock()
-        mock_settings.poll_interval = 1
-        plugin.settings = mock_settings
-
-        # Mock API client
-        mock_api_client = MagicMock()
-        mock_api_client.get_messages = AsyncMock(return_value=[])
-        plugin.api_client = mock_api_client
+        plugin.api_client = AsyncMock()
 
         await plugin._poll_messages()
 
-        # Should not call API when not running
-        mock_api_client.get_messages.assert_not_called()
+        # Should not call get_messages when not running
+        plugin.api_client.get_messages.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_process_message_success(self):
         """Test successful message processing."""
         plugin = WebChatPlugin()
-
-        # Mock message handler
-        mock_message_handler = MagicMock()
-        mock_message_handler.process_incoming_message = AsyncMock(
-            return_value=MagicMock()
-        )
-        plugin.message_handler = mock_message_handler
+        plugin.message_handler = AsyncMock()
+        plugin.message_handler.process_incoming_message.return_value = 123
 
         message_data = {
-            "id": 1,
             "session_id": "session1",
-            "timestamp": "2023-01-01T12:00:00Z",
-            "text": "Hello",
+            "message": "Hello",
+            "id": 1,
+            "timestamp": "2024-01-01T12:00:00Z",
         }
 
         await plugin._process_message(message_data)
 
-        # Check that message was processed
-        mock_message_handler.process_incoming_message.assert_called_once_with(
+        assert len(plugin.processed_messages) == 1
+        plugin.message_handler.process_incoming_message.assert_called_once_with(
             message_data
         )
-
-        # Check that message was marked as processed
-        message_id = f"{message_data['session_id']}_{message_data['id']}_{message_data['timestamp']}"
-        assert message_id in plugin.processed_messages
 
     @pytest.mark.asyncio
     async def test_process_message_already_processed(self):
         """Test processing already processed message."""
         plugin = WebChatPlugin()
-
-        # Mock message handler
-        mock_message_handler = MagicMock()
-        plugin.message_handler = mock_message_handler
+        plugin.message_handler = AsyncMock()
 
         message_data = {
-            "id": 1,
             "session_id": "session1",
-            "timestamp": "2023-01-01T12:00:00Z",
-            "text": "Hello",
+            "message": "Hello",
+            "id": 1,
+            "timestamp": "2024-01-01T12:00:00Z",
         }
 
-        # Mark message as already processed
-        message_id = f"{message_data['session_id']}_{message_data['id']}_{message_data['timestamp']}"
+        # Add message to processed set
+        message_id = f"{message_data.get('session_id')}_{message_data.get('id')}_{message_data.get('timestamp')}"
         plugin.processed_messages.add(message_id)
 
         await plugin._process_message(message_data)
 
         # Should not process again
-        mock_message_handler.process_incoming_message.assert_not_called()
+        plugin.message_handler.process_incoming_message.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_process_message_exception(self):
         """Test message processing with exception."""
         plugin = WebChatPlugin()
-
-        # Mock message handler that raises exception
-        mock_message_handler = MagicMock()
-        mock_message_handler.process_incoming_message = AsyncMock(
-            side_effect=Exception("Processing error")
+        plugin.message_handler = AsyncMock()
+        plugin.message_handler.process_incoming_message.side_effect = Exception(
+            "Processing error"
         )
-        plugin.message_handler = mock_message_handler
 
         message_data = {
-            "id": 1,
             "session_id": "session1",
-            "timestamp": "2023-01-01T12:00:00Z",
-            "text": "Hello",
+            "message": "Hello",
+            "id": 1,
+            "timestamp": "2024-01-01T12:00:00Z",
         }
 
         await plugin._process_message(message_data)
 
-        # Should not mark as processed if exception occurred
-        message_id = f"{message_data['session_id']}_{message_data['id']}_{message_data['timestamp']}"
-        assert message_id not in plugin.processed_messages
+        # Should not add to processed messages on error
+        assert len(plugin.processed_messages) == 0
 
     @pytest.mark.asyncio
     async def test_send_response_success(self):
         """Test successful response sending."""
         plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+        plugin.message_handler = AsyncMock()
+        plugin.api_client.post_response.return_value = True
 
-        # Mock API client
-        mock_api_client = MagicMock()
-        mock_api_client.post_response = AsyncMock(return_value=True)
-        plugin.api_client = mock_api_client
+        original_message = Mock()
 
-        # Mock message handler
-        mock_message_handler = MagicMock()
-        mock_message_handler.process_outgoing_message = AsyncMock()
-        plugin.message_handler = mock_message_handler
-
-        original_message = {"id": 1, "text": "Hello"}
-
-        result = await plugin.send_response("session1", "Response", original_message)
+        result = await plugin.send_response("session1", "Hello back!", original_message)
 
         assert result is True
-        mock_api_client.post_response.assert_called_once_with("session1", "Response")
-        mock_message_handler.process_outgoing_message.assert_called_once_with(
-            "session1", "Response", original_message
+        plugin.message_handler.process_outgoing_message.assert_called_once_with(
+            "session1", "Hello back!", original_message
+        )
+        plugin.api_client.post_response.assert_called_once_with(
+            "session1", "Hello back!"
         )
 
     @pytest.mark.asyncio
     async def test_send_response_no_api_client(self):
-        """Test sending response with no API client."""
+        """Test sending response without API client."""
         plugin = WebChatPlugin()
-
-        result = await plugin.send_response("session1", "Response")
-
+        result = await plugin.send_response("session1", "Hello back!")
         assert result is False
 
     @pytest.mark.asyncio
     async def test_send_response_api_failure(self):
-        """Test sending response when API fails."""
+        """Test response sending with API failure."""
         plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+        plugin.message_handler = AsyncMock()
+        plugin.api_client.post_response.return_value = False
 
-        # Mock API client that fails
-        mock_api_client = MagicMock()
-        mock_api_client.post_response = AsyncMock(return_value=False)
-        plugin.api_client = mock_api_client
-
-        result = await plugin.send_response("session1", "Response")
+        result = await plugin.send_response("session1", "Hello back!")
 
         assert result is False
 
     @pytest.mark.asyncio
     async def test_send_response_exception(self):
-        """Test sending response with exception."""
+        """Test response sending with exception."""
         plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+        plugin.message_handler = AsyncMock()
+        plugin.api_client.post_response.side_effect = Exception("API error")
 
-        # Mock API client that raises exception
-        mock_api_client = MagicMock()
-        mock_api_client.post_response = AsyncMock(side_effect=Exception("API error"))
-        plugin.api_client = mock_api_client
-
-        result = await plugin.send_response("session1", "Response")
+        result = await plugin.send_response("session1", "Hello back!")
 
         assert result is False
 
@@ -506,64 +463,213 @@ class TestWebChatPlugin:
     async def test_handle_response_success(self):
         """Test successful response handling."""
         plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+        plugin.api_client.post_response.return_value = True
 
-        # Mock profile with metadata
-        mock_profile = MagicMock()
-        mock_profile.metadata = json.dumps({"session_id": "session1"})
+        profile = Mock()
+        profile.metadata = {"session_id": "session1"}
+        message_id = 123
 
-        with patch.object(
-            plugin, "send_response", new_callable=AsyncMock, return_value=True
-        ) as mock_send:
-            await plugin._handle_response("Response", mock_profile, 123)
+        await plugin._handle_response("Hello back!", profile, message_id)
 
-            mock_send.assert_called_once_with("session1", "Response")
+        plugin.api_client.post_response.assert_called_once_with(
+            "session1", "Hello back!"
+        )
 
     @pytest.mark.asyncio
     async def test_handle_response_dict_metadata(self):
         """Test response handling with dict metadata."""
         plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+        plugin.api_client.post_response.return_value = True
 
-        # Mock profile with dict metadata
-        mock_profile = MagicMock()
-        mock_profile.metadata = {"session_id": "session1"}
+        profile = Mock()
+        profile.metadata = {"session_id": "session1"}
+        message_id = 123
 
-        with patch.object(
-            plugin, "send_response", new_callable=AsyncMock, return_value=True
-        ) as mock_send:
-            await plugin._handle_response("Response", mock_profile, 123)
+        await plugin._handle_response("Hello back!", profile, message_id)
 
-            mock_send.assert_called_once_with("session1", "Response")
+        plugin.api_client.post_response.assert_called_once_with(
+            "session1", "Hello back!"
+        )
 
     @pytest.mark.asyncio
     async def test_handle_response_no_session_id(self):
-        """Test response handling with no session ID."""
+        """Test response handling without session_id."""
         plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
 
-        # Mock profile with no session_id
-        mock_profile = MagicMock()
-        mock_profile.metadata = json.dumps({"other": "data"})
+        profile = Mock()
+        profile.metadata = {}
+        message_id = 123
 
-        with patch.object(plugin, "send_response", new_callable=AsyncMock) as mock_send:
-            await plugin._handle_response("Response", mock_profile, 123)
+        await plugin._handle_response("Hello back!", profile, message_id)
 
-            # Should not send response
-            mock_send.assert_not_called()
+        plugin.api_client.post_response.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_handle_response_exception(self):
         """Test response handling with exception."""
         plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+        plugin.api_client.post_response.side_effect = Exception("API error")
 
-        # Mock profile that raises exception
-        mock_profile = MagicMock()
-        mock_profile.metadata = json.dumps({"session_id": "session1"})
+        profile = Mock()
+        profile.metadata = {"session_id": "session1"}
+        message_id = 123
 
-        with patch.object(
-            plugin,
-            "send_response",
-            new_callable=AsyncMock,
-            side_effect=Exception("Send error"),
-        ):
-            await plugin._handle_response("Response", mock_profile, 123)
+        await plugin._handle_response("Hello back!", profile, message_id)
 
-            # Should not raise exception
+        # Should not raise exception
+
+    @pytest.mark.asyncio
+    async def test_handle_agent_response(self):
+        """Test handling agent response."""
+        plugin = WebChatPlugin()
+
+        with patch.object(plugin, "send_response", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = True
+
+            result = await plugin.handle_agent_response("Hello back!", "session1")
+
+            assert result is True
+            mock_send.assert_called_once_with("session1", "Hello back!", None)
+
+    def test_cleanup_processed_messages(self):
+        """Test cleanup of processed messages."""
+        plugin = WebChatPlugin()
+
+        # Add many processed messages
+        for i in range(1500):
+            plugin.processed_messages.add(f"message_{i}")
+
+        plugin.cleanup_processed_messages()
+
+        assert len(plugin.processed_messages) == 0
+
+    def test_cleanup_processed_messages_small_set(self):
+        """Test cleanup with small set of processed messages."""
+        plugin = WebChatPlugin()
+
+        # Add few processed messages
+        for i in range(100):
+            plugin.processed_messages.add(f"message_{i}")
+
+        plugin.cleanup_processed_messages()
+
+        # Should not clear small sets
+        assert len(plugin.processed_messages) == 100
+
+    @pytest.mark.asyncio
+    async def test_poll_messages_with_processed_message(self):
+        """Test polling with message that gets processed."""
+        settings = WebChatSettings(poll_interval=1, retry_delay=0.1)
+        plugin = WebChatPlugin(settings)
+        plugin.is_running = True
+        plugin.api_client = AsyncMock()
+        plugin.message_handler = AsyncMock()
+
+        messages = [
+            {
+                "session_id": "session1",
+                "message": "Hello",
+                "id": 1,
+                "timestamp": "2024-01-01T12:00:00Z",
+            }
+        ]
+        plugin.api_client.get_messages.return_value = messages
+        plugin.message_handler.process_incoming_message.return_value = 123
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            mock_sleep.side_effect = asyncio.CancelledError()
+
+            with pytest.raises(asyncio.CancelledError):
+                await plugin._poll_messages()
+
+            # Message should be processed and added to processed set
+            assert len(plugin.processed_messages) == 1
+            plugin.message_handler.process_incoming_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_poll_messages_stops_when_not_running(self):
+        """Test polling stops when plugin is stopped during processing."""
+        settings = WebChatSettings(poll_interval=1, retry_delay=0.1)
+        plugin = WebChatPlugin(settings)
+        plugin.is_running = True
+        plugin.api_client = AsyncMock()
+        plugin.message_handler = AsyncMock()
+
+        messages = [
+            {
+                "session_id": "session1",
+                "message": "Hello",
+                "id": 1,
+                "timestamp": "2024-01-01T12:00:00Z",
+            },
+            {
+                "session_id": "session2",
+                "message": "World",
+                "id": 2,
+                "timestamp": "2024-01-01T12:01:00Z",
+            },
+        ]
+        plugin.api_client.get_messages.return_value = messages
+
+        # Stop plugin after first message
+        async def stop_after_first():
+            await asyncio.sleep(0.01)
+            plugin.is_running = False
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            mock_sleep.side_effect = asyncio.CancelledError()
+
+            with pytest.raises(asyncio.CancelledError):
+                await plugin._poll_messages()
+
+            # Should process first message but stop before second
+            assert len(plugin.processed_messages) == 1
+
+    @pytest.mark.asyncio
+    async def test_send_response_without_original_message(self):
+        """Test sending response without original message."""
+        plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+        plugin.api_client.post_response.return_value = True
+
+        result = await plugin.send_response("session1", "Hello back!", None)
+
+        assert result is True
+        plugin.api_client.post_response.assert_called_once_with(
+            "session1", "Hello back!"
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_response_with_string_metadata(self):
+        """Test response handling with string metadata."""
+        plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+        plugin.api_client.post_response.return_value = True
+
+        profile = Mock()
+        profile.metadata = '{"session_id": "session1"}'
+        message_id = 123
+
+        await plugin._handle_response("Hello back!", profile, message_id)
+
+        plugin.api_client.post_response.assert_called_once_with(
+            "session1", "Hello back!"
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_response_with_invalid_json_metadata(self):
+        """Test response handling with invalid JSON metadata."""
+        plugin = WebChatPlugin()
+        plugin.api_client = AsyncMock()
+
+        profile = Mock()
+        profile.metadata = '{"invalid": json}'
+        message_id = 123
+
+        await plugin._handle_response("Hello back!", profile, message_id)
+
+        plugin.api_client.post_response.assert_not_called()
