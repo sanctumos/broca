@@ -271,3 +271,13 @@ class WebChatPlugin(Plugin):
             # Clear half of the processed messages
             self.processed_messages.clear()
             self.logger.info("Cleaned up processed message cache")
+
+    def register_event_handler(self, event_type, handler):
+        """Register an event handler."""
+        # WebChatPlugin doesn't use event handlers
+        pass
+
+    def emit_event(self, event):
+        """Emit an event."""
+        # WebChatPlugin doesn't emit events
+        pass
