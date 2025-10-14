@@ -182,7 +182,7 @@ class TestTelegramBotPlugin:
         """Test TelegramBotPlugin get_settings method."""
         with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
             mock_settings_instance = MagicMock()
-            mock_settings.return_value = mock_settings_instance
+            mock_settings.from_env.return_value = mock_settings_instance
 
             plugin = TelegramBotPlugin()
             settings = plugin.get_settings()
@@ -192,11 +192,13 @@ class TestTelegramBotPlugin:
         """Test TelegramBotPlugin validate_settings method."""
         with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
             mock_settings_instance = MagicMock()
-            mock_settings_instance.validate.return_value = True
+            mock_settings_instance.bot_token = "test_token"
+            mock_settings_instance.owner_id = 123
+            mock_settings_instance.owner_username = None
             mock_settings.return_value = mock_settings_instance
 
             plugin = TelegramBotPlugin()
-            test_settings = {"token": "test_token"}
+            test_settings = mock_settings_instance
             result = plugin.validate_settings(test_settings)
             assert result is True
 
