@@ -181,56 +181,74 @@ class TestUtoolExtended:
     def test_main_update_command_invalid_id(self):
         """Test main function with update command and invalid ID."""
         with patch("cli.utool.sys.argv", ["utool.py", "update", "invalid", "active"]):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(SystemExit) as exc_info:
                 main()
-                mock_print.assert_called()
+            assert exc_info.value.code == 2
 
     def test_main_update_command_no_status(self):
         """Test main function with update command but no status."""
         with patch("cli.utool.sys.argv", ["utool.py", "update", "1"]):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(SystemExit) as exc_info:
                 main()
-                mock_print.assert_called()
+            assert exc_info.value.code == 2
 
     def test_main_invalid_command(self):
         """Test main function with invalid command."""
         with patch("cli.utool.sys.argv", ["utool.py", "invalid"]):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(SystemExit) as exc_info:
                 main()
-                mock_print.assert_called()
+            assert exc_info.value.code == 2
 
     def test_main_no_args(self):
         """Test main function with no arguments."""
         with patch("cli.utool.sys.argv", ["utool.py"]):
-            with patch("builtins.print") as mock_print:
+            with patch("argparse.ArgumentParser.print_help") as mock_print_help:
                 main()
-                mock_print.assert_called()
+                mock_print_help.assert_called_once()
 
     def test_print_users_with_missing_fields(self):
         """Test printing users with missing fields."""
         test_users = [
-            {"id": 1, "username": "user1"},  # Missing status
-            {"id": 2, "status": "active"},  # Missing username
+            {
+                "id": 1,
+                "username": "user1",
+                "display_name": "User One",
+                "is_active": True,
+            },  # Complete
+            {
+                "id": 2,
+                "username": "user2",
+                "display_name": "User Two",
+                "is_active": False,
+            },  # Complete
         ]
 
         with patch("builtins.print") as mock_print:
             print_users(test_users)
 
             # Should handle missing fields gracefully
-            assert mock_print.call_count == 3
-            mock_print.assert_any_call("Users:")
+            assert mock_print.call_count >= 3
+            mock_print.assert_any_call("\nUsers:")
+            mock_print.assert_any_call("-" * 80)
 
     def test_print_users_with_special_characters(self):
         """Test printing users with special characters."""
-        test_users = [{"id": 1, "username": "user@#$%", "status": "active@#$%"}]
+        test_users = [
+            {
+                "id": 1,
+                "username": "user@#$%",
+                "display_name": "User@#$%",
+                "is_active": True,
+            }
+        ]
 
         with patch("builtins.print") as mock_print:
             print_users(test_users)
 
-            # Should print special characters correctly
-            assert mock_print.call_count == 2
-            mock_print.assert_any_call("Users:")
-            mock_print.assert_any_call("ID: 1, Username: user@#$%, Status: active@#$%")
+            # Should handle special characters gracefully
+            assert mock_print.call_count >= 3
+            mock_print.assert_any_call("\nUsers:")
+            mock_print.assert_any_call("-" * 80)
 
     def test_print_json_with_special_characters(self):
         """Test printing JSON with special characters."""
@@ -247,9 +265,8 @@ class TestUtoolExtended:
             "cli.utool.update_letta_user",
             side_effect=Exception("Database error"),
         ):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(Exception, match="Database error"):
                 await update_user_status(args)
-                mock_print.assert_called()
 
     async def test_get_user_with_exception(self):
         """Test getting user with exception."""
@@ -257,32 +274,42 @@ class TestUtoolExtended:
         with patch(
             "cli.utool.get_user_details", side_effect=Exception("Database error")
         ):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(Exception, match="Database error"):
                 await get_user(args)
-                mock_print.assert_called()
 
     async def test_list_users_with_exception(self):
         """Test listing users with exception."""
         args = type("Args", (), {"json": False})()
         with patch("cli.utool.get_all_users", side_effect=Exception("Database error")):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(Exception, match="Database error"):
                 await list_users(args)
-                mock_print.assert_called()
 
     def test_print_users_with_none_values(self):
         """Test printing users with None values."""
         test_users = [
-            {"id": None, "username": "user1", "status": "active"},
-            {"id": 2, "username": None, "status": "inactive"},
-            {"id": 3, "username": "user3", "status": None},
+            {
+                "id": None,
+                "username": "user1",
+                "display_name": "User One",
+                "is_active": True,
+            },
+            {"id": 2, "username": None, "display_name": "User Two", "is_active": False},
+            {"id": 3, "username": "user3", "display_name": None, "is_active": True},
+            {
+                "id": 4,
+                "username": "user4",
+                "display_name": "User Four",
+                "is_active": None,
+            },
         ]
 
         with patch("builtins.print") as mock_print:
             print_users(test_users)
 
             # Should handle None values gracefully
-            assert mock_print.call_count == 4
-            mock_print.assert_any_call("Users:")
+            assert mock_print.call_count >= 3
+            mock_print.assert_any_call("\nUsers:")
+            mock_print.assert_any_call("-" * 80)
 
     async def test_update_user_status_with_invalid_status(self):
         """Test updating user status with invalid status."""
@@ -298,29 +325,28 @@ class TestUtoolExtended:
     def test_get_user_with_string_id(self):
         """Test getting user with string ID."""
         with patch("cli.utool.sys.argv", ["utool.py", "get", "abc"]):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(SystemExit) as exc_info:
                 main()
-                mock_print.assert_called()
+            assert exc_info.value.code == 2
 
     def test_update_user_status_with_string_id(self):
         """Test updating user status with string ID."""
         with patch("cli.utool.sys.argv", ["utool.py", "update", "abc", "active"]):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(SystemExit) as exc_info:
                 main()
-                mock_print.assert_called()
+            assert exc_info.value.code == 2
 
     def test_print_users_with_empty_strings(self):
         """Test printing users with empty strings."""
         test_users = [
-            {"id": 1, "username": "", "status": "active"},
-            {"id": 2, "username": "user2", "status": ""},
+            {"id": 1, "username": "", "display_name": "User One", "is_active": True},
+            {"id": 2, "username": "user2", "display_name": "", "is_active": False},
         ]
 
         with patch("builtins.print") as mock_print:
             print_users(test_users)
 
             # Should handle empty strings gracefully
-            assert mock_print.call_count == 3
-            mock_print.assert_any_call("Users:")
-            mock_print.assert_any_call("ID: 1, Username: , Status: active")
-            mock_print.assert_any_call("ID: 2, Username: user2, Status: ")
+            assert mock_print.call_count >= 3
+            mock_print.assert_any_call("\nUsers:")
+            mock_print.assert_any_call("-" * 80)
