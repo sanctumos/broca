@@ -298,24 +298,25 @@ class TestTelegramBotPlugin:
         """Test TelegramBotPlugin _start_bot method."""
         with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
             mock_settings_instance = MagicMock()
-            mock_settings_instance.token = "test_token"
-            mock_settings.return_value = mock_settings_instance
+            mock_settings_instance.bot_token = "test_token"
+            mock_settings.from_env.return_value = mock_settings_instance
 
             plugin = TelegramBotPlugin()
 
-            with patch("plugins.telegram_bot.plugin.Bot") as mock_bot:
-                with patch("plugins.telegram_bot.plugin.Dispatcher") as mock_dispatcher:
+            with patch("aiogram.Bot") as mock_bot:
+                with patch("aiogram.Dispatcher") as mock_dispatcher:
                     mock_bot_instance = MagicMock()
                     mock_bot.return_value = mock_bot_instance
 
                     mock_dispatcher_instance = MagicMock()
+                    mock_dispatcher_instance.start_polling = AsyncMock()
                     mock_dispatcher.return_value = mock_dispatcher_instance
 
-                    await plugin._start_bot()
+                    await plugin.start()
 
                     # Verify bot and dispatcher were created
-                    mock_bot.assert_called_once_with("test_token")
-                    mock_dispatcher.assert_called_once_with(mock_bot_instance)
+                    mock_bot.assert_called_once_with(token="test_token")
+                    mock_dispatcher.assert_called_once_with()
 
     @pytest.mark.asyncio
     async def test_telegram_bot_plugin_stop_bot(self):
@@ -327,11 +328,10 @@ class TestTelegramBotPlugin:
             plugin = TelegramBotPlugin()
 
             # Set up mock bot and dispatcher
-            plugin._bot = MagicMock()
-            plugin._dispatcher = MagicMock()
+            plugin.bot = MagicMock()
+            plugin.bot.session.close = AsyncMock()
 
-            await plugin._stop_bot()
+            await plugin.stop()
 
-            # Verify bot and dispatcher were stopped
-            plugin._dispatcher.stop_polling.assert_called_once()
-            plugin._bot.session.close.assert_called_once()
+            # Verify bot was stopped
+            plugin.bot.session.close.assert_called_once()
