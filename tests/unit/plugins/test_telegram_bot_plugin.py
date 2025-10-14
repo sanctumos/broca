@@ -270,9 +270,9 @@ class TestTelegramBotPlugin:
             mock_event.type = "test_event"
 
             mock_handler = MagicMock()
-            plugin._event_handlers["test_event"] = [mock_handler]
+            plugin.event_handlers["test_event"] = [mock_handler]
 
-            plugin.emit_event(mock_event)
+            plugin.emit_event(mock_event, "test_data")
 
             # Verify handler was called
             mock_handler.assert_called_once_with(mock_event)
