@@ -279,7 +279,7 @@ class TestTelegramMessageHandler:
         mock_message.message_id = "msg_123"
 
         with patch(
-            "plugins.telegram_bot.message_handler.LettaClient",
+            "runtime.core.letta_client.LettaClient",
             side_effect=ImportError("Module not found"),
         ):
             with pytest.raises(ImportError, match="Module not found"):
@@ -299,7 +299,7 @@ class TestTelegramMessageHandler:
         mock_letta_client.update_message_status.side_effect = Exception("Update error")
 
         with patch(
-            "plugins.telegram_bot.message_handler.LettaClient",
+            "runtime.core.letta_client.LettaClient",
             return_value=mock_letta_client,
         ):
             with pytest.raises(Exception, match="Update error"):
