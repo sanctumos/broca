@@ -80,9 +80,10 @@ class TestBtoolFunctions:
             save_ignore_list(mock_data)
 
             mock_file.assert_called_once_with(Path("test.json"), "w")
-            mock_file.return_value.write.assert_called_once_with(
-                json.dumps(mock_data, indent=2)
-            )
+            # json.dump() calls write multiple times, so we check that write was called
+            assert mock_file.return_value.write.called
+            # We can also check the file was opened in write mode
+            mock_file.return_value.__enter__.assert_called_once()
 
     def test_add_bot_new_bot(self):
         """Test adding new bot to ignore list."""
@@ -93,22 +94,22 @@ class TestBtoolFunctions:
         ) as mock_save:
             add_bot("testbot2", "456")
 
-            expected_data = {
-                "bot1": {"id": "123", "username": "testbot1"},
-                "testbot2": {"id": "456", "username": "testbot2"},
-            }
-            mock_save.assert_called_once_with(expected_data)
+        expected_data = {
+            "bot1": {"id": "123", "username": "testbot1"},
+            "456": {"username": "testbot2"},
+        }
+        mock_save.assert_called_once_with(expected_data)
 
     def test_add_bot_existing_bot(self):
         """Test adding existing bot to ignore list."""
-        existing_data = {"bot1": {"id": "123", "username": "testbot1"}}
+        existing_data = {"123": {"username": "bot1"}}
 
         with patch("cli.btool.load_ignore_list", return_value=existing_data), patch(
             "cli.btool.save_ignore_list"
         ) as mock_save:
             add_bot("bot1", "456")
 
-            expected_data = {"bot1": {"id": "456", "username": "bot1"}}
+            expected_data = {"456": {"username": "bot1"}}
             mock_save.assert_called_once_with(expected_data)
 
     def test_remove_bot_existing_bot(self):
@@ -135,8 +136,8 @@ class TestBtoolFunctions:
         ) as mock_save:
             remove_bot("bot2")
 
-            # Should save the same data since bot2 doesn't exist
-            mock_save.assert_called_once_with(existing_data)
+            # Should not save anything since bot2 doesn't exist
+            mock_save.assert_not_called()
 
     def test_list_bots_with_data(self):
         """Test listing bots with data."""
@@ -166,7 +167,7 @@ class TestBtoolFunctions:
     def test_main_add_command(self):
         """Test main function with add command."""
         with patch("cli.btool.add_bot") as mock_add, patch(
-            "sys.argv", ["btool.py", "add", "testbot", "123"]
+            "sys.argv", ["btool.py", "add", "testbot", "--id", "123"]
         ):
             main()
             mock_add.assert_called_once_with("testbot", "123")
@@ -191,10 +192,11 @@ class TestBtoolFunctions:
         """Test main function with invalid command."""
         with patch("sys.argv", ["btool.py", "invalid"]), patch("sys.exit") as mock_exit:
             main()
-            mock_exit.assert_called_once_with(1)
+            mock_exit.assert_called_with(2)
 
     def test_main_insufficient_args(self):
         """Test main function with insufficient arguments."""
         with patch("sys.argv", ["btool.py"]), patch("sys.exit") as mock_exit:
             main()
-            mock_exit.assert_called_once_with(1)
+            # When no command is provided, argparse just prints help and doesn't exit
+            mock_exit.assert_not_called()

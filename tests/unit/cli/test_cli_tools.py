@@ -14,7 +14,7 @@ from cli.utool import main as utool_main
 @pytest.mark.unit
 def test_btool_main():
     """Test btool main function."""
-    with patch("cli.btool.sys.argv", ["btool", "--help"]):
+    with patch("sys.argv", ["btool", "--help"]):
         try:
             btool_main()
         except SystemExit:
@@ -44,7 +44,7 @@ def test_utool_main():
 @pytest.mark.unit
 def test_ctool_main():
     """Test ctool main function."""
-    with patch("cli.ctool.sys.argv", ["ctool", "--help"]):
+    with patch("sys.argv", ["ctool", "--help"]):
         try:
             ctool_main()
         except SystemExit:
@@ -64,7 +64,7 @@ def test_settings_main():
 @pytest.mark.unit
 def test_btool_commands():
     """Test btool command parsing."""
-    with patch("cli.btool.sys.argv", ["btool", "list"]):
+    with patch("sys.argv", ["btool", "list"]):
         with patch("cli.btool.list_bots"):
             try:
                 btool_main()
@@ -75,8 +75,8 @@ def test_btool_commands():
 @pytest.mark.unit
 def test_qtool_commands():
     """Test qtool command parsing."""
-    with patch("cli.qtool.sys.argv", ["qtool", "status"]):
-        with patch("cli.qtool.show_queue_status"):
+    with patch("sys.argv", ["qtool", "status"]):
+        with patch("cli.qtool.print_queue_items"):
             try:
                 qtool_main()
             except:
@@ -97,7 +97,7 @@ def test_utool_commands():
 @pytest.mark.unit
 def test_ctool_commands():
     """Test ctool command parsing."""
-    with patch("cli.ctool.sys.argv", ["ctool", "list"]):
+    with patch("sys.argv", ["ctool", "list"]):
         with patch("cli.ctool.list_conversations"):
             try:
                 ctool_main()
@@ -108,8 +108,8 @@ def test_ctool_commands():
 @pytest.mark.unit
 def test_settings_commands():
     """Test settings command parsing."""
-    with patch("cli.settings.sys.argv", ["settings", "get", "test"]):
-        with patch("cli.settings.get_setting"):
+    with patch("sys.argv", ["settings", "get", "test"]):
+        with patch("cli.settings.get_settings"):
             try:
                 settings_main()
             except:

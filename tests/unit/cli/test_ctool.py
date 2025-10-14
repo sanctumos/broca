@@ -237,6 +237,9 @@ class TestCtoolFunctions:
                 "platform_profile_id": "telegram_123",
                 "message": "Hello",
                 "timestamp": "2024-01-01T00:00:00",
+                "display_name": "User1",
+                "username": "user1",
+                "agent_response": "Hi there!",
             }
         ]
 
@@ -253,28 +256,17 @@ class TestCtoolFunctions:
 
     def test_main_list_command(self):
         """Test main function with list command."""
-        args = MagicMock()
-        args.command = "list"
-        args.json = False
-
-        with patch("cli.ctool.list_conversations", new_callable=AsyncMock), patch(
-            "asyncio.run"
-        ) as mock_run:
+        with patch("sys.argv", ["ctool", "list"]), patch(
+            "cli.ctool.list_conversations", new_callable=AsyncMock
+        ), patch("asyncio.run") as mock_run:
             main()
             mock_run.assert_called_once()
 
     def test_main_get_command(self):
         """Test main function with get command."""
-        args = MagicMock()
-        args.command = "get"
-        args.user_id = "1"
-        args.platform_id = "telegram_123"
-        args.limit = 10
-        args.json = False
-
-        with patch("cli.ctool.get_conversation", new_callable=AsyncMock), patch(
-            "asyncio.run"
-        ) as mock_run:
+        with patch("sys.argv", ["ctool", "get", "1", "123", "--limit", "10"]), patch(
+            "cli.ctool.get_conversation", new_callable=AsyncMock
+        ), patch("asyncio.run") as mock_run:
             main()
             mock_run.assert_called_once()
 
@@ -282,4 +274,6 @@ class TestCtoolFunctions:
         """Test main function with invalid command."""
         with patch("sys.argv", ["ctool.py", "invalid"]), patch("sys.exit") as mock_exit:
             main()
-            mock_exit.assert_called_once_with(1)
+            mock_exit.assert_called_with(
+                2
+            )  # argparse calls sys.exit(2) for invalid arguments

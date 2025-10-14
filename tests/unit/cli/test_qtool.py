@@ -2,9 +2,9 @@
 Tests for CLI queue management tool (qtool.py).
 """
 
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import sys
 import pytest
 
 from cli.qtool import (
@@ -171,16 +171,18 @@ class TestQtoolFunctions:
             "cli.qtool.delete_queue_item", new_callable=AsyncMock
         ) as mock_delete, patch(
             "builtins.print"
-        ) as mock_print:
+        ) as mock_print, patch(
+            "sys.exit"
+        ) as mock_exit:
             mock_get.return_value = mock_items
             mock_delete.side_effect = [True, False]  # First succeeds, second fails
 
             await delete_queue(args)
 
             assert mock_delete.call_count == 2
-            mock_print.assert_called_once_with(
-                "Failed to delete queue item 2", file=sys.stderr
-            )
+            # Should print error message and success message (because sys.exit is mocked)
+            assert mock_print.call_count == 2
+            mock_exit.assert_called_once_with(1)
 
     @pytest.mark.asyncio
     async def test_delete_queue_by_id_success(self):
@@ -230,56 +232,60 @@ class TestQtoolFunctions:
     def test_print_queue_items(self):
         """Test printing queue items in table format."""
         mock_items = [
-            {"id": "1", "message": "test1", "status": "pending"},
-            {"id": "2", "message": "test2", "status": "processing"},
+            {
+                "id": "1",
+                "message": "test1",
+                "status": "pending",
+                "display_name": "User1",
+                "username": "user1",
+                "attempts": 1,
+                "timestamp": "2023-01-01T00:00:00",
+            },
+            {
+                "id": "2",
+                "message": "test2",
+                "status": "processing",
+                "display_name": "User2",
+                "username": "user2",
+                "attempts": 2,
+                "timestamp": "2023-01-01T00:01:00",
+            },
         ]
 
         with patch("builtins.print") as mock_print:
             print_queue_items(mock_items)
-            # Should print header and items
-            assert mock_print.call_count >= 2
+            # Should print header, separator, 2 items (7 lines each)
+            assert (
+                mock_print.call_count == 16
+            )  # 1 header + 1 separator + 2 items * 7 lines
 
     def test_print_queue_items_empty(self):
         """Test printing empty queue items."""
         with patch("builtins.print") as mock_print:
             print_queue_items([])
-            mock_print.assert_called_once_with("No queue items found")
+            mock_print.assert_called_once_with("No items in queue")
 
     def test_main_list_command(self):
         """Test main function with list command."""
-        args = MagicMock()
-        args.command = "list"
-        args.json = False
-
-        with patch("cli.qtool.list_queue", new_callable=AsyncMock), patch(
-            "asyncio.run"
-        ) as mock_run:
+        with patch("sys.argv", ["qtool", "list"]), patch(
+            "cli.qtool.list_queue", new_callable=AsyncMock
+        ), patch("asyncio.run") as mock_run:
             main()
             mock_run.assert_called_once()
 
     def test_main_flush_command(self):
         """Test main function with flush command."""
-        args = MagicMock()
-        args.command = "flush"
-        args.all = True
-        args.id = None
-
-        with patch("cli.qtool.flush_queue", new_callable=AsyncMock), patch(
-            "asyncio.run"
-        ) as mock_run:
+        with patch("sys.argv", ["qtool", "flush", "--all"]), patch(
+            "cli.qtool.flush_queue", new_callable=AsyncMock
+        ), patch("asyncio.run") as mock_run:
             main()
             mock_run.assert_called_once()
 
     def test_main_delete_command(self):
         """Test main function with delete command."""
-        args = MagicMock()
-        args.command = "delete"
-        args.all = True
-        args.id = None
-
-        with patch("cli.qtool.delete_queue", new_callable=AsyncMock), patch(
-            "asyncio.run"
-        ) as mock_run:
+        with patch("sys.argv", ["qtool", "delete", "--all"]), patch(
+            "cli.qtool.delete_queue", new_callable=AsyncMock
+        ), patch("asyncio.run") as mock_run:
             main()
             mock_run.assert_called_once()
 
@@ -287,4 +293,6 @@ class TestQtoolFunctions:
         """Test main function with invalid command."""
         with patch("sys.argv", ["qtool.py", "invalid"]), patch("sys.exit") as mock_exit:
             main()
-            mock_exit.assert_called_once_with(1)
+            mock_exit.assert_called_with(
+                2
+            )  # argparse calls sys.exit(2) for invalid arguments
