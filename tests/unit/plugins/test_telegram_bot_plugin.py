@@ -206,27 +206,42 @@ class TestTelegramBotPlugin:
             mock_settings_instance = MagicMock()
             mock_settings.return_value = mock_settings_instance
 
-            plugin = TelegramBotPlugin()
-            test_settings = {"token": "test_token"}
-            plugin.apply_settings(test_settings)
+            plugin = TelegramBotPluginWrapper()
+            test_settings = {"bot_token": "test_token"}
 
-            # Verify settings were applied
-            mock_settings_instance.update.assert_called_once_with(test_settings)
+            # The apply_settings method calls validate_settings as fallback
+            with patch.object(
+                plugin._plugin, "validate_settings", return_value=True
+            ) as mock_validate:
+                plugin.apply_settings(test_settings)
+                mock_validate.assert_called_once_with(test_settings)
 
     @pytest.mark.asyncio
     async def test_telegram_bot_plugin_start(self):
         """Test TelegramBotPlugin start method."""
         with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
             mock_settings_instance = MagicMock()
-            mock_settings.return_value = mock_settings_instance
+            mock_settings_instance.bot_token = "test_token"
+            mock_settings.from_env.return_value = mock_settings_instance
 
             plugin = TelegramBotPlugin()
 
-            with patch.object(
-                plugin, "_start_bot", new_callable=AsyncMock
-            ) as mock_start_bot:
+            with patch("aiogram.Bot") as mock_bot, patch(
+                "aiogram.Dispatcher"
+            ) as mock_dispatcher:
+                mock_bot_instance = MagicMock()
+                mock_bot.return_value = mock_bot_instance
+
+                mock_dispatcher_instance = MagicMock()
+                mock_dispatcher_instance.start_polling = AsyncMock()
+                mock_dispatcher.return_value = mock_dispatcher_instance
+
                 await plugin.start()
-                mock_start_bot.assert_called_once()
+
+                mock_bot.assert_called_once_with(token="test_token")
+                mock_dispatcher_instance.start_polling.assert_called_once_with(
+                    mock_bot_instance
+                )
 
     @pytest.mark.asyncio
     async def test_telegram_bot_plugin_stop(self):
