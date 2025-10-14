@@ -1,6 +1,6 @@
 """Unit tests for common utilities."""
 
-from unittest.mock import patch
+from unittest.mock import mock_open, patch
 
 import pytest
 
@@ -12,8 +12,8 @@ from common.retry import RetryConfig, exponential_backoff, is_retryable_exceptio
 @pytest.mark.unit
 def test_get_env_var():
     """Test get_env_var function."""
-    with patch("common.config.os.getenv") as mock_getenv:
-        mock_getenv.return_value = "test_value"
+    with patch("common.config.os.environ") as mock_environ:
+        mock_environ.get.return_value = "test_value"
         result = get_env_var("TEST_VAR")
         assert result == "test_value"
 
@@ -21,8 +21,8 @@ def test_get_env_var():
 @pytest.mark.unit
 def test_get_env_var_default():
     """Test get_env_var with default."""
-    with patch("common.config.os.getenv") as mock_getenv:
-        mock_getenv.return_value = None
+    with patch("common.config.os.environ") as mock_environ:
+        mock_environ.get.return_value = None
         result = get_env_var("TEST_VAR", "default")
         assert result == "default"
 
@@ -30,24 +30,32 @@ def test_get_env_var_default():
 @pytest.mark.unit
 def test_get_settings():
     """Test get_settings function."""
-    with patch("common.config.os.getenv") as mock_getenv:
-        mock_getenv.side_effect = lambda key, default=None: {
-            "AGENT_ENDPOINT": "http://test.endpoint",
-            "AGENT_API_KEY": "test_key",
-            "QUEUE_REFRESH": "5",
-            "MAX_RETRIES": "3",
-        }.get(key, default)
-
+    with patch("common.config.os.path.exists", return_value=True), patch(
+        "builtins.open",
+        mock_open(read_data='{"debug_mode": false, "queue_refresh": 5}'),
+    ), patch(
+        "common.config.json.loads",
+        return_value={"debug_mode": False, "queue_refresh": 5},
+    ):
         settings = get_settings()
         assert settings is not None
+        assert settings["debug_mode"] is False
 
 
 @pytest.mark.unit
 def test_setup_logging():
     """Test setup_logging function."""
-    with patch("common.logging.logging.basicConfig") as mock_config:
+    with patch("common.logging.logging.getLogger") as mock_get_logger:
+        mock_logger = mock_get_logger.return_value
+        mock_handlers = []
+        mock_logger.handlers = mock_handlers
+
         setup_logging()
-        mock_config.assert_called_once()
+
+        # Check that handlers were cleared and new handler added
+        assert len(mock_logger.handlers) == 0  # cleared
+        mock_logger.addHandler.assert_called_once()
+        mock_logger.setLevel.assert_called()  # called at least once
 
 
 @pytest.mark.unit
@@ -66,25 +74,29 @@ def test_retry_config():
     assert config.base_delay == 1.0
 
 
+@pytest.mark.asyncio
 @pytest.mark.unit
-def test_exponential_backoff():
+async def test_exponential_backoff():
     """Test exponential_backoff function."""
-    delay = exponential_backoff(0, 1.0)
-    assert delay == 1.0
 
-    delay = exponential_backoff(1, 1.0)
-    assert delay == 2.0
+    async def test_func():
+        return "success"
+
+    result = await exponential_backoff(test_func)
+    assert result == "success"
+
+    # Test with retry config
+    config = RetryConfig(max_retries=2, base_delay=0.1)
+    result = await exponential_backoff(test_func, config)
+    assert result == "success"
 
 
 @pytest.mark.unit
 def test_is_retryable_exception():
     """Test is_retryable_exception function."""
 
-    # Test retryable exception
-    class RetryableError(Exception):
-        pass
-
-    assert is_retryable_exception(RetryableError()) is True
+    # Test retryable exception (ConnectionError is in the retryable types)
+    assert is_retryable_exception(ConnectionError()) is True
 
     # Test non-retryable exception
     class NonRetryableError(Exception):

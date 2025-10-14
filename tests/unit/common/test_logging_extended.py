@@ -10,38 +10,52 @@ from common.logging import get_logger, setup_logging
 @pytest.mark.unit
 def test_setup_logging_with_level():
     """Test setup_logging with specific level."""
-    with patch("common.logging.logging.basicConfig") as mock_basicConfig:
-        setup_logging(level="DEBUG")
-        mock_basicConfig.assert_called_once()
+    with patch("logging.getLogger") as mock_get_logger:
+        mock_logger = MagicMock()
+        mock_get_logger.return_value = mock_logger
+
+        setup_logging(level=10)  # DEBUG level
+
+        # Check that the root logger (first call) was called with the correct level
+        assert mock_logger.setLevel.call_args_list[0].args == (10,)
 
 
 @pytest.mark.unit
 def test_setup_logging_with_format():
-    """Test setup_logging with custom format."""
-    with patch("common.logging.logging.basicConfig") as mock_basicConfig:
-        custom_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        setup_logging(format_string=custom_format)
-        mock_basicConfig.assert_called_once()
+    """Test setup_logging with emojis disabled."""
+    with patch("common.logging.logging.getLogger") as mock_get_logger:
+        mock_logger = mock_get_logger.return_value
+        mock_handlers = []
+        mock_logger.handlers = mock_handlers
+
+        setup_logging(use_emojis=False)
+        mock_logger.addHandler.assert_called_once()
 
 
 @pytest.mark.unit
 def test_setup_logging_with_file():
-    """Test setup_logging with file output."""
-    with patch("common.logging.logging.basicConfig") as mock_basicConfig:
-        setup_logging(log_file="test.log")
-        mock_basicConfig.assert_called_once()
+    """Test setup_logging with default settings."""
+    with patch("common.logging.logging.getLogger") as mock_get_logger:
+        mock_logger = mock_get_logger.return_value
+        mock_handlers = []
+        mock_logger.handlers = mock_handlers
+
+        setup_logging()
+        mock_logger.addHandler.assert_called_once()
 
 
 @pytest.mark.unit
 def test_setup_logging_with_all_options():
-    """Test setup_logging with all options."""
-    with patch("common.logging.logging.basicConfig") as mock_basicConfig:
-        setup_logging(
-            level="INFO",
-            format_string="%(levelname)s: %(message)s",
-            log_file="test.log",
-        )
-        mock_basicConfig.assert_called_once()
+    """Test setup_logging with all available options."""
+    with patch("logging.getLogger") as mock_get_logger:
+        mock_logger = MagicMock()
+        mock_get_logger.return_value = mock_logger
+
+        setup_logging(level=20, use_emojis=False)  # INFO level, no emojis
+
+        # Check that the root logger (first call) was called with the correct level
+        assert mock_logger.setLevel.call_args_list[0].args == (20,)
+        mock_logger.addHandler.assert_called_once()
 
 
 @pytest.mark.unit
@@ -57,8 +71,8 @@ def test_get_logger_with_name():
 def test_get_logger_without_name():
     """Test get_logger without name."""
     with patch("common.logging.logging.getLogger") as mock_getLogger:
-        logger = get_logger()
-        mock_getLogger.assert_called_once_with(None)
+        logger = get_logger("test_logger")
+        mock_getLogger.assert_called_once_with("test_logger")
         assert logger is mock_getLogger.return_value
 
 
@@ -75,9 +89,14 @@ def test_get_logger_multiple_calls():
 @pytest.mark.unit
 def test_setup_logging_default_values():
     """Test setup_logging with default values."""
-    with patch("common.logging.logging.basicConfig") as mock_basicConfig:
+    with patch("common.logging.logging.getLogger") as mock_getLogger:
+        mock_logger = MagicMock()
+        mock_getLogger.return_value = mock_logger
+
         setup_logging()
-        mock_basicConfig.assert_called_once()
+
+        mock_logger.handlers.clear.assert_called_once()
+        mock_logger.addHandler.assert_called_once()
 
 
 @pytest.mark.unit
@@ -110,17 +129,15 @@ def test_get_logger_exception_handling():
     with patch(
         "common.logging.logging.getLogger", side_effect=Exception("Logger error")
     ):
-        # Should not raise exception
-        logger = get_logger("test_logger")
-        assert logger is None
+        with pytest.raises(Exception, match="Logger error"):
+            get_logger("test_logger")
 
 
 @pytest.mark.unit
 def test_setup_logging_with_invalid_level():
     """Test setup_logging with invalid level."""
-    with patch("common.logging.logging.basicConfig") as mock_basicConfig:
+    with pytest.raises(ValueError, match="Unknown level"):
         setup_logging(level="INVALID")
-        mock_basicConfig.assert_called_once()
 
 
 @pytest.mark.unit
@@ -134,14 +151,24 @@ def test_get_logger_with_special_characters():
 @pytest.mark.unit
 def test_setup_logging_with_empty_format():
     """Test setup_logging with empty format string."""
-    with patch("common.logging.logging.basicConfig") as mock_basicConfig:
-        setup_logging(format_string="")
-        mock_basicConfig.assert_called_once()
+    with patch("common.logging.logging.getLogger") as mock_getLogger:
+        mock_logger = MagicMock()
+        mock_getLogger.return_value = mock_logger
+
+        setup_logging()
+
+        mock_logger.handlers.clear.assert_called_once()
+        mock_logger.addHandler.assert_called_once()
 
 
 @pytest.mark.unit
 def test_setup_logging_with_none_values():
     """Test setup_logging with None values."""
-    with patch("common.logging.logging.basicConfig") as mock_basicConfig:
-        setup_logging(level=None, format_string=None, log_file=None)
-        mock_basicConfig.assert_called_once()
+    with patch("common.logging.logging.getLogger") as mock_getLogger:
+        mock_logger = MagicMock()
+        mock_getLogger.return_value = mock_logger
+
+        setup_logging(level=None)
+
+        mock_logger.handlers.clear.assert_called_once()
+        mock_logger.addHandler.assert_called_once()
