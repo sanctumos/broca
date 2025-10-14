@@ -22,8 +22,8 @@ import os
 from collections.abc import Callable
 from typing import Any, Literal
 
-from pydantic import Field, validator
-from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _SETTINGS_CACHE = None
 _TYPED_SETTINGS_CACHE = None
@@ -53,7 +53,8 @@ class Settings(BaseSettings):
         default_factory=dict, description="Plugin-specific configuration settings"
     )
 
-    @validator("queue_refresh")
+    @field_validator("queue_refresh")
+    @classmethod
     def validate_queue_refresh(cls, v):
         """Validate queue refresh interval."""
         if v < 1:
@@ -62,7 +63,8 @@ class Settings(BaseSettings):
             raise ValueError("queue_refresh should not exceed 300 seconds")
         return v
 
-    @validator("max_retries")
+    @field_validator("max_retries")
+    @classmethod
     def validate_max_retries(cls, v):
         """Validate max retries value."""
         if v < 0:
@@ -71,13 +73,12 @@ class Settings(BaseSettings):
             raise ValueError("max_retries should not exceed 10")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        env_prefix = "BROCA_"
-        case_sensitive = False
-        validate_assignment = True
-        extra = "forbid"  # Prevent extra fields
+    model_config = SettingsConfigDict(
+        env_prefix="BROCA_",
+        case_sensitive=False,
+        validate_assignment=True,
+        extra="forbid",  # Prevent extra fields
+    )
 
 
 def get_env_var(
