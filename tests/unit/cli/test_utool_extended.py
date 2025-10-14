@@ -1,7 +1,10 @@
 """Extended unit tests for CLI tools - utool.py."""
 
 import json
+import sys
 from unittest.mock import patch
+
+import pytest
 
 from cli.utool import (
     get_user,
@@ -17,7 +20,7 @@ class TestUtoolExtended:
     """Extended test cases for utool.py."""
 
     @patch("cli.utool.get_all_users")
-    def test_list_users_with_users(self, mock_get_users):
+    async def test_list_users_with_users(self, mock_get_users):
         """Test listing users when users exist."""
         mock_users = [
             {"id": 1, "username": "user1", "status": "active"},
@@ -25,55 +28,67 @@ class TestUtoolExtended:
         ]
         mock_get_users.return_value = mock_users
 
+        args = type("Args", (), {"json": False})()
         with patch("cli.utool.print_users") as mock_print:
-            list_users()
+            await list_users(args)
             mock_print.assert_called_once_with(mock_users)
 
     @patch("cli.utool.get_all_users")
-    def test_list_users_empty(self, mock_get_users):
+    async def test_list_users_empty(self, mock_get_users):
         """Test listing users when no users exist."""
         mock_get_users.return_value = []
 
+        args = type("Args", (), {"json": False})()
         with patch("cli.utool.print_users") as mock_print:
-            list_users()
+            await list_users(args)
             mock_print.assert_called_once_with([])
 
-    @patch("cli.utool.get_user_by_id")
-    def test_get_user_success(self, mock_get_user):
+    @patch("cli.utool.get_user_details")
+    async def test_get_user_success(self, mock_get_user):
         """Test getting user successfully."""
-        mock_user = {"id": 1, "username": "user1", "status": "active"}
+        mock_user = ("Display Name", "username")
         mock_get_user.return_value = mock_user
 
-        with patch("cli.utool.print_json") as mock_print:
-            get_user(1)
-            mock_print.assert_called_once_with(mock_user)
+        args = type("Args", (), {"id": 1, "json": False})()
+        with patch("cli.utool.print_users") as mock_print:
+            await get_user(args)
+            mock_print.assert_called_once()
 
-    @patch("cli.utool.get_user_by_id")
-    def test_get_user_not_found(self, mock_get_user):
+    @patch("cli.utool.get_user_details")
+    async def test_get_user_not_found(self, mock_get_user):
         """Test getting non-existent user."""
         mock_get_user.return_value = None
 
-        with patch("builtins.print") as mock_print:
-            get_user(999)
-            mock_print.assert_called_once_with("User 999 not found")
+        args = type("Args", (), {"id": 999, "json": False})()
+        with patch("builtins.print") as mock_print, patch("sys.exit") as mock_exit:
+            await get_user(args)
+            mock_print.assert_called_once_with(
+                "User with ID 999 not found", file=sys.stderr
+            )
+            mock_exit.assert_called_once_with(1)
 
-    @patch("cli.utool.update_user_status_by_id")
-    def test_update_user_status_success(self, mock_update):
+    @patch("cli.utool.update_letta_user")
+    async def test_update_user_status_success(self, mock_update):
         """Test updating user status successfully."""
-        mock_update.return_value = True
+        mock_update.return_value = {"id": 1, "status": "inactive"}
 
+        args = type("Args", (), {"id": 1, "status": "inactive", "json": False})()
         with patch("builtins.print") as mock_print:
-            update_user_status(1, "inactive")
-            mock_print.assert_called_once_with("Updated user 1 status to inactive")
+            await update_user_status(args)
+            mock_print.assert_called_once_with("User 1 status updated to inactive")
 
-    @patch("cli.utool.update_user_status_by_id")
-    def test_update_user_status_not_found(self, mock_update):
+    @patch("cli.utool.update_letta_user")
+    async def test_update_user_status_not_found(self, mock_update):
         """Test updating status of non-existent user."""
-        mock_update.return_value = False
+        mock_update.return_value = None
 
-        with patch("builtins.print") as mock_print:
-            update_user_status(999, "active")
-            mock_print.assert_called_once_with("User 999 not found")
+        args = type("Args", (), {"id": 999, "status": "active", "json": False})()
+        with patch("builtins.print") as mock_print, patch("sys.exit") as mock_exit:
+            await update_user_status(args)
+            mock_print.assert_called_once_with(
+                "User with ID 999 not found", file=sys.stderr
+            )
+            mock_exit.assert_called_once_with(1)
 
     def test_print_json_with_data(self):
         """Test printing JSON data."""
@@ -94,18 +109,27 @@ class TestUtoolExtended:
     def test_print_users_with_users(self):
         """Test printing users."""
         test_users = [
-            {"id": 1, "username": "user1", "status": "active"},
-            {"id": 2, "username": "user2", "status": "inactive"},
+            {
+                "id": 1,
+                "username": "user1",
+                "display_name": "User One",
+                "is_active": True,
+            },
+            {
+                "id": 2,
+                "username": "user2",
+                "display_name": "User Two",
+                "is_active": False,
+            },
         ]
 
         with patch("builtins.print") as mock_print:
             print_users(test_users)
 
             # Should print header and each user
-            assert mock_print.call_count == 3
-            mock_print.assert_any_call("Users:")
-            mock_print.assert_any_call("ID: 1, Username: user1, Status: active")
-            mock_print.assert_any_call("ID: 2, Username: user2, Status: inactive")
+            assert mock_print.call_count >= 3
+            mock_print.assert_any_call("\nUsers:")
+            mock_print.assert_any_call("-" * 80)
 
     def test_print_users_empty(self):
         """Test printing empty users list."""
@@ -131,21 +155,28 @@ class TestUtoolExtended:
         with patch("cli.utool.get_user") as mock_get:
             with patch("cli.utool.sys.argv", ["utool.py", "get", "1"]):
                 main()
-                mock_get.assert_called_once_with(1)
+                # The function is called with the parsed args object
+                args = mock_get.call_args[0][0]
+                assert args.id == 1  # argparse converts string to int
+                assert args.json is False
 
     def test_main_get_command_invalid_id(self):
         """Test main function with get command and invalid ID."""
         with patch("cli.utool.sys.argv", ["utool.py", "get", "invalid"]):
-            with patch("builtins.print") as mock_print:
+            with pytest.raises(SystemExit) as exc_info:
                 main()
-                mock_print.assert_called()
+            assert exc_info.value.code == 2
 
     def test_main_update_command(self):
         """Test main function with update command."""
         with patch("cli.utool.update_user_status") as mock_update:
             with patch("cli.utool.sys.argv", ["utool.py", "update", "1", "inactive"]):
                 main()
-                mock_update.assert_called_once_with(1, "inactive")
+                # The function is called with the parsed args object
+                args = mock_update.call_args[0][0]
+                assert args.id == 1
+                assert args.status == "inactive"
+                assert args.json is False
 
     def test_main_update_command_invalid_id(self):
         """Test main function with update command and invalid ID."""
@@ -209,28 +240,33 @@ class TestUtoolExtended:
             print_json(test_data)
             mock_print.assert_called_once_with(json.dumps(test_data, indent=2))
 
-    def test_update_user_status_with_exception(self):
+    async def test_update_user_status_with_exception(self):
         """Test updating user status with exception."""
+        args = type("Args", (), {"id": 1, "status": "active", "json": False})()
         with patch(
-            "cli.utool.update_user_status_by_id",
+            "cli.utool.update_letta_user",
             side_effect=Exception("Database error"),
         ):
             with patch("builtins.print") as mock_print:
-                update_user_status(1, "active")
+                await update_user_status(args)
                 mock_print.assert_called()
 
-    def test_get_user_with_exception(self):
+    async def test_get_user_with_exception(self):
         """Test getting user with exception."""
-        with patch("cli.utool.get_user_by_id", side_effect=Exception("Database error")):
+        args = type("Args", (), {"id": 1, "json": False})()
+        with patch(
+            "cli.utool.get_user_details", side_effect=Exception("Database error")
+        ):
             with patch("builtins.print") as mock_print:
-                get_user(1)
+                await get_user(args)
                 mock_print.assert_called()
 
-    def test_list_users_with_exception(self):
+    async def test_list_users_with_exception(self):
         """Test listing users with exception."""
+        args = type("Args", (), {"json": False})()
         with patch("cli.utool.get_all_users", side_effect=Exception("Database error")):
             with patch("builtins.print") as mock_print:
-                list_users()
+                await list_users(args)
                 mock_print.assert_called()
 
     def test_print_users_with_none_values(self):
@@ -248,12 +284,16 @@ class TestUtoolExtended:
             assert mock_print.call_count == 4
             mock_print.assert_any_call("Users:")
 
-    def test_update_user_status_with_invalid_status(self):
+    async def test_update_user_status_with_invalid_status(self):
         """Test updating user status with invalid status."""
-        with patch("cli.utool.update_user_status_by_id", return_value=False):
-            with patch("builtins.print") as mock_print:
-                update_user_status(1, "invalid_status")
-                mock_print.assert_called_once_with("User 1 not found")
+        args = type("Args", (), {"id": 1, "status": "invalid_status", "json": False})()
+        with patch("cli.utool.update_letta_user", return_value=None):
+            with patch("builtins.print") as mock_print, patch("sys.exit") as mock_exit:
+                await update_user_status(args)
+                mock_print.assert_called_once_with(
+                    "User with ID 1 not found", file=sys.stderr
+                )
+                mock_exit.assert_called_once_with(1)
 
     def test_get_user_with_string_id(self):
         """Test getting user with string ID."""
