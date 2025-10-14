@@ -256,7 +256,7 @@ class TestMessageHandler:
         message = {"test": "message"}
 
         with patch(
-            "plugins.telegram_bot.handlers.LettaClient",
+            "runtime.core.letta_client.LettaClient",
             side_effect=ImportError("Module not found"),
         ):
             with pytest.raises(ImportError, match="Module not found"):
@@ -279,7 +279,7 @@ class TestMessageHandler:
         }
 
         with patch(
-            "plugins.telegram_bot.handlers.LettaClient", return_value=mock_letta_client
+            "runtime.core.letta_client.LettaClient", return_value=mock_letta_client
         ):
             with pytest.raises(Exception, match="Test error"):
                 await handler.process_message(message)

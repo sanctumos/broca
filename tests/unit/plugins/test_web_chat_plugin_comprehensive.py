@@ -6,6 +6,7 @@ polling web chat API and processing messages through Broca2.
 """
 
 import asyncio
+import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -563,41 +564,47 @@ class TestWebChatPlugin:
     @pytest.mark.asyncio
     async def test_poll_messages_with_processed_message(self):
         """Test polling with message that gets processed."""
-        settings = WebChatSettings(poll_interval=1, retry_delay=0.1)
-        plugin = WebChatPlugin(settings)
-        plugin.is_running = True
-        plugin.api_client = AsyncMock()
-        plugin.message_handler = AsyncMock()
+        with patch.dict(os.environ, {"WEB_CHAT_API_URL": "http://test.com"}):
+            settings = WebChatSettings(
+                api_url="http://test.com", poll_interval=1, retry_delay=0.1
+            )
+            plugin = WebChatPlugin(settings)
+            plugin.is_running = True
+            plugin.api_client = AsyncMock()
+            plugin.message_handler = AsyncMock()
 
-        messages = [
-            {
-                "session_id": "session1",
-                "message": "Hello",
-                "id": 1,
-                "timestamp": "2024-01-01T12:00:00Z",
-            }
-        ]
-        plugin.api_client.get_messages.return_value = messages
-        plugin.message_handler.process_incoming_message.return_value = 123
+            messages = [
+                {
+                    "session_id": "session1",
+                    "message": "Hello",
+                    "id": 1,
+                    "timestamp": "2024-01-01T12:00:00Z",
+                }
+            ]
+            plugin.api_client.get_messages.return_value = messages
+            plugin.message_handler.process_incoming_message.return_value = 123
 
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = asyncio.CancelledError()
+            with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+                mock_sleep.side_effect = asyncio.CancelledError()
 
-            with pytest.raises(asyncio.CancelledError):
-                await plugin._poll_messages()
+                with pytest.raises(asyncio.CancelledError):
+                    await plugin._poll_messages()
 
-            # Message should be processed and added to processed set
-            assert len(plugin.processed_messages) == 1
-            plugin.message_handler.process_incoming_message.assert_called_once()
+                # Message should be processed and added to processed set
+                assert len(plugin.processed_messages) == 1
+                plugin.message_handler.process_incoming_message.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_poll_messages_stops_when_not_running(self):
         """Test polling stops when plugin is stopped during processing."""
-        settings = WebChatSettings(poll_interval=1, retry_delay=0.1)
-        plugin = WebChatPlugin(settings)
-        plugin.is_running = True
-        plugin.api_client = AsyncMock()
-        plugin.message_handler = AsyncMock()
+        with patch.dict(os.environ, {"WEB_CHAT_API_URL": "http://test.com"}):
+            settings = WebChatSettings(
+                api_url="http://test.com", poll_interval=1, retry_delay=0.1
+            )
+            plugin = WebChatPlugin(settings)
+            plugin.is_running = True
+            plugin.api_client = AsyncMock()
+            plugin.message_handler = AsyncMock()
 
         messages = [
             {

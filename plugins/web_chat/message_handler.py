@@ -87,9 +87,12 @@ class WebChatMessageHandler:
                     metadata={"session_id": session_id},
                 )
 
+            # Sanitize message text
+            sanitized_message = self.sanitize_message(message_text)
+
             # Create message object
             Message(
-                content=message_text,
+                content=sanitized_message,
                 user_id=platform_user_id,
                 username=f"web_user_{platform_user_id}",
                 platform=self.platform_name,
@@ -113,7 +116,7 @@ class WebChatMessageHandler:
                 letta_user_id=letta_user.id,
                 platform_profile_id=platform_profile.id,
                 role="user",
-                message=message_text,
+                message=sanitized_message,
                 timestamp=timestamp,
             )
 
@@ -155,17 +158,23 @@ class WebChatMessageHandler:
 
             # Create outgoing message object
             outgoing_message = Message(
-                id=None,  # Will be set by database
-                letta_user_id=original_message.letta_user_id,
-                platform_profile_id=original_message.platform_profile_id,
                 content=response_text,
-                message_type="outgoing",
+                user_id=str(original_message.user_id)
+                if original_message.user_id
+                else None,
+                username=original_message.username,
+                platform=self.platform_name,
                 timestamp=datetime.utcnow(),
                 metadata={
                     "session_id": session_id,
                     "platform": self.platform_name,
                     "source": "broca2_agent",
-                    "in_response_to": original_message.id,
+                    "in_response_to": getattr(original_message, "id", None),
+                    "letta_user_id": getattr(original_message, "letta_user_id", None),
+                    "platform_profile_id": getattr(
+                        original_message, "platform_profile_id", None
+                    ),
+                    "message_type": "outgoing",
                 },
             )
 

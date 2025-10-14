@@ -59,9 +59,7 @@ class TestMainFocused:
         """Test main function success."""
         with patch("main.Application") as mock_app_class, patch(
             "asyncio.run"
-        ) as mock_run, patch("main.logger"), patch(
-            "sys.exit"
-        ) as mock_exit:
+        ) as mock_run, patch("main.logger"), patch("sys.exit") as mock_exit:
             mock_app = MagicMock()
             mock_app_class.return_value = mock_app
 
@@ -123,9 +121,7 @@ class TestMainFocused:
         """Test main function cleanup on exception."""
         with patch("main.Application") as mock_app_class, patch(
             "asyncio.run", side_effect=[Exception("Test error"), None]
-        ) as mock_run, patch("main.logger"), patch(
-            "sys.exit"
-        ):
+        ) as mock_run, patch("main.logger"), patch("sys.exit"):
             mock_app = MagicMock()
             mock_app_class.return_value = mock_app
 
@@ -185,9 +181,7 @@ class TestApplicationMocked:
         """Test Application initialization with mocked dependencies."""
         with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
             "main.create_default_settings"
-        ), patch("main.PluginManager"), patch(
-            "main.AgentClient"
-        ), patch(
+        ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
         ), patch(
             "builtins.open", mock_open()
@@ -252,9 +246,7 @@ class TestApplicationMocked:
         """Test Application _process_message delegates to agent."""
         with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
             "main.create_default_settings"
-        ), patch("main.PluginManager"), patch(
-            "main.AgentClient"
-        ), patch(
+        ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
         ), patch(
             "builtins.open", mock_open()
@@ -328,9 +320,7 @@ class TestApplicationMocked:
         """Test Application update_settings updates debug mode."""
         with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
             "main.create_default_settings"
-        ), patch("main.PluginManager"), patch(
-            "main.AgentClient"
-        ), patch(
+        ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
         ), patch(
             "builtins.open", mock_open()
