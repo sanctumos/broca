@@ -236,14 +236,14 @@ class TestTelegramBotPlugin:
             mock_settings.return_value = mock_settings_instance
 
             plugin = TelegramBotPlugin()
+            plugin.bot = MagicMock()
+            plugin.bot.session.close = AsyncMock()
 
-            with patch.object(
-                plugin, "_stop_bot", new_callable=AsyncMock
-            ) as mock_stop_bot:
-                await plugin.stop()
-                mock_stop_bot.assert_called_once()
+            await plugin.stop()
+            plugin.bot.session.close.assert_called_once()
 
-    def test_telegram_bot_plugin_register_event_handler(self):
+    @pytest.mark.asyncio
+    async def test_telegram_bot_plugin_register_event_handler(self):
         """Test TelegramBotPlugin register_event_handler method."""
         with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
             mock_settings_instance = MagicMock()
@@ -252,11 +252,11 @@ class TestTelegramBotPlugin:
             plugin = TelegramBotPlugin()
 
             mock_handler = MagicMock()
-            plugin.register_event_handler("test_event", mock_handler)
+            await plugin.register_event_handler("test_event", mock_handler)
 
             # Verify handler was registered
-            assert "test_event" in plugin._event_handlers
-            assert mock_handler in plugin._event_handlers["test_event"]
+            assert "test_event" in plugin.event_handlers
+            assert mock_handler == plugin.event_handlers["test_event"]
 
     @pytest.mark.asyncio
     async def test_telegram_bot_plugin_emit_event(self):
