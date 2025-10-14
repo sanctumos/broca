@@ -90,7 +90,7 @@ class TestMessageBuffer:
         mock_letta_client.add_to_queue = AsyncMock()
 
         with patch(
-            "plugins.telegram_bot.handlers.LettaClient", return_value=mock_letta_client
+            "runtime.core.letta_client.LettaClient", return_value=mock_letta_client
         ):
             await buffer.flush()
 
@@ -124,10 +124,18 @@ class TestMessageBuffer:
     async def test_flush_import_error(self):
         """Test flush with ImportError."""
         buffer = MessageBuffer()
-        buffer.messages = [{"test": "message"}]
+        buffer.messages = [
+            {
+                "message": "test message",
+                "user_id": "123",
+                "username": "testuser",
+                "first_name": "Test",
+                "timestamp": datetime.now(),
+            }
+        ]
 
         with patch(
-            "plugins.telegram_bot.handlers.LettaClient",
+            "runtime.core.letta_client.LettaClient",
             side_effect=ImportError("Module not found"),
         ):
             with pytest.raises(ImportError, match="Module not found"):
