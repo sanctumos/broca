@@ -1,5 +1,6 @@
 """Additional unit tests for runtime core to increase coverage."""
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,109 +16,105 @@ from runtime.core.queue import QueueProcessor
 @pytest.mark.asyncio
 async def test_agent_client_properties():
     """Test AgentClient properties."""
-    with patch("runtime.core.agent.get_env_var") as mock_env:
-        mock_env.return_value = "http://test.endpoint"
+    with patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}):
         agent = AgentClient()
-        assert hasattr(agent, "agent_endpoint")
-        assert hasattr(agent, "api_key")
+        assert hasattr(agent, "debug_mode")
+        assert hasattr(agent, "agent_id")
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_initialization_with_defaults():
     """Test AgentClient initialization with defaults."""
-    with patch("runtime.core.agent.get_env_var") as mock_env:
-        mock_env.return_value = None
+    with patch.dict("os.environ", {"DEBUG_MODE": "true", "AGENT_ID": ""}):
         agent = AgentClient()
         assert agent is not None
+        assert agent.debug_mode is True
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_send_message_success():
-    """Test AgentClient send_message success."""
-    with patch("runtime.core.agent.get_env_var") as mock_env, patch(
-        "httpx.AsyncClient"
-    ) as mock_client_class:
-        mock_env.return_value = "http://test.agent.endpoint"
-
+    """Test AgentClient process_message success."""
+    with patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}), patch(
+        "runtime.core.agent.get_letta_client"
+    ) as mock_get_client:
+        # Mock the Letta client and its response
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        
         mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"response": "Agent response"}
-
-        mock_httpx_client = AsyncMock()
-        mock_httpx_client.post.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_httpx_client
-
-        client = AgentClient()
-        response = await client.send_message("user_id_123", "Hello Agent")
-        assert response == {"response": "Agent response"}
+        mock_message = MagicMock()
+        mock_message.content = "Test response"
+        mock_message.message_type = "assistant"
+        mock_response.messages = [mock_message]
+        
+        mock_client.agents.messages.create.return_value = mock_response
+        
+        agent = AgentClient()
+        result = await agent.process_message("Test message")
+        
+        assert result == "Test response"
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_send_message_http_error():
-    """Test AgentClient send_message with HTTP error."""
-    with patch("runtime.core.agent.get_env_var") as mock_env, patch(
-        "httpx.AsyncClient"
-    ) as mock_client_class:
-        mock_env.return_value = "http://test.agent.endpoint"
-
-        mock_response = MagicMock()
-        mock_response.status_code = 404
-        mock_response.text = "Not Found"
-
-        mock_httpx_client = AsyncMock()
-        mock_httpx_client.post.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_httpx_client
-
-        client = AgentClient()
-        with pytest.raises(Exception, match="Failed to send message to agent"):
-            await client.send_message("user_id_123", "Hello Agent")
+    """Test AgentClient process_message with error."""
+    with patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}), patch(
+        "runtime.core.agent.get_letta_client"
+    ) as mock_get_client:
+        # Mock the Letta client to raise an exception
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.agents.messages.create.side_effect = Exception("API Error")
+        
+        agent = AgentClient()
+        result = await agent.process_message("Test message")
+        
+        # Should return None on error
+        assert result is None
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_get_status_success():
-    """Test AgentClient get_status success."""
-    with patch("runtime.core.agent.get_env_var") as mock_env, patch(
-        "httpx.AsyncClient"
-    ) as mock_client_class:
-        mock_env.return_value = "http://test.agent.endpoint"
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"status": "active"}
-
-        mock_httpx_client = AsyncMock()
-        mock_httpx_client.get.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_httpx_client
-
-        client = AgentClient()
-        status = await client.get_status()
-        assert status == {"status": "active"}
+    """Test AgentClient initialize success."""
+    with patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}), patch(
+        "runtime.core.agent.get_letta_client"
+    ) as mock_get_client:
+        # Mock the Letta client and agent
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        
+        mock_agent = MagicMock()
+        mock_agent.id = "test-agent-123"
+        mock_agent.name = "Test Agent"
+        mock_client.agents.retrieve.return_value = mock_agent
+        
+        agent = AgentClient()
+        result = await agent.initialize()
+        
+        assert result is True
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_get_status_error():
-    """Test AgentClient get_status error."""
-    with patch("runtime.core.agent.get_env_var") as mock_env, patch(
-        "httpx.AsyncClient"
-    ) as mock_client_class:
-        mock_env.return_value = "http://test.agent.endpoint"
-
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
-
-        mock_httpx_client = AsyncMock()
-        mock_httpx_client.get.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_httpx_client
-
-        client = AgentClient()
-        with pytest.raises(Exception, match="Failed to get agent status"):
-            await client.get_status()
+    """Test AgentClient initialize error."""
+    with patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}), patch(
+        "runtime.core.agent.get_letta_client"
+    ) as mock_get_client:
+        # Mock the Letta client to raise an exception
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.agents.retrieve.side_effect = Exception("Agent not found")
+        
+        agent = AgentClient()
+        result = await agent.initialize()
+        
+        # Should return False on error
+        assert result is False
 
 
 @pytest.mark.unit
@@ -228,7 +225,7 @@ async def test_plugin_manager_unload_plugin():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_plugin_manager_start_all():
-    """Test PluginManager start_all."""
+    """Test PluginManager start."""
     manager = PluginManager()
 
     # Add mock plugins
@@ -238,7 +235,7 @@ async def test_plugin_manager_start_all():
     mock_plugin2.start = AsyncMock()
     manager._plugins = {"plugin1": mock_plugin1, "plugin2": mock_plugin2}
 
-    await manager.start_all()
+    await manager.start()
     mock_plugin1.start.assert_called_once()
     mock_plugin2.start.assert_called_once()
 
@@ -246,7 +243,7 @@ async def test_plugin_manager_start_all():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_plugin_manager_stop_all():
-    """Test PluginManager stop_all."""
+    """Test PluginManager stop."""
     manager = PluginManager()
 
     # Add mock plugins
@@ -255,8 +252,9 @@ async def test_plugin_manager_stop_all():
     mock_plugin2 = MagicMock()
     mock_plugin2.stop = AsyncMock()
     manager._plugins = {"plugin1": mock_plugin1, "plugin2": mock_plugin2}
+    manager._running = True  # Set running state
 
-    await manager.stop_all()
+    await manager.stop()
     mock_plugin1.stop.assert_called_once()
     mock_plugin2.stop.assert_called_once()
 
@@ -265,14 +263,19 @@ async def test_plugin_manager_stop_all():
 @pytest.mark.asyncio
 async def test_plugin_manager_emit_event():
     """Test PluginManager emit_event."""
+    from plugins import Event, EventType
+    
     manager = PluginManager()
 
     # Add mock event handler
-    mock_handler = AsyncMock()
-    manager._event_handlers["test_event"] = [mock_handler]
+    mock_handler = MagicMock()
+    manager._event_handlers[EventType.MESSAGE] = [mock_handler]
 
-    await manager.emit_event("test_event", {"data": "test"})
-    mock_handler.assert_called_once_with({"data": "test"})
+    # Create an event
+    event = Event(type=EventType.MESSAGE, data={"data": "test"}, source="test_plugin")
+    
+    manager.emit_event(event)
+    mock_handler.assert_called_once_with(event)
 
 
 @pytest.mark.unit
@@ -301,11 +304,11 @@ async def test_plugin_manager_get_plugin_not_found():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_plugin_manager_list_plugins():
-    """Test PluginManager list_plugins."""
+    """Test PluginManager get_loaded_plugins."""
     manager = PluginManager()
     manager._plugins = {"plugin1": MagicMock(), "plugin2": MagicMock()}
 
-    plugins = manager.list_plugins()
+    plugins = manager.get_loaded_plugins()
     assert plugins == ["plugin1", "plugin2"]
 
 
