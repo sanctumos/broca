@@ -137,13 +137,21 @@ class TestMessageBuffer:
     async def test_flush_general_exception(self):
         """Test flush with general exception."""
         buffer = MessageBuffer()
-        buffer.messages = [{"test": "message"}]
+        buffer.messages = [
+            {
+                "message": "test message",
+                "user_id": "123",
+                "username": "testuser",
+                "first_name": "Test",
+                "timestamp": datetime.now(),
+            }
+        ]
 
         mock_letta_client = AsyncMock()
         mock_letta_client.add_to_queue.side_effect = Exception("Test error")
 
         with patch(
-            "plugins.telegram_bot.handlers.LettaClient", return_value=mock_letta_client
+            "runtime.core.letta_client.LettaClient", return_value=mock_letta_client
         ):
             with pytest.raises(Exception, match="Test error"):
                 await buffer.flush()
@@ -152,13 +160,21 @@ class TestMessageBuffer:
     async def test_flush_clears_messages_on_exception(self):
         """Test that flush clears messages even on exception."""
         buffer = MessageBuffer()
-        buffer.messages = [{"test": "message"}]
+        buffer.messages = [
+            {
+                "message": "test message",
+                "user_id": "123",
+                "username": "testuser",
+                "first_name": "Test",
+                "timestamp": datetime.now(),
+            }
+        ]
 
         mock_letta_client = AsyncMock()
         mock_letta_client.add_to_queue.side_effect = Exception("Test error")
 
         with patch(
-            "plugins.telegram_bot.handlers.LettaClient", return_value=mock_letta_client
+            "runtime.core.letta_client.LettaClient", return_value=mock_letta_client
         ):
             try:
                 await buffer.flush()
