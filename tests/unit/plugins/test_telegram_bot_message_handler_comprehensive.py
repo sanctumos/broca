@@ -239,7 +239,7 @@ class TestTelegramMessageHandler:
         mock_letta_client.update_message_status = AsyncMock()
 
         with patch(
-            "plugins.telegram_bot.message_handler.LettaClient",
+            "runtime.core.letta_client.LettaClient",
             return_value=mock_letta_client,
         ):
             await handler.update_message_status(mock_message, "sent")
