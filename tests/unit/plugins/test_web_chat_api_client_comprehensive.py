@@ -17,7 +17,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -32,7 +31,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -52,7 +50,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -69,7 +66,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -83,7 +79,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -107,7 +102,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -138,7 +132,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -171,7 +164,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -200,7 +192,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -225,7 +216,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -247,7 +237,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -266,7 +255,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -294,7 +282,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -320,7 +307,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -345,7 +331,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -367,7 +352,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -386,7 +370,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -413,7 +396,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
@@ -434,7 +416,6 @@ class TestWebChatAPIClient:
             api_url="https://api.example.com",
             api_key="test_key",
             poll_interval=5,
-            max_messages=100,
         )
         client = WebChatAPIClient(settings)
 
