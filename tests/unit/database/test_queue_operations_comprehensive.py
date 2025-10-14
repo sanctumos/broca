@@ -1,7 +1,7 @@
 """Comprehensive tests for database queue operations."""
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 
@@ -19,6 +19,49 @@ from database.operations.queue import (
 )
 
 
+class AsyncContextManagerMock:
+    """Mock async context manager for database operations."""
+    
+    def __init__(self, return_value=None):
+        self.return_value = return_value
+    
+    async def __aenter__(self):
+        return self.return_value
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class MockDatabase:
+    """Mock database with proper async context manager support."""
+    
+    def __init__(self):
+        self.commit = AsyncMock()
+        self.total_changes = 1
+        self._cursor = None
+        self._execute_calls = []
+        self._execute_side_effect = None
+    
+    async def execute(self, *args, **kwargs):
+        """Execute SQL and return an async context manager for cursor operations."""
+        if self._execute_side_effect:
+            raise self._execute_side_effect
+        self._execute_calls.append((args, kwargs))
+        return AsyncContextManagerMock(self._cursor)
+    
+    def set_cursor(self, cursor):
+        """Set the cursor for execute operations."""
+        self._cursor = cursor
+    
+    def set_execute_side_effect(self, side_effect):
+        """Set side effect for execute method."""
+        self._execute_side_effect = side_effect
+    
+    def assert_execute_called_once(self):
+        """Assert that execute was called once."""
+        assert len(self._execute_calls) == 1
+
+
 class TestQueueOperationsComprehensive:
     """Comprehensive tests for queue operations."""
 
@@ -26,20 +69,20 @@ class TestQueueOperationsComprehensive:
     async def test_add_to_queue_success(self):
         """Test successful addition to queue."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             await add_to_queue(123, 456)
 
-            mock_db.execute.assert_called_once()
+            mock_db.assert_execute_called_once()
             mock_db.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_add_to_queue_with_exception(self):
         """Test add_to_queue with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
-            mock_db.execute.side_effect = Exception("Database error")
+            mock_db = MockDatabase()
+            mock_db.set_execute_side_effect(Exception("Database error"))
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             with pytest.raises(Exception, match="Database error"):
@@ -49,7 +92,7 @@ class TestQueueOperationsComprehensive:
     async def test_get_pending_queue_item_success(self):
         """Test successful retrieval of pending queue item."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 1,
@@ -59,7 +102,7 @@ class TestQueueOperationsComprehensive:
                 0,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_pending_queue_item()
@@ -74,10 +117,10 @@ class TestQueueOperationsComprehensive:
     async def test_get_pending_queue_item_empty(self):
         """Test retrieval when no pending items exist."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = None
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_pending_queue_item()
@@ -88,8 +131,8 @@ class TestQueueOperationsComprehensive:
     async def test_get_pending_queue_item_with_exception(self):
         """Test get_pending_queue_item with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
-            mock_db.execute.side_effect = Exception("Database error")
+            mock_db = MockDatabase()
+            mock_db.set_execute_side_effect(Exception("Database error"))
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             with pytest.raises(Exception, match="Database error"):
@@ -99,7 +142,7 @@ class TestQueueOperationsComprehensive:
     async def test_atomic_dequeue_item_success(self):
         """Test successful atomic dequeue operation."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 1,
@@ -109,7 +152,7 @@ class TestQueueOperationsComprehensive:
                 0,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_db.total_changes = 1
             mock_connect.return_value.__aenter__.return_value = mock_db
 
@@ -123,10 +166,10 @@ class TestQueueOperationsComprehensive:
     async def test_atomic_dequeue_item_no_pending(self):
         """Test atomic dequeue when no pending items exist."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = None
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await atomic_dequeue_item()
@@ -137,7 +180,7 @@ class TestQueueOperationsComprehensive:
     async def test_atomic_dequeue_item_race_condition(self):
         """Test atomic dequeue with race condition (no rows affected)."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 1,
@@ -147,7 +190,7 @@ class TestQueueOperationsComprehensive:
                 0,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_db.total_changes = 0  # Race condition - no rows affected
             mock_connect.return_value.__aenter__.return_value = mock_db
 
@@ -159,8 +202,8 @@ class TestQueueOperationsComprehensive:
     async def test_atomic_dequeue_item_exception(self):
         """Test atomic dequeue with exception during transaction."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
-            mock_db.execute.side_effect = Exception("Database error")
+            mock_db = MockDatabase()
+            mock_db.set_execute_side_effect(Exception("Database error"))
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await atomic_dequeue_item()
@@ -175,10 +218,10 @@ class TestQueueOperationsComprehensive:
 
             async def mock_requeue_operation():
                 with patch("aiosqlite.connect") as mock_connect:
-                    mock_db = AsyncMock()
+                    mock_db = MockDatabase()
                     mock_cursor = AsyncMock()
                     mock_cursor.fetchone.return_value = (2,)  # attempts = 2
-                    mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+                    mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
                     mock_connect.return_value.__aenter__.return_value = mock_db
 
                     return True
@@ -199,10 +242,10 @@ class TestQueueOperationsComprehensive:
 
             async def mock_requeue_operation():
                 with patch("aiosqlite.connect") as mock_connect:
-                    mock_db = AsyncMock()
+                    mock_db = MockDatabase()
                     mock_cursor = AsyncMock()
                     mock_cursor.fetchone.return_value = (3,)  # attempts = 3, max = 3
-                    mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+                    mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
                     mock_connect.return_value.__aenter__.return_value = mock_db
 
                     return False
@@ -223,10 +266,10 @@ class TestQueueOperationsComprehensive:
 
             async def mock_requeue_operation():
                 with patch("aiosqlite.connect") as mock_connect:
-                    mock_db = AsyncMock()
+                    mock_db = MockDatabase()
                     mock_cursor = AsyncMock()
                     mock_cursor.fetchone.return_value = None
-                    mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+                    mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
                     mock_connect.return_value.__aenter__.return_value = mock_db
 
                     return False
@@ -253,7 +296,7 @@ class TestQueueOperationsComprehensive:
     async def test_update_queue_status_success(self):
         """Test successful queue status update."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 1,
@@ -263,7 +306,7 @@ class TestQueueOperationsComprehensive:
                 1,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await update_queue_status(1, "completed")
@@ -275,7 +318,7 @@ class TestQueueOperationsComprehensive:
     async def test_update_queue_status_with_increment(self):
         """Test queue status update with attempt increment."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 1,
@@ -285,7 +328,7 @@ class TestQueueOperationsComprehensive:
                 2,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await update_queue_status(1, "failed", increment_attempt=True)
@@ -297,10 +340,10 @@ class TestQueueOperationsComprehensive:
     async def test_update_queue_status_not_found(self):
         """Test update queue status when item not found."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = None
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             with pytest.raises(ValueError, match="Queue item with ID 1 not found"):
@@ -310,8 +353,8 @@ class TestQueueOperationsComprehensive:
     async def test_update_queue_status_exception(self):
         """Test update queue status with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
-            mock_db.execute.side_effect = Exception("Database error")
+            mock_db = MockDatabase()
+            mock_db.set_execute_side_effect(Exception("Database error"))
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             with pytest.raises(Exception, match="Database error"):
@@ -321,7 +364,7 @@ class TestQueueOperationsComprehensive:
     async def test_get_all_queue_items_success(self):
         """Test successful retrieval of all queue items."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchall.return_value = [
                 (
@@ -349,7 +392,7 @@ class TestQueueOperationsComprehensive:
                     "Response",
                 ),
             ]
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_all_queue_items()
@@ -364,10 +407,10 @@ class TestQueueOperationsComprehensive:
     async def test_get_all_queue_items_empty(self):
         """Test retrieval when no queue items exist."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchall.return_value = []
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_all_queue_items()
@@ -378,8 +421,8 @@ class TestQueueOperationsComprehensive:
     async def test_get_all_queue_items_exception(self):
         """Test get_all_queue_items with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
-            mock_db.execute.side_effect = Exception("Database error")
+            mock_db = MockDatabase()
+            mock_db.set_execute_side_effect(Exception("Database error"))
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             with pytest.raises(Exception, match="Database error"):
@@ -389,7 +432,7 @@ class TestQueueOperationsComprehensive:
     async def test_get_queue_statistics_success(self):
         """Test successful retrieval of queue statistics."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchall.return_value = [
                 ("pending", 5),
@@ -397,7 +440,7 @@ class TestQueueOperationsComprehensive:
                 ("completed", 10),
                 ("failed", 1),
             ]
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_queue_statistics()
@@ -412,10 +455,10 @@ class TestQueueOperationsComprehensive:
     async def test_get_queue_statistics_empty(self):
         """Test queue statistics when no items exist."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchall.return_value = []
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_queue_statistics()
@@ -428,8 +471,8 @@ class TestQueueOperationsComprehensive:
     async def test_get_queue_statistics_exception(self):
         """Test get_queue_statistics with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
-            mock_db.execute.side_effect = Exception("Database error")
+            mock_db = MockDatabase()
+            mock_db.set_execute_side_effect(Exception("Database error"))
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             with pytest.raises(Exception, match="Database error"):
@@ -439,21 +482,21 @@ class TestQueueOperationsComprehensive:
     async def test_flush_all_queue_items_success(self):
         """Test successful flush of all queue items."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await flush_all_queue_items("echo")
 
             assert result is True
-            mock_db.execute.assert_called_once()
+            mock_db.assert_execute_called_once()
             mock_db.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_flush_all_queue_items_exception(self):
         """Test flush_all_queue_items with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
-            mock_db.execute.side_effect = Exception("Database error")
+            mock_db = MockDatabase()
+            mock_db.set_execute_side_effect(Exception("Database error"))
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await flush_all_queue_items("echo")
@@ -464,21 +507,21 @@ class TestQueueOperationsComprehensive:
     async def test_delete_queue_item_success(self):
         """Test successful deletion of queue item."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await delete_queue_item(1)
 
             assert result is True
-            mock_db.execute.assert_called_once()
+            mock_db.assert_execute_called_once()
             mock_db.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_delete_queue_item_exception(self):
         """Test delete_queue_item with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
-            mock_db.execute.side_effect = Exception("Database error")
+            mock_db = MockDatabase()
+            mock_db.set_execute_side_effect(Exception("Database error"))
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await delete_queue_item(1)
@@ -508,7 +551,7 @@ class TestQueueOperationsComprehensive:
     async def test_concurrent_queue_operations(self):
         """Test concurrent queue operations."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 1,
@@ -518,7 +561,7 @@ class TestQueueOperationsComprehensive:
                 0,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             # Test concurrent operations
@@ -542,7 +585,7 @@ class TestQueueOperationsComprehensive:
 
         for status in statuses:
             with patch("aiosqlite.connect") as mock_connect:
-                mock_db = AsyncMock()
+                mock_db = MockDatabase()
                 mock_cursor = AsyncMock()
                 mock_cursor.fetchone.return_value = (
                     1,
@@ -552,7 +595,7 @@ class TestQueueOperationsComprehensive:
                     0,
                     "2023-01-01T12:00:00",
                 )
-                mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+                mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
                 mock_connect.return_value.__aenter__.return_value = mock_db
 
                 result = await update_queue_status(1, status)
@@ -565,28 +608,28 @@ class TestQueueOperationsComprehensive:
         """Test queue operations with edge cases."""
         # Test with zero values
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             await add_to_queue(0, 0)
-            mock_db.execute.assert_called_once()
+            mock_db.assert_execute_called_once()
 
         # Test with large values
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             await add_to_queue(999999, 999999)
-            mock_db.execute.assert_called_once()
+            mock_db.assert_execute_called_once()
 
     @pytest.mark.asyncio
     async def test_queue_operations_with_none_values(self):
         """Test queue operations handling of None values."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (1, 123, 456, "pending", 0, None)
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_pending_queue_item()
