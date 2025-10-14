@@ -1,7 +1,8 @@
 """Unit tests for main.py functionality."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+import os
+from unittest.mock import AsyncMock, MagicMock, patch, mock_open
 
 import pytest
 
@@ -9,146 +10,121 @@ import main
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_main_function():
+def test_main_function():
     """Test main function."""
-    with patch("main.setup_logging") as mock_logging, patch(
-        "main.initialize_database"
-    ) as mock_db, patch("main.start_plugins") as mock_plugins, patch(
-        "main.start_queue_processor"
-    ) as mock_queue, patch(
-        "main.run_event_loop"
-    ) as mock_loop:
-        mock_logging.return_value = None
-        mock_db.return_value = None
-        mock_plugins.return_value = None
-        mock_queue.return_value = None
-        mock_loop.return_value = None
-
-        await main.main()
-
-        mock_logging.assert_called_once()
-        mock_db.assert_called_once()
-        mock_plugins.assert_called_once()
-        mock_queue.assert_called_once()
-        mock_loop.assert_called_once()
+    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch("main.Application") as mock_app_class, patch(
+        "asyncio.run"
+    ) as mock_run, patch("main.logger") as mock_logger, patch("sys.exit") as mock_exit:
+        mock_app = MagicMock()
+        mock_app_class.return_value = mock_app
+        
+        main.main()
+        
+        mock_app_class.assert_called_once()
+        # main() calls both app.start() and app.stop()
+        assert mock_run.call_count == 2
+        mock_run.assert_any_call(mock_app.start())
+        mock_run.assert_any_call(mock_app.stop())
+        mock_exit.assert_called_with(0)
 
 
 @pytest.mark.unit
-def test_setup_logging():
-    """Test setup_logging function."""
-    with patch("main.logging.basicConfig") as mock_config:
-        main.setup_logging()
-        mock_config.assert_called_once()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_initialize_database():
-    """Test initialize_database function."""
-    with patch("main.init_database") as mock_init:
-        mock_init.return_value = None
-        await main.initialize_database()
-        mock_init.assert_called_once()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_start_plugins():
-    """Test start_plugins function."""
-    with patch("main.PluginManager") as mock_manager_class:
-        mock_manager = MagicMock()
-        mock_manager.start_all = AsyncMock()
-        mock_manager_class.return_value = mock_manager
-
-        await main.start_plugins()
-        mock_manager.start_all.assert_called_once()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_start_queue_processor():
-    """Test start_queue_processor function."""
-    with patch("main.QueueProcessor") as mock_processor_class:
-        mock_processor = MagicMock()
-        mock_processor.start = AsyncMock()
-        mock_processor_class.return_value = mock_processor
-
-        await main.start_queue_processor()
-        mock_processor.start.assert_called_once()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_event_loop():
-    """Test run_event_loop function."""
-    with patch("main.asyncio.sleep") as mock_sleep:
-        mock_sleep.return_value = None
-
-        # Test with timeout
-        try:
-            await main.run_event_loop(timeout=0.1)
-        except asyncio.TimeoutError:
-            pass  # Expected
-
-
-@pytest.mark.unit
-def test_signal_handler():
-    """Test signal handler."""
-    with patch("main.sys.exit") as mock_exit:
-        main.signal_handler(1, None)
-        mock_exit.assert_called_once_with(0)
-
-
-@pytest.mark.unit
-def test_cleanup():
-    """Test cleanup function."""
-    with patch("main.PluginManager") as mock_manager_class, patch(
-        "main.QueueProcessor"
-    ) as mock_processor_class:
-        mock_manager = MagicMock()
-        mock_manager.stop_all = AsyncMock()
-        mock_processor = MagicMock()
-        mock_processor.stop = AsyncMock()
-
-        mock_manager_class.return_value = mock_manager
-        mock_processor_class.return_value = mock_processor
-
-        # Test cleanup
-        try:
-            main.cleanup()
-        except:
-            pass  # May fail due to async context
-
-
-@pytest.mark.unit
-def test_main_exception_handling():
+def test_main_function_exception():
     """Test main function exception handling."""
-    with patch("main.setup_logging") as mock_logging, patch("main.initialize_database"):
-        mock_logging.side_effect = Exception("Test error")
-
-        try:
-            main.main()
-        except Exception:
-            pass  # Expected
+    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch("main.Application") as mock_app_class, patch(
+        "asyncio.run", side_effect=Exception("Test error")
+    ), patch("main.logger") as mock_logger, patch("sys.exit") as mock_exit:
+        mock_app = MagicMock()
+        mock_app_class.return_value = mock_app
+        
+        main.main()
+        
+        # The exception is caught in the finally block during cleanup
+        mock_logger.error.assert_called_with("❌ Error during final cleanup: Test error")
+        mock_exit.assert_called_with(0)
 
 
 @pytest.mark.unit
-def test_config_loading():
-    """Test configuration loading."""
-    with patch("main.get_settings") as mock_settings:
-        mock_settings.return_value = MagicMock()
+def test_create_default_settings_file_exists():
+    """Test create_default_settings when file already exists."""
+    with patch("main.Path") as mock_path:
+        mock_settings_path = MagicMock()
+        mock_settings_path.exists.return_value = True
+        mock_path.return_value = mock_settings_path
+        
+        main.create_default_settings()
+        
+        # Should not create file if it already exists
+        mock_settings_path.write_text.assert_not_called()
 
-        # Test that settings are loaded
-        settings = main.get_settings()
-        assert settings is not None
+
+@pytest.mark.unit
+def test_create_default_settings_file_not_exists():
+    """Test create_default_settings when file doesn't exist."""
+    with patch("main.Path") as mock_path, patch("builtins.open", mock_open()) as mock_file, patch("main.json.dump") as mock_json:
+        mock_settings_path = MagicMock()
+        mock_settings_path.exists.return_value = False
+        mock_path.return_value = mock_settings_path
+        
+        main.create_default_settings()
+        
+        # Should create file with default settings
+        mock_file.assert_called_once_with(mock_settings_path, "w")
+        mock_json.assert_called_once()
+
+
+@pytest.mark.unit
+def test_create_default_settings_logging():
+    """Test create_default_settings logging."""
+    with patch("main.Path") as mock_path, patch("main.logger") as mock_logger, patch("builtins.open", mock_open()), patch("main.json.dump"):
+        mock_settings_path = MagicMock()
+        mock_settings_path.exists.return_value = False
+        mock_path.return_value = mock_settings_path
+        
+        main.create_default_settings()
+        
+        mock_logger.info.assert_called_with("Created default settings.json file")
+
+
+@pytest.mark.unit
+def test_application_init():
+    """Test Application class initialization."""
+    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch("main.QueueProcessor") as mock_queue, patch(
+        "main.PluginManager"
+    ) as mock_plugins, patch("main.AgentClient") as mock_agent:
+        app = main.Application()
+        
+        assert app.queue_processor is not None
+        assert app.plugin_manager is not None
+        assert app.agent is not None
+        assert app._shutdown_event is not None
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_graceful_shutdown():
-    """Test graceful shutdown."""
-    with patch("main.signal.signal") as mock_signal, patch("main.cleanup"):
-        # Test signal registration
-        main.setup_signal_handlers()
-        mock_signal.assert_called()
+async def test_application_start():
+    """Test Application start method."""
+    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch("main.Application") as mock_app_class:
+        mock_app = MagicMock()
+        mock_app.start = AsyncMock()
+        mock_app_class.return_value = mock_app
+        
+        app = main.Application()
+        await app.start()
+        
+        mock_app.start.assert_called_once()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_application_stop():
+    """Test Application stop method."""
+    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch("main.Application") as mock_app_class:
+        mock_app = MagicMock()
+        mock_app.stop = AsyncMock()
+        mock_app_class.return_value = mock_app
+        
+        app = main.Application()
+        await app.stop()
+        
+        mock_app.stop.assert_called_once()
