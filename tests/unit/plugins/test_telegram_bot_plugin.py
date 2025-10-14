@@ -258,7 +258,8 @@ class TestTelegramBotPlugin:
             assert "test_event" in plugin._event_handlers
             assert mock_handler in plugin._event_handlers["test_event"]
 
-    def test_telegram_bot_plugin_emit_event(self):
+    @pytest.mark.asyncio
+    async def test_telegram_bot_plugin_emit_event(self):
         """Test TelegramBotPlugin emit_event method."""
         with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
             mock_settings_instance = MagicMock()
@@ -269,15 +270,16 @@ class TestTelegramBotPlugin:
             mock_event = MagicMock()
             mock_event.type = "test_event"
 
-            mock_handler = MagicMock()
-            plugin.event_handlers["test_event"] = [mock_handler]
+            mock_handler = AsyncMock()
+            plugin.event_handlers["test_event"] = mock_handler
 
-            plugin.emit_event(mock_event, "test_data")
+            await plugin.emit_event("test_event", {"test": "data"})
 
             # Verify handler was called
-            mock_handler.assert_called_once_with(mock_event)
+            mock_handler.assert_called_once_with({"test": "data"})
 
-    def test_telegram_bot_plugin_emit_event_no_handlers(self):
+    @pytest.mark.asyncio
+    async def test_telegram_bot_plugin_emit_event_no_handlers(self):
         """Test TelegramBotPlugin emit_event with no handlers."""
         with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
             mock_settings_instance = MagicMock()
@@ -285,11 +287,8 @@ class TestTelegramBotPlugin:
 
             plugin = TelegramBotPlugin()
 
-            mock_event = MagicMock()
-            mock_event.type = "test_event"
-
             # No handlers registered
-            plugin.emit_event(mock_event)
+            await plugin.emit_event("test_event", {"test": "data"})
 
             # Should not raise an exception
 
