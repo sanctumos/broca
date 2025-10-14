@@ -2,9 +2,9 @@
 Tests for CLI user management tool (utool.py).
 """
 
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import sys
 import pytest
 
 from cli.utool import (
@@ -203,39 +203,25 @@ class TestUtoolFunctions:
 
     def test_main_list_command(self):
         """Test main function with list command."""
-        args = MagicMock()
-        args.command = "list"
-        args.json = False
-
-        with patch("cli.utool.list_users", new_callable=AsyncMock), patch(
-            "asyncio.run"
-        ) as mock_run:
+        with patch("sys.argv", ["utool", "list"]), patch(
+            "cli.utool.list_users", new_callable=AsyncMock
+        ), patch("asyncio.run") as mock_run:
             main()
             mock_run.assert_called_once()
 
     def test_main_get_command(self):
         """Test main function with get command."""
-        args = MagicMock()
-        args.command = "get"
-        args.id = "123"
-        args.json = False
-
-        with patch("cli.utool.get_user", new_callable=AsyncMock), patch(
-            "asyncio.run"
-        ) as mock_run:
+        with patch("sys.argv", ["utool", "get", "123"]), patch(
+            "cli.utool.get_user", new_callable=AsyncMock
+        ), patch("asyncio.run") as mock_run:
             main()
             mock_run.assert_called_once()
 
     def test_main_update_command(self):
         """Test main function with update command."""
-        args = MagicMock()
-        args.command = "update"
-        args.id = "123"
-        args.status = "active"
-
-        with patch("cli.utool.update_user_status", new_callable=AsyncMock), patch(
-            "asyncio.run"
-        ) as mock_run:
+        with patch("sys.argv", ["utool", "update", "123", "active"]), patch(
+            "cli.utool.update_user_status", new_callable=AsyncMock
+        ), patch("asyncio.run") as mock_run:
             main()
             mock_run.assert_called_once()
 
@@ -243,4 +229,6 @@ class TestUtoolFunctions:
         """Test main function with invalid command."""
         with patch("sys.argv", ["utool.py", "invalid"]), patch("sys.exit") as mock_exit:
             main()
-            mock_exit.assert_called_once_with(1)
+            mock_exit.assert_called_with(
+                2
+            )  # argparse calls sys.exit(2) for invalid arguments

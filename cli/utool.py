@@ -22,6 +22,7 @@ async def get_user(args) -> None:
     if not user_details:
         print(f"User with ID {args.id} not found", file=sys.stderr)
         sys.exit(1)
+        return  # This line should never be reached, but helps with testing
 
     display_name, username = user_details
     user = {"id": args.id, "display_name": display_name, "username": username}
@@ -38,6 +39,7 @@ async def update_user_status(args) -> None:
     if not user:
         print(f"User with ID {args.id} not found", file=sys.stderr)
         sys.exit(1)
+        return  # This line should never be reached, but helps with testing
 
     print(f"User {args.id} status updated to {args.status}")
 
