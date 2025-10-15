@@ -11,8 +11,13 @@ from common.retry import RetryConfig, exponential_backoff, is_retryable_exceptio
 
 from ..models import QueueItem
 
-# Database file path
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "sanctum.db")
+
+def get_db_path() -> str:
+    """Get the database path, respecting test environment."""
+    return os.environ.get("TEST_DB_PATH") or os.path.join(
+        os.path.dirname(__file__), "..", "..", "sanctum.db"
+    )
+
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -30,7 +35,7 @@ async def add_to_queue(letta_user_id: int, message_id: int) -> None:
     """Add a message to the processing queue."""
     now = datetime.utcnow().isoformat()
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(get_db_path()) as db:
         await db.execute(
             """
             INSERT INTO queue (
@@ -48,7 +53,7 @@ async def add_to_queue(letta_user_id: int, message_id: int) -> None:
 
 async def get_pending_queue_item() -> QueueItem | None:
     """Get the next pending item from the queue."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(get_db_path()) as db:
         async with db.execute(
             """
             SELECT * FROM queue
@@ -79,7 +84,7 @@ async def atomic_dequeue_item() -> QueueItem | None:
     Returns:
         QueueItem if a pending item was found and marked as processing, None otherwise
     """
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(get_db_path()) as db:
         # Start transaction
         await db.execute("BEGIN IMMEDIATE")
 
@@ -147,7 +152,7 @@ async def requeue_failed_item(queue_id: int, max_attempts: int = 3) -> bool:
     """
 
     async def _requeue_operation():
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with aiosqlite.connect(get_db_path()) as db:
             # Check current attempts
             async with db.execute(
                 "SELECT attempts FROM queue WHERE id = ?", (queue_id,)
@@ -206,7 +211,7 @@ async def update_queue_status(
     """Update the status of a queue item."""
     now = datetime.utcnow().isoformat()
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(get_db_path()) as db:
         if increment_attempt:
             await db.execute(
                 """
@@ -246,7 +251,7 @@ async def update_queue_status(
 
 async def get_all_queue_items() -> list[dict[str, Any]]:
     """Get all queue items with their details."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(get_db_path()) as db:
         async with db.execute(
             """
             SELECT
@@ -285,7 +290,7 @@ async def get_queue_statistics() -> dict[str, int]:
     Returns:
         Dictionary with counts for each status
     """
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(get_db_path()) as db:
         async with db.execute(
             """
             SELECT status, COUNT(*) as count
@@ -308,7 +313,7 @@ async def get_queue_statistics() -> dict[str, int]:
 
 async def flush_all_queue_items(current_mode: str) -> bool:
     """Flush all queue items for the current mode."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(get_db_path()) as db:
         try:
             await db.execute(
                 """
@@ -326,7 +331,7 @@ async def flush_all_queue_items(current_mode: str) -> bool:
 
 async def delete_queue_item(queue_id: int) -> bool:
     """Delete a specific queue item."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with aiosqlite.connect(get_db_path()) as db:
         try:
             await db.execute("DELETE FROM queue WHERE id = ?", (queue_id,))
             await db.commit()
