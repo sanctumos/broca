@@ -17,6 +17,8 @@ class FakePlugin(Plugin):
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.is_running = False
+        self.name = "FakePlugin"
+        self.platform = "fake"
 
     def get_name(self) -> str:
         """Get the plugin name."""
@@ -28,7 +30,7 @@ class FakePlugin(Plugin):
 
     def get_message_handler(self):
         """Get the message handler for this plugin."""
-        return None  # No message handler for fake plugin
+        return self  # Return self as a mock handler
 
     async def start(self):
         """Start the plugin."""
