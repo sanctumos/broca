@@ -1,6 +1,7 @@
 """Unit tests for runtime core agent functionality."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+import os
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,61 +22,61 @@ async def test_agent_client_initialization():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_send_message():
-    """Test AgentClient send_message method."""
-    with patch("runtime.core.agent.get_env_var") as mock_env, patch(
-        "runtime.core.agent.httpx.AsyncClient"
-    ) as mock_client_class:
-        mock_env.return_value = "http://test.endpoint"
-        mock_client = AsyncMock()
+    """Test AgentClient process_message method."""
+    with patch.dict(
+        os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
+    ), patch("runtime.core.agent.get_letta_client") as mock_get_client:
+        mock_client = MagicMock()
         mock_response = MagicMock()
-        mock_response.json.return_value = {"response": "test response"}
-        mock_response.status_code = 200
-        mock_client.post.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_response.messages = [
+            MagicMock(content="test response", message_type="assistant")
+        ]
+        mock_client.agents.messages.create.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         agent = AgentClient()
-        result = await agent.send_message("test message")
+        result = await agent.process_message("test message")
 
-        assert result == {"response": "test response"}
+        assert result == "test response"
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_send_message_error():
-    """Test AgentClient send_message with error response."""
-    with patch("runtime.core.agent.get_env_var") as mock_env, patch(
-        "runtime.core.agent.httpx.AsyncClient"
-    ) as mock_client_class:
-        mock_env.return_value = "http://test.endpoint"
-        mock_client = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
-        mock_client.post.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_client
+    """Test AgentClient process_message with error response."""
+    with patch.dict(
+        os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
+    ), patch("runtime.core.agent.get_letta_client") as mock_get_client, patch(
+        "runtime.core.agent.is_retryable_exception"
+    ) as mock_retryable:
+        mock_client = MagicMock()
+        mock_client.agents.messages.create.side_effect = Exception("API Error")
+        mock_get_client.return_value = mock_client
+        # Make the exception non-retryable so it gets raised immediately
+        mock_retryable.return_value = False
 
         agent = AgentClient()
+        result = await agent.process_message("test message")
 
-        with pytest.raises(Exception):
-            await agent.send_message("test message")
+        # The method catches exceptions and returns None
+        assert result is None
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_get_status():
-    """Test AgentClient get_status method."""
-    with patch("runtime.core.agent.get_env_var") as mock_env, patch(
-        "runtime.core.agent.httpx.AsyncClient"
-    ) as mock_client_class:
-        mock_env.return_value = "http://test.endpoint"
-        mock_client = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"status": "active"}
-        mock_response.status_code = 200
-        mock_client.get.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_client
+    """Test AgentClient initialize method."""
+    with patch.dict(
+        os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
+    ), patch("runtime.core.agent.get_letta_client") as mock_get_client:
+        mock_client = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.id = "test-agent-123"
+        mock_agent.name = "Test Agent"
+        mock_client.agents.retrieve.return_value = mock_agent
+        mock_get_client.return_value = mock_client
 
         agent = AgentClient()
-        result = await agent.get_status()
+        result = await agent.initialize()
 
-        assert result == {"status": "active"}
+        assert result is True
