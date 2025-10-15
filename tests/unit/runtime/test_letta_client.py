@@ -43,6 +43,11 @@ async def test_letta_client_add_to_queue():
         mock_client.add_to_queue = AsyncMock(return_value={"id": "test-id"})
         mock_client_class.return_value = mock_client
 
+        # Clear singleton and get fresh instance
+        import runtime.core.letta_client
+
+        runtime.core.letta_client._letta_client = None
+
         client = get_letta_client()
         result = await client.add_to_queue("test message", 123)
 
@@ -58,6 +63,11 @@ async def test_letta_client_send_message():
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock(return_value={"response": "test response"})
         mock_client_class.return_value = mock_client
+
+        # Clear singleton and get fresh instance
+        import runtime.core.letta_client
+
+        runtime.core.letta_client._letta_client = None
 
         client = get_letta_client()
         result = await client.send_message("test message", 123)
