@@ -236,20 +236,13 @@ class TestQueueOperationsComprehensive:
         with patch("database.operations.queue.exponential_backoff") as mock_backoff:
             mock_backoff.return_value = True
 
-            async def mock_requeue_operation():
-                with patch("aiosqlite.connect") as mock_connect:
-                    mock_db = MockDatabase()
-                    mock_cursor = AsyncMock()
-                    mock_cursor.fetchone.return_value = (2,)  # attempts = 2
-                    mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
-                    mock_connect.return_value.__aenter__.return_value = mock_db
+            with patch("aiosqlite.connect") as mock_connect:
+                mock_db = MockDatabase()
+                mock_cursor = AsyncMock()
+                mock_cursor.fetchone.return_value = (2,)  # attempts = 2
+                mock_db.set_cursor(mock_cursor)
+                mock_connect.return_value.__aenter__.return_value = mock_db
 
-                    return True
-
-            with patch(
-                "database.operations.queue._requeue_operation",
-                side_effect=mock_requeue_operation,
-            ):
                 result = await requeue_failed_item(1, max_attempts=3)
 
                 assert result is True
@@ -260,20 +253,13 @@ class TestQueueOperationsComprehensive:
         with patch("database.operations.queue.exponential_backoff") as mock_backoff:
             mock_backoff.return_value = False
 
-            async def mock_requeue_operation():
-                with patch("aiosqlite.connect") as mock_connect:
-                    mock_db = MockDatabase()
-                    mock_cursor = AsyncMock()
-                    mock_cursor.fetchone.return_value = (3,)  # attempts = 3, max = 3
-                    mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
-                    mock_connect.return_value.__aenter__.return_value = mock_db
+            with patch("aiosqlite.connect") as mock_connect:
+                mock_db = MockDatabase()
+                mock_cursor = AsyncMock()
+                mock_cursor.fetchone.return_value = (3,)  # attempts = 3, max = 3
+                mock_db.set_cursor(mock_cursor)
+                mock_connect.return_value.__aenter__.return_value = mock_db
 
-                    return False
-
-            with patch(
-                "database.operations.queue._requeue_operation",
-                side_effect=mock_requeue_operation,
-            ):
                 result = await requeue_failed_item(1, max_attempts=3)
 
                 assert result is False
@@ -284,20 +270,13 @@ class TestQueueOperationsComprehensive:
         with patch("database.operations.queue.exponential_backoff") as mock_backoff:
             mock_backoff.return_value = False
 
-            async def mock_requeue_operation():
-                with patch("aiosqlite.connect") as mock_connect:
-                    mock_db = MockDatabase()
-                    mock_cursor = AsyncMock()
-                    mock_cursor.fetchone.return_value = None
-                    mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
-                    mock_connect.return_value.__aenter__.return_value = mock_db
+            with patch("aiosqlite.connect") as mock_connect:
+                mock_db = MockDatabase()
+                mock_cursor = AsyncMock()
+                mock_cursor.fetchone.return_value = None
+                mock_db.set_cursor(mock_cursor)
+                mock_connect.return_value.__aenter__.return_value = mock_db
 
-                    return False
-
-            with patch(
-                "database.operations.queue._requeue_operation",
-                side_effect=mock_requeue_operation,
-            ):
                 result = await requeue_failed_item(1, max_attempts=3)
 
                 assert result is False
@@ -326,7 +305,7 @@ class TestQueueOperationsComprehensive:
                 1,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await update_queue_status(1, "completed")
@@ -348,7 +327,7 @@ class TestQueueOperationsComprehensive:
                 2,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await update_queue_status(1, "failed", increment_attempt=True)
@@ -412,7 +391,7 @@ class TestQueueOperationsComprehensive:
                     "Response",
                 ),
             ]
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_all_queue_items()
@@ -430,7 +409,7 @@ class TestQueueOperationsComprehensive:
             mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchall.return_value = []
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_all_queue_items()
