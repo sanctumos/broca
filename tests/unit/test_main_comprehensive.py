@@ -30,7 +30,11 @@ class TestMainApplicationComprehensive:
         """Test Application initialization."""
         with patch("main.create_default_settings"), patch(
             "builtins.open", create=True
-        ), patch("os.getpid", return_value=12345), patch("main.signal.signal"):
+        ), patch("os.getpid", return_value=12345), patch(
+            "main.signal.signal"
+        ), patch.dict(
+            "os.environ", {"AGENT_ID": "test_agent"}
+        ):
             app = Application()
             assert app.plugin_manager is not None
             assert app.agent is not None
@@ -44,7 +48,9 @@ class TestMainApplicationComprehensive:
             "builtins.open", create=True
         ), patch("os.getpid", return_value=12345), patch(
             "main.signal.signal"
-        ) as mock_signal:
+        ) as mock_signal, patch.dict(
+            "os.environ", {"AGENT_ID": "test_agent"}
+        ):
             Application()
             assert mock_signal.call_count == 2  # SIGTERM and SIGINT
 
