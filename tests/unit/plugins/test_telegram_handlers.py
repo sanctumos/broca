@@ -111,8 +111,7 @@ class TestMessageBuffer:
         }
 
         # Create a task that will be cancelled
-        async def cancel_task():
-            await asyncio.sleep(0.005)
+        async def cancel_task(delay):
             raise asyncio.CancelledError()
 
         with patch("asyncio.sleep", side_effect=cancel_task):
@@ -164,9 +163,9 @@ class TestMessageBuffer:
         }
 
         with patch(
-            "database.operations.messages.insert_message", new_callable=AsyncMock
+            "plugins.telegram.handlers.insert_message", new_callable=AsyncMock
         ) as mock_insert, patch(
-            "database.operations.queue.add_to_queue", new_callable=AsyncMock
+            "plugins.telegram.handlers.add_to_queue", new_callable=AsyncMock
         ) as mock_add_queue:
             mock_insert.return_value = 999
 
@@ -277,7 +276,7 @@ class TestMessageHandler:
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
         with patch(
-            "database.operations.users.get_or_create_platform_profile",
+            "plugins.telegram.handlers.get_or_create_platform_profile",
             new_callable=AsyncMock,
         ) as mock_get_profile, patch.object(
             handler.buffer, "add_message", new_callable=AsyncMock
@@ -312,7 +311,7 @@ class TestMessageHandler:
         mock_event.is_private = False
 
         with patch(
-            "database.operations.users.get_or_create_platform_profile",
+            "plugins.telegram.handlers.get_or_create_platform_profile",
             new_callable=AsyncMock,
         ) as mock_get_profile, patch.object(
             handler.buffer, "add_message", new_callable=AsyncMock
@@ -346,7 +345,7 @@ class TestMessageHandler:
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
         with patch(
-            "database.operations.users.get_or_create_platform_profile",
+            "plugins.telegram.handlers.get_or_create_platform_profile",
             new_callable=AsyncMock,
         ) as mock_get_profile, patch.object(
             handler.buffer, "add_message", new_callable=AsyncMock
@@ -380,7 +379,7 @@ class TestMessageHandler:
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
         with patch(
-            "database.operations.users.get_or_create_platform_profile",
+            "plugins.telegram.handlers.get_or_create_platform_profile",
             new_callable=AsyncMock,
         ) as mock_get_profile, patch.object(
             handler.buffer, "add_message", new_callable=AsyncMock
@@ -419,7 +418,7 @@ class TestMessageHandler:
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
         with patch(
-            "database.operations.users.get_or_create_platform_profile",
+            "plugins.telegram.handlers.get_or_create_platform_profile",
             new_callable=AsyncMock,
         ) as mock_get_profile, patch.object(
             handler.buffer, "add_message", new_callable=AsyncMock
@@ -462,7 +461,7 @@ class TestMessageHandler:
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
         with patch(
-            "database.operations.users.get_or_create_platform_profile",
+            "plugins.telegram.handlers.get_or_create_platform_profile",
             new_callable=AsyncMock,
         ) as mock_get_profile, patch.object(
             handler.buffer, "add_message", new_callable=AsyncMock
