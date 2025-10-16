@@ -1,7 +1,7 @@
 """Comprehensive tests for database queue operations."""
 
 import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -21,42 +21,62 @@ from database.operations.queue import (
 
 class AsyncContextManagerMock:
     """Mock async context manager for database operations."""
-    
+
     def __init__(self, return_value=None):
         self.return_value = return_value
-    
+
     async def __aenter__(self):
         return self.return_value
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
 
+class HybridExecuteMock:
+    """Mock that can be both awaited and used as async context manager."""
+
+    def __init__(self, cursor=None):
+        self.cursor = cursor
+
+    async def __aenter__(self):
+        return self.cursor
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def __await__(self):
+        # Make it awaitable for direct await calls
+        return self.__aenter__().__await__()
+
+
 class MockDatabase:
     """Mock database with proper async context manager support."""
-    
+
     def __init__(self):
         self.commit = AsyncMock()
         self.total_changes = 1
         self._cursor = None
         self._execute_calls = []
         self._execute_side_effect = None
-    
-    async def execute(self, *args, **kwargs):
-        """Execute SQL and return an async context manager for cursor operations."""
+
+    def execute(self, *args, **kwargs):
+        """Execute SQL and return a hybrid mock for both await and async with."""
         if self._execute_side_effect:
-            raise self._execute_side_effect
+            # Only raise exception for non-BEGIN and non-ROLLBACK commands to allow transaction to start and rollback
+            sql = args[0] if args else ""
+            if not sql.strip().upper().startswith(("BEGIN", "ROLLBACK")):
+                raise self._execute_side_effect
         self._execute_calls.append((args, kwargs))
-        return AsyncContextManagerMock(self._cursor)
-    
+        return HybridExecuteMock(self._cursor)
+
     def set_cursor(self, cursor):
         """Set the cursor for execute operations."""
         self._cursor = cursor
-    
+
     def set_execute_side_effect(self, side_effect):
         """Set side effect for execute method."""
         self._execute_side_effect = side_effect
-    
+
     def assert_execute_called_once(self):
         """Assert that execute was called once."""
         assert len(self._execute_calls) == 1
@@ -152,7 +172,7 @@ class TestQueueOperationsComprehensive:
                 0,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_db.total_changes = 1
             mock_connect.return_value.__aenter__.return_value = mock_db
 
@@ -190,7 +210,7 @@ class TestQueueOperationsComprehensive:
                 0,
                 "2023-01-01T12:00:00",
             )
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_db.total_changes = 0  # Race condition - no rows affected
             mock_connect.return_value.__aenter__.return_value = mock_db
 
