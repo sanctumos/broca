@@ -439,7 +439,7 @@ class TestQueueOperationsComprehensive:
                 ("completed", 10),
                 ("failed", 1),
             ]
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_queue_statistics()
@@ -457,7 +457,7 @@ class TestQueueOperationsComprehensive:
             mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchall.return_value = []
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_queue_statistics()
@@ -594,7 +594,7 @@ class TestQueueOperationsComprehensive:
                     0,
                     "2023-01-01T12:00:00",
                 )
-                mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+                mock_db.set_cursor(mock_cursor)
                 mock_connect.return_value.__aenter__.return_value = mock_db
 
                 result = await update_queue_status(1, status)
@@ -628,7 +628,7 @@ class TestQueueOperationsComprehensive:
             mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (1, 123, 456, "pending", 0, None)
-            mock_db.execute.return_value = AsyncContextManagerMock(mock_cursor)
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_pending_queue_item()
