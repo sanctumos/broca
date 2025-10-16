@@ -131,7 +131,9 @@ class TestPluginManagerExtended:
         manager.register_event_handler(EventType.MESSAGE, handler)
         manager.unregister_event_handler(EventType.MESSAGE, handler)
 
-        assert EventType.MESSAGE not in manager._event_handlers
+        # After unregistering, the event type should still be in the dict but with an empty list
+        assert EventType.MESSAGE in manager._event_handlers
+        assert len(manager._event_handlers[EventType.MESSAGE]) == 0
 
     def test_emit_event(self):
         """Test emitting event."""

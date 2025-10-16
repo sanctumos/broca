@@ -85,7 +85,7 @@ class TestAgentClientExtended:
         """Test processing message in production mode."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,  # Return boolean False directly
                 "AGENT_ID": "test-agent",
             }.get(key, default)
         )
@@ -147,7 +147,7 @@ class TestAgentClientExtended:
         """Test error when agent ID is missing in production mode."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,  # Return boolean False directly
                 "AGENT_ID": None,
             }.get(key, default)
         )
