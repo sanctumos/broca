@@ -1,9 +1,6 @@
 """Comprehensive tests for database user operations."""
 
 import asyncio
-import json
-import uuid
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,6 +17,69 @@ from database.operations.users import (
     update_letta_user,
     upsert_user,
 )
+
+
+class AsyncContextManagerMock:
+    """Mock async context manager for database operations."""
+
+    def __init__(self, return_value=None):
+        self.return_value = return_value
+
+    async def __aenter__(self):
+        return self.return_value
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class HybridExecuteMock:
+    """Mock that can be both awaited and used as async context manager."""
+
+    def __init__(self, cursor=None):
+        self.cursor = cursor
+
+    async def __aenter__(self):
+        return self.cursor
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def __await__(self):
+        # Make it awaitable for direct await calls
+        return self.__aenter__().__await__()
+
+
+class MockDatabase:
+    """Mock database with proper async context manager support."""
+
+    def __init__(self):
+        self.commit = AsyncMock()
+        self.total_changes = 1
+        self._cursor = None
+        self._execute_calls = []
+        self._execute_side_effect = None
+
+    def execute(self, *args, **kwargs):
+        """Execute SQL and return a hybrid mock for both await and async with."""
+        if self._execute_side_effect:
+            # Only raise exception for non-BEGIN and non-ROLLBACK commands to allow transaction to start and rollback
+            sql = args[0] if args else ""
+            if not sql.strip().upper().startswith(("BEGIN", "ROLLBACK")):
+                raise self._execute_side_effect
+        self._execute_calls.append((args, kwargs))
+        return HybridExecuteMock(self._cursor)
+
+    def set_cursor(self, cursor):
+        """Set the cursor for execute operations."""
+        self._cursor = cursor
+
+    def set_execute_side_effect(self, side_effect):
+        """Set side effect for execute method."""
+        self._execute_side_effect = side_effect
+
+    def assert_execute_called_once(self):
+        """Assert that execute was called once."""
+        assert len(self._execute_calls) == 1
 
 
 class TestUserOperationsComprehensive:
@@ -39,10 +99,10 @@ class TestUserOperationsComprehensive:
             mock_get_client.return_value = mock_client
 
             with patch("aiosqlite.connect") as mock_connect:
-                mock_db = AsyncMock()
+                mock_db = MockDatabase()
                 mock_cursor = AsyncMock()
                 mock_cursor.lastrowid = 1
-                mock_db.execute.return_value = mock_cursor
+                mock_db.set_cursor(mock_cursor)
                 mock_connect.return_value.__aenter__.return_value = mock_db
 
                 result = await get_or_create_letta_user(
@@ -70,10 +130,10 @@ class TestUserOperationsComprehensive:
             mock_get_client.return_value = mock_client
 
             with patch("aiosqlite.connect") as mock_connect:
-                mock_db = AsyncMock()
+                mock_db = MockDatabase()
                 mock_cursor = AsyncMock()
                 mock_cursor.lastrowid = 1
-                mock_db.execute.return_value = mock_cursor
+                mock_db.set_cursor(mock_cursor)
                 mock_connect.return_value.__aenter__.return_value = mock_db
 
                 result = await get_or_create_letta_user()
@@ -100,7 +160,7 @@ class TestUserOperationsComprehensive:
     async def test_get_or_create_platform_profile_existing(self):
         """Test getting existing platform profile."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 1,  # id
@@ -112,21 +172,8 @@ class TestUserOperationsComprehensive:
                 None,  # metadata
                 "2023-01-01T12:00:00",  # created_at
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
-
-            # Mock user fetch
-            mock_user_cursor = AsyncMock()
-            mock_user_cursor.fetchone.return_value = (
-                123,  # id
-                "2023-01-01T12:00:00",  # created_at
-                "2023-01-01T12:00:00",  # last_active
-                "identity_123",  # letta_identity_id
-                None,  # agent_preferences
-                None,  # custom_instructions
-                True,  # is_active
-            )
-            mock_db.execute.return_value.__aenter__.return_value = mock_user_cursor
 
             profile, user = await get_or_create_platform_profile(
                 platform="telegram",
@@ -160,18 +207,16 @@ class TestUserOperationsComprehensive:
             mock_create_user.return_value = mock_user
 
             with patch("aiosqlite.connect") as mock_connect:
-                mock_db = AsyncMock()
+                mock_db = MockDatabase()
                 mock_cursor = AsyncMock()
                 mock_cursor.lastrowid = 1
-                mock_db.execute.return_value = mock_cursor
+                mock_db.set_cursor(mock_cursor)
                 mock_connect.return_value.__aenter__.return_value = mock_db
 
                 # Mock profile fetch returning None (new profile)
                 mock_profile_cursor = AsyncMock()
                 mock_profile_cursor.fetchone.return_value = None
-                mock_db.execute.return_value.__aenter__.return_value = (
-                    mock_profile_cursor
-                )
+                mock_db.set_cursor(mock_profile_cursor)
 
                 profile, user = await get_or_create_platform_profile(
                     platform="telegram",
@@ -190,7 +235,7 @@ class TestUserOperationsComprehensive:
     async def test_get_or_create_platform_profile_exception(self):
         """Test platform profile creation with exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_db.execute.side_effect = Exception("Database error")
             mock_connect.return_value.__aenter__.return_value = mock_db
 
@@ -206,7 +251,7 @@ class TestUserOperationsComprehensive:
     async def test_update_letta_user_success(self):
         """Test successful user update."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 123,  # id
@@ -217,7 +262,7 @@ class TestUserOperationsComprehensive:
                 "Custom instructions",  # custom_instructions
                 True,  # is_active
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await update_letta_user(
@@ -240,10 +285,10 @@ class TestUserOperationsComprehensive:
     async def test_update_letta_user_not_found(self):
         """Test user update when user not found."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = None
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             with pytest.raises(ValueError, match="User with ID 123 not found"):
@@ -253,7 +298,7 @@ class TestUserOperationsComprehensive:
     async def test_update_letta_user_exception(self):
         """Test user update with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_db.execute.side_effect = Exception("Database error")
             mock_connect.return_value.__aenter__.return_value = mock_db
 
@@ -264,10 +309,10 @@ class TestUserOperationsComprehensive:
     async def test_get_user_details_success(self):
         """Test successful retrieval of user details."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = ("Test User", "testuser")
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_user_details(123)
@@ -278,10 +323,10 @@ class TestUserOperationsComprehensive:
     async def test_get_user_details_not_found(self):
         """Test user details retrieval when user not found."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = None
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_user_details(123)
@@ -292,7 +337,7 @@ class TestUserOperationsComprehensive:
     async def test_get_user_details_exception(self):
         """Test user details retrieval with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_db.execute.side_effect = Exception("Database error")
             mock_connect.return_value.__aenter__.return_value = mock_db
 
@@ -303,7 +348,7 @@ class TestUserOperationsComprehensive:
     async def test_get_all_users_success(self):
         """Test successful retrieval of all users."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchall.return_value = [
                 (
@@ -331,7 +376,7 @@ class TestUserOperationsComprehensive:
                     "web_chat",  # platform
                 ),
             ]
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_all_users()
@@ -347,10 +392,10 @@ class TestUserOperationsComprehensive:
     async def test_get_all_users_empty(self):
         """Test retrieval when no users exist."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchall.return_value = []
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_all_users()
@@ -361,7 +406,7 @@ class TestUserOperationsComprehensive:
     async def test_get_all_users_exception(self):
         """Test get_all_users with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_db.execute.side_effect = Exception("Database error")
             mock_connect.return_value.__aenter__.return_value = mock_db
 
@@ -372,10 +417,10 @@ class TestUserOperationsComprehensive:
     async def test_get_platform_profile_id_success(self):
         """Test successful retrieval of platform profile ID."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (1, "456")
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_platform_profile_id(123)
@@ -386,10 +431,10 @@ class TestUserOperationsComprehensive:
     async def test_get_platform_profile_id_not_found(self):
         """Test platform profile ID retrieval when not found."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = None
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_platform_profile_id(123)
@@ -400,7 +445,7 @@ class TestUserOperationsComprehensive:
     async def test_get_platform_profile_success(self):
         """Test successful retrieval of platform profile."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = (
                 1,  # id
@@ -413,7 +458,7 @@ class TestUserOperationsComprehensive:
                 "2023-01-01T12:00:00",  # created_at
                 "2023-01-01T12:00:00",  # last_active
             )
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_platform_profile(1)
@@ -427,10 +472,10 @@ class TestUserOperationsComprehensive:
     async def test_get_platform_profile_not_found(self):
         """Test platform profile retrieval when not found."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = None
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_platform_profile(1)
@@ -441,10 +486,10 @@ class TestUserOperationsComprehensive:
     async def test_get_letta_user_block_id_success(self):
         """Test successful retrieval of Letta user block ID."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = ("block_123",)
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_letta_user_block_id(123)
@@ -455,10 +500,10 @@ class TestUserOperationsComprehensive:
     async def test_get_letta_user_block_id_not_found(self):
         """Test Letta user block ID retrieval when not found."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_cursor = AsyncMock()
             mock_cursor.fetchone.return_value = None
-            mock_db.execute.return_value.__aenter__.return_value = mock_cursor
+            mock_db.set_cursor(mock_cursor)
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             result = await get_letta_user_block_id(123)
@@ -469,7 +514,7 @@ class TestUserOperationsComprehensive:
     async def test_upsert_user_success(self):
         """Test successful user upsert."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_connect.return_value.__aenter__.return_value = mock_db
 
             await upsert_user(user_id=123, username="testuser", first_name="Test")
@@ -481,7 +526,7 @@ class TestUserOperationsComprehensive:
     async def test_upsert_user_exception(self):
         """Test user upsert with database exception."""
         with patch("aiosqlite.connect") as mock_connect:
-            mock_db = AsyncMock()
+            mock_db = MockDatabase()
             mock_db.execute.side_effect = Exception("Database error")
             mock_connect.return_value.__aenter__.return_value = mock_db
 
@@ -510,18 +555,16 @@ class TestUserOperationsComprehensive:
                 mock_create_user.return_value = mock_user
 
                 with patch("aiosqlite.connect") as mock_connect:
-                    mock_db = AsyncMock()
+                    mock_db = MockDatabase()
                     mock_cursor = AsyncMock()
                     mock_cursor.lastrowid = 1
-                    mock_db.execute.return_value = mock_cursor
+                    mock_db.set_cursor(mock_cursor)
                     mock_connect.return_value.__aenter__.return_value = mock_db
 
                     # Mock profile fetch returning None (new profile)
                     mock_profile_cursor = AsyncMock()
                     mock_profile_cursor.fetchone.return_value = None
-                    mock_db.execute.return_value.__aenter__.return_value = (
-                        mock_profile_cursor
-                    )
+                    mock_db.set_cursor(mock_profile_cursor)
 
                     profile, user = await get_or_create_platform_profile(
                         platform=platform,
@@ -548,10 +591,10 @@ class TestUserOperationsComprehensive:
             mock_get_client.return_value = mock_client
 
             with patch("aiosqlite.connect") as mock_connect:
-                mock_db = AsyncMock()
+                mock_db = MockDatabase()
                 mock_cursor = AsyncMock()
                 mock_cursor.lastrowid = 1
-                mock_db.execute.return_value = mock_cursor
+                mock_db.set_cursor(mock_cursor)
                 mock_connect.return_value.__aenter__.return_value = mock_db
 
                 result = await get_or_create_letta_user(
@@ -572,10 +615,10 @@ class TestUserOperationsComprehensive:
             mock_get_client.return_value = mock_client
 
             with patch("aiosqlite.connect") as mock_connect:
-                mock_db = AsyncMock()
+                mock_db = MockDatabase()
                 mock_cursor = AsyncMock()
                 mock_cursor.lastrowid = 1
-                mock_db.execute.return_value = mock_cursor
+                mock_db.set_cursor(mock_cursor)
                 mock_connect.return_value.__aenter__.return_value = mock_db
 
                 result = await get_or_create_letta_user(
@@ -610,10 +653,10 @@ class TestUserOperationsComprehensive:
                 mock_get_client.return_value = mock_client
 
                 with patch("aiosqlite.connect") as mock_connect:
-                    mock_db = AsyncMock()
+                    mock_db = MockDatabase()
                     mock_cursor = AsyncMock()
                     mock_cursor.lastrowid = 1
-                    mock_db.execute.return_value = mock_cursor
+                    mock_db.set_cursor(mock_cursor)
                     mock_connect.return_value.__aenter__.return_value = mock_db
 
                     result = await get_or_create_letta_user(
@@ -636,10 +679,10 @@ class TestUserOperationsComprehensive:
             mock_get_client.return_value = mock_client
 
             with patch("aiosqlite.connect") as mock_connect:
-                mock_db = AsyncMock()
+                mock_db = MockDatabase()
                 mock_cursor = AsyncMock()
                 mock_cursor.lastrowid = 1
-                mock_db.execute.return_value = mock_cursor
+                mock_db.set_cursor(mock_cursor)
                 mock_connect.return_value.__aenter__.return_value = mock_db
 
                 # Test concurrent operations
