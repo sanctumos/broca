@@ -210,7 +210,10 @@ class TestTelegramMessageHandler:
         ) as mock_update:
             await handler.process_outgoing_message(mock_message, "Test response")
 
-            mock_message.answer.assert_called_once_with("Test response")
+            mock_message.answer.assert_called_once()
+            args, kwargs = mock_message.answer.call_args
+            assert args == ("Test response",)
+            assert kwargs.get("parse_mode") == "Markdown"
             mock_update.assert_called_once_with(mock_message, "sent")
 
     @pytest.mark.asyncio
