@@ -6,7 +6,7 @@ from typing import Any
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
 from database.operations.users import get_or_create_platform_profile
-from runtime.core.message import MessageFormatter
+from plugins.telegram.message_handler import MessageFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +86,12 @@ class TelegramMessageHandler:
             response: The response to send
         """
         try:
-            # Send response
-            await message.answer(response)
+            # Format response for Telegram (preserve markdown/code blocks)
+            formatted = self.formatter.format_response(response)
+
+            # Send response with markdown enabled (match Telegram plugin behavior)
+            # Use Telegram "Markdown" to align with the Telethon plugin's parse_mode="markdown".
+            await message.answer(formatted, parse_mode="Markdown")
 
             # Update message status
             await self.update_message_status(message, "sent")
