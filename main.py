@@ -43,15 +43,47 @@ logger = logging.getLogger(__name__)
 
 
 def create_default_settings() -> None:
-    """Create default settings file if it doesn't exist."""
+    """Create default settings file if it doesn't exist or is invalid.
+
+    This function handles the following cases:
+    1. File doesn't exist - create with defaults
+    2. File exists but is empty - recreate with defaults
+    3. File exists but contains invalid JSON - recreate with defaults
+    4. File exists and is valid JSON - leave it alone
+    """
     settings_path = Path("settings.json")
+    default_settings = {
+        "debug_mode": False,
+        "queue_refresh": 5,
+        "max_retries": 3,
+        "message_mode": "live",
+    }
+
+    should_create = False
+
     if not settings_path.exists():
-        default_settings = {
-            "debug_mode": False,
-            "queue_refresh": 5,
-            "max_retries": 3,
-            "message_mode": "live",
-        }
+        should_create = True
+        logger.info("Settings file does not exist, creating default...")
+    else:
+        # File exists, check if it's valid JSON
+        try:
+            content = settings_path.read_text().strip()
+            if not content:
+                # Empty file
+                should_create = True
+                logger.warning("Settings file is empty, recreating with defaults...")
+            else:
+                # Try to parse as JSON
+                json.loads(content)
+                # If we get here, file is valid JSON - don't recreate
+        except json.JSONDecodeError:
+            should_create = True
+            logger.warning("Settings file contains invalid JSON, recreating with defaults...")
+        except Exception as e:
+            should_create = True
+            logger.warning(f"Failed to read settings file ({e}), recreating with defaults...")
+
+    if should_create:
         with open(settings_path, "w") as f:
             json.dump(default_settings, f, indent=4)
         logger.info("Created default settings.json file")

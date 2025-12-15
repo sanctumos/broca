@@ -52,49 +52,84 @@ def test_main_function_exception():
 
 
 @pytest.mark.unit
-def test_create_default_settings_file_exists():
-    """Test create_default_settings when file already exists."""
-    with patch("main.Path") as mock_path:
-        mock_settings_path = MagicMock()
-        mock_settings_path.exists.return_value = True
-        mock_path.return_value = mock_settings_path
+def test_create_default_settings_file_exists_valid_json(tmp_path, monkeypatch):
+    """Test create_default_settings when file exists with valid JSON."""
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text('{"debug_mode": true}')
 
-        main.create_default_settings()
+    monkeypatch.chdir(tmp_path)
 
-        # Should not create file if it already exists
-        mock_settings_path.write_text.assert_not_called()
+    main.create_default_settings()
+
+    # Should NOT overwrite valid JSON file
+    content = settings_file.read_text()
+    assert "true" in content  # Original content preserved
 
 
 @pytest.mark.unit
-def test_create_default_settings_file_not_exists():
+def test_create_default_settings_file_not_exists(tmp_path, monkeypatch):
     """Test create_default_settings when file doesn't exist."""
-    with patch("main.Path") as mock_path, patch(
-        "builtins.open", mock_open()
-    ) as mock_file, patch("main.json.dump") as mock_json:
-        mock_settings_path = MagicMock()
-        mock_settings_path.exists.return_value = False
-        mock_path.return_value = mock_settings_path
+    monkeypatch.chdir(tmp_path)
 
-        main.create_default_settings()
+    main.create_default_settings()
 
-        # Should create file with default settings
-        mock_file.assert_called_once_with(mock_settings_path, "w")
-        mock_json.assert_called_once()
+    # Should create file with default settings
+    settings_file = tmp_path / "settings.json"
+    assert settings_file.exists()
+
+    import json
+    content = json.loads(settings_file.read_text())
+    assert content["debug_mode"] is False
+    assert content["queue_refresh"] == 5
+    assert content["max_retries"] == 3
+    assert content["message_mode"] == "live"
 
 
 @pytest.mark.unit
-def test_create_default_settings_logging():
-    """Test create_default_settings logging."""
-    with patch("main.Path") as mock_path, patch("main.logger") as mock_logger, patch(
-        "builtins.open", mock_open()
-    ), patch("main.json.dump"):
-        mock_settings_path = MagicMock()
-        mock_settings_path.exists.return_value = False
-        mock_path.return_value = mock_settings_path
+def test_create_default_settings_empty_file(tmp_path, monkeypatch):
+    """Test create_default_settings when file exists but is empty (Issue #37)."""
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text("")  # Empty file
 
+    monkeypatch.chdir(tmp_path)
+
+    main.create_default_settings()
+
+    # Should recreate file with defaults
+    import json
+    content = json.loads(settings_file.read_text())
+    assert content["debug_mode"] is False
+    assert content["queue_refresh"] == 5
+
+
+@pytest.mark.unit
+def test_create_default_settings_invalid_json(tmp_path, monkeypatch):
+    """Test create_default_settings when file contains invalid JSON."""
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text("{invalid json}")  # Invalid JSON
+
+    monkeypatch.chdir(tmp_path)
+
+    main.create_default_settings()
+
+    # Should recreate file with defaults
+    import json
+    content = json.loads(settings_file.read_text())
+    assert content["debug_mode"] is False
+    assert content["queue_refresh"] == 5
+
+
+@pytest.mark.unit
+def test_create_default_settings_logging(tmp_path, monkeypatch):
+    """Test create_default_settings logging."""
+    monkeypatch.chdir(tmp_path)
+
+    with patch("main.logger") as mock_logger:
         main.create_default_settings()
 
-        mock_logger.info.assert_called_with("Created default settings.json file")
+        # Should log that file was created
+        mock_logger.info.assert_any_call("Settings file does not exist, creating default...")
+        mock_logger.info.assert_any_call("Created default settings.json file")
 
 
 @pytest.mark.unit
