@@ -11,14 +11,14 @@ import sys
 # Add the broca2 directory to the path so we can import modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from plugins.telegram.message_handler import MessageFormatter
+from common.telegram_markdown import preserve_telegram_markdown
 
 
 def test_markdown_preservation():
     """Test that markdown formatting is preserved correctly."""
 
-    # Create a formatter instance
-    formatter = MessageFormatter()
+    def format_response(text: str) -> str:
+        return preserve_telegram_markdown(text)
 
     # Test cases: typical Letta/Broca responses
     test_cases = [
@@ -74,7 +74,7 @@ This is a *test* message with:
         print("-" * 30)
 
         # Format the response using the new method
-        formatted = formatter.format_response(test_case["input"])
+        formatted = format_response(test_case["input"])
 
         print("Input:")
         print(test_case["input"])
@@ -111,6 +111,8 @@ This is a *test* message with:
 def test_old_vs_new_behavior():
     """Compare old sanitize_text behavior vs new preserve_markdown behavior."""
 
+    from runtime.core.message import MessageFormatter
+
     formatter = MessageFormatter()
 
     test_input = """# Header
@@ -136,7 +138,7 @@ def test_old_vs_new_behavior():
     print("\n" + "-" * 30)
 
     # New behavior (what should happen now)
-    new_result = formatter.format_response(test_input)
+    new_result = preserve_telegram_markdown(test_input)
     print("NEW behavior (format_response):")
     print(new_result)
 

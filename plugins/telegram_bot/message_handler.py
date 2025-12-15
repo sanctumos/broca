@@ -3,12 +3,24 @@
 import logging
 from typing import Any
 
+from common.telegram_markdown import preserve_telegram_markdown
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
 from database.operations.users import get_or_create_platform_profile
-from plugins.telegram.message_handler import MessageFormatter
+from runtime.core.message import MessageFormatter as BaseMessageFormatter
 
 logger = logging.getLogger(__name__)
+
+
+class MessageFormatter(BaseMessageFormatter):
+    """Telegram-bot-specific formatter (kept self-contained).
+
+    We keep Telegram markdown behavior aligned with the Telethon-based Telegram
+    plugin by delegating to shared helpers in `common/`.
+    """
+
+    def format_response(self, response: str) -> str:
+        return preserve_telegram_markdown(response)
 
 
 class TelegramMessageHandler:
