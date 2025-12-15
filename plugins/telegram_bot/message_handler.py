@@ -3,12 +3,24 @@
 import logging
 from typing import Any
 
+from common.telegram_markdown import preserve_telegram_markdown
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
 from database.operations.users import get_or_create_platform_profile
-from runtime.core.message import MessageFormatter
+from runtime.core.message import MessageFormatter as BaseMessageFormatter
 
 logger = logging.getLogger(__name__)
+
+
+class MessageFormatter(BaseMessageFormatter):
+    """Telegram-bot-specific formatter (kept self-contained).
+
+    We keep Telegram markdown behavior aligned with the Telethon-based Telegram
+    plugin by delegating to shared helpers in `common/`.
+    """
+
+    def format_response(self, response: str) -> str:
+        return preserve_telegram_markdown(response)
 
 
 class TelegramMessageHandler:
@@ -86,8 +98,12 @@ class TelegramMessageHandler:
             response: The response to send
         """
         try:
-            # Send response
-            await message.answer(response)
+            # Format response for Telegram (preserve markdown/code blocks)
+            formatted = self.formatter.format_response(response)
+
+            # Send response with markdown enabled (match Telegram plugin behavior)
+            # Use Telegram "Markdown" to align with the Telethon plugin's parse_mode="markdown".
+            await message.answer(formatted, parse_mode="Markdown")
 
             # Update message status
             await self.update_message_status(message, "sent")
