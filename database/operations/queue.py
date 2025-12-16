@@ -1,7 +1,6 @@
 """Queue-related database operations (add, get, update, flush, etc)."""
 
 import logging
-import os
 from datetime import datetime
 from typing import Any
 
@@ -10,14 +9,7 @@ import aiosqlite
 from common.retry import RetryConfig, exponential_backoff, is_retryable_exception
 
 from ..models import QueueItem
-
-
-def get_db_path() -> str:
-    """Get the database path, respecting test environment."""
-    return os.environ.get("TEST_DB_PATH") or os.path.join(
-        os.path.dirname(__file__), "..", "..", "sanctum.db"
-    )
-
+from .shared import get_db_path
 
 # Set up logger
 logger = logging.getLogger(__name__)
