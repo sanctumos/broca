@@ -7,6 +7,32 @@ import aiosqlite
 
 from ..models import SCHEMA
 
+# Whitelist of valid table names for SQL injection prevention
+VALID_TABLE_NAMES = set(SCHEMA.keys())
+
+
+def validate_table_name(table_name: str) -> str:
+    """Validate that a table name is in the whitelist.
+    
+    This prevents SQL injection by ensuring only known table names
+    can be used in dynamic SQL queries.
+    
+    Args:
+        table_name: Table name to validate
+        
+    Returns:
+        The validated table name
+        
+    Raises:
+        ValueError: If table name is not in whitelist
+    """
+    if table_name not in VALID_TABLE_NAMES:
+        raise ValueError(
+            f"Invalid table name: {table_name}. "
+            f"Must be one of: {sorted(VALID_TABLE_NAMES)}"
+        )
+    return table_name
+
 
 def get_db_path() -> str:
     """Get the database path, respecting test environment."""
@@ -50,7 +76,9 @@ async def check_and_migrate_db():
         # Check if all tables exist
         for table_name in SCHEMA.keys():
             try:
-                await db.execute(f"SELECT 1 FROM {table_name} LIMIT 1")
+                # Validate table name against whitelist to prevent SQL injection
+                validated_table = validate_table_name(table_name)
+                await db.execute(f"SELECT 1 FROM {validated_table} LIMIT 1")
             except aiosqlite.OperationalError:
                 logger.info(f"Table {table_name} does not exist, creating...")
                 await db.execute(SCHEMA[table_name])
