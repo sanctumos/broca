@@ -1,0 +1,88 @@
+
+================================================================================
+TEST COVERAGE ANALYSIS REPORT
+================================================================================
+
+OVERALL SUMMARY
+--------------------------------------------------------------------------------
+
+UNIT Tests:
+  Lines Covered:     80.82% (9741/11691 lines)
+  Statements:        83.32% (11691 total statements)
+  Branches:          49.89% (471/944 branches)
+  Functions:         0.00%
+  Exit Code:         1
+
+INTEGRATION Tests:
+  Lines Covered:     5.30% (276/4324 lines)
+  Statements:        6.38% (4324 total statements)
+  Branches:          0.00% (0/880 branches)
+  Functions:         0.00%
+  Exit Code:         5
+  Note:              No tests found in this category
+
+E2E Tests:
+  Lines Covered:     5.30% (276/4324 lines)
+  Statements:        6.38% (4324 total statements)
+  Branches:          0.00% (0/880 branches)
+  Functions:         0.00%
+  Exit Code:         5
+  Note:              No tests found in this category
+
+================================================================================
+DETAILED FILE COVERAGE (Unit Tests)
+================================================================================
+
+File                                               Coverage     Statements  
+--------------------------------------------------------------------------------
+cli/__init__.py                                    100.00%          0
+common/__init__.py                                 100.00%          0
+database/__init__.py                               100.00%          0
+database/models.py                                 100.00%         52
+database/operations/__init__.py                    100.00%          5
+plugins/fake_plugin/__init__.py                    100.00%          2
+plugins/telegram/__init__.py                       100.00%          4
+plugins/telegram/handlers.py                       100.00%         82
+plugins/telegram/settings.py                       100.00%         23
+plugins/telegram_bot/__init__.py                   100.00%          2
+plugins/telegram_bot/handlers.py                   100.00%         75
+plugins/telegram_bot/message_handler.py            100.00%         60
+plugins/web_chat/__init__.py                       100.00%          3
+plugins/web_chat/message_handler.py                100.00%         54
+runtime/__init__.py                                100.00%          0
+runtime/core/__init__.py                           100.00%          0
+tests/e2e/__init__.py                              100.00%          0
+tests/fixtures/__init__.py                         100.00%          0
+tests/integration/__init__.py                      100.00%          0
+tests/unit/__init__.py                             100.00%          0
+tests/utils/__init__.py                            100.00%          0
+cli/utool.py                                        97.59%         63
+plugins/web_chat/plugin.py                          97.30%        141
+cli/ctool.py                                        96.72%         47
+cli/qtool.py                                        96.36%         78
+cli/settings.py                                     91.33%        116
+plugins/web_chat/settings.py                        90.91%         38
+plugins/fake_plugin/plugin.py                       88.37%         39
+runtime/core/letta_client.py                        87.10%         29
+common/telegram_markdown.py                         85.71%         12
+
+... and 26 more files
+
+================================================================================
+FILES WITH LOW COVERAGE (< 50%)
+================================================================================
+
+File                                               Coverage    
+--------------------------------------------------------------------------------
+plugins/web_chat/simple_test.py                      0.00%
+run_tests.py                                         0.00%
+database/operations/users.py                        21.68%
+runtime/core/queue.py                               21.79%
+common/config.py                                    34.54%
+common/exceptions.py                                36.92%
+plugins/telegram/message_handler.py                 38.37%
+main.py                                             45.51%
+plugins/telegram_bot/plugin.py                      45.61%
+database/operations/shared.py                       46.03%
+tests/conftest.py                                   46.39%
+database/operations/messages.py                     47.92%

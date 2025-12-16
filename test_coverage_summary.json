@@ -1,0 +1,35 @@
+{
+  "unit": {
+    "lines_covered": 80.82311040759794,
+    "statements_covered": 83.32050295098794,
+    "branches_covered": 49.89406779661017,
+    "functions_covered": 0.0,
+    "num_statements": 11691,
+    "num_branches": 944,
+    "covered_lines": 9741,
+    "missing_lines": 1950,
+    "covered_branches": 471
+  },
+  "integration": {
+    "lines_covered": 5.303612605687932,
+    "statements_covered": 6.382978723404255,
+    "branches_covered": 0.0,
+    "functions_covered": 0.0,
+    "num_statements": 4324,
+    "num_branches": 880,
+    "covered_lines": 276,
+    "missing_lines": 4048,
+    "covered_branches": 0
+  },
+  "e2e": {
+    "lines_covered": 5.303612605687932,
+    "statements_covered": 6.382978723404255,
+    "branches_covered": 0.0,
+    "functions_covered": 0.0,
+    "num_statements": 4324,
+    "num_branches": 880,
+    "covered_lines": 276,
+    "missing_lines": 4048,
+    "covered_branches": 0
+  }
+}
