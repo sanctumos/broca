@@ -18,7 +18,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import importlib.util
+import inspect
 import logging
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -39,6 +41,73 @@ class PluginManager:
         self._platform_handlers: dict[str, Callable] = {}
         self._running = False
 
+    def _get_module_name_from_path(self, plugin_path: str) -> str:
+        """Get a unique module name from plugin path to prevent collisions.
+        
+        Uses full package path instead of just filename to ensure uniqueness.
+        
+        Args:
+            plugin_path: Full path to plugin file
+            
+        Returns:
+            Unique module name based on package path
+        """
+        path = Path(plugin_path)
+        # Get relative path from current working directory
+        try:
+            rel_path = path.relative_to(Path.cwd())
+        except ValueError:
+            # If not relative to cwd, use absolute path
+            rel_path = path
+        
+        # Convert to module name: replace separators with dots, remove .py
+        module_name = str(rel_path).replace(os.sep, ".").replace(os.altsep or os.sep, ".")
+        if module_name.endswith(".py"):
+            module_name = module_name[:-3]
+        
+        # Ensure it starts with a valid module name
+        if not module_name or module_name.startswith("."):
+            # Fallback to filename if path resolution fails
+            module_name = path.stem
+        
+        return module_name
+
+    def _validate_handler_signature(self, handler: Callable) -> bool:
+        """Validate that handler has correct signature for message handling.
+        
+        Expected signature: async def handler(response: str, profile: Any, message_id: int) -> None
+        
+        Args:
+            handler: The handler callable to validate
+            
+        Returns:
+            True if signature is valid, False otherwise
+        """
+        if not callable(handler):
+            return False
+        
+        # Check if async function
+        if not inspect.iscoroutinefunction(handler):
+            return False
+        
+        # Get signature
+        try:
+            sig = inspect.signature(handler)
+            params = list(sig.parameters.values())
+        except (ValueError, TypeError):
+            return False
+        
+        # Should have exactly 3 parameters: response, profile, message_id
+        if len(params) != 3:
+            return False
+        
+        # Parameter names should match expected (flexible on order)
+        param_names = [p.name for p in params]
+        if "response" not in param_names or "profile" not in param_names or "message_id" not in param_names:
+            return False
+        
+        return True
+
     async def load_plugin(self, plugin_path: str) -> None:
         """Load a plugin from the given path.
 
@@ -49,8 +118,8 @@ class PluginManager:
             PluginError: If plugin loading fails
         """
         try:
-            # Convert path to module name
-            module_name = Path(plugin_path).stem
+            # Convert path to module name using package path to prevent collisions
+            module_name = self._get_module_name_from_path(plugin_path)
             spec = importlib.util.spec_from_file_location(module_name, plugin_path)
             if spec is None:
                 raise PluginError(f"Could not load plugin from {plugin_path}")
@@ -73,6 +142,12 @@ class PluginManager:
                     if platform:
                         handler = plugin.get_message_handler()
                         if handler:
+                            # Validate handler signature before registering
+                            if not self._validate_handler_signature(handler):
+                                raise PluginError(
+                                    f"Plugin {plugin_name} handler has invalid signature. "
+                                    f"Expected: async def handler(response: str, profile: Any, message_id: int) -> None"
+                                )
                             self._platform_handlers[platform] = handler
                             logger.info(
                                 f"Registered message handler for platform: {platform}"
