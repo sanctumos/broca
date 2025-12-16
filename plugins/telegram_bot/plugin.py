@@ -128,6 +128,38 @@ class TelegramBotPlugin:
                 )
         return self.settings
 
+    def apply_settings(self, settings: dict | TelegramBotSettings) -> None:
+        """Apply settings to the plugin.
+
+        Args:
+            settings: Settings as dict or TelegramBotSettings object
+        """
+        try:
+            if isinstance(settings, TelegramBotSettings):
+                # Already a TelegramBotSettings object, use directly
+                self.settings = settings
+            elif isinstance(settings, dict):
+                if not settings or len(settings) == 0:
+                    # Empty dict, load from environment
+                    self.settings = TelegramBotSettings.from_env()
+                else:
+                    # Dict with values, convert to TelegramBotSettings
+                    self.settings = TelegramBotSettings.from_dict(settings)
+            else:
+                # Invalid type, try to load from environment as fallback
+                logger.warning(
+                    f"Invalid settings type {type(settings)}, loading from environment"
+                )
+                self.settings = TelegramBotSettings.from_env()
+        except Exception as e:
+            logger.error(f"Failed to apply settings: {e}")
+            # Fallback to environment if conversion fails
+            try:
+                self.settings = TelegramBotSettings.from_env()
+            except Exception as env_error:
+                logger.error(f"Failed to load settings from environment: {env_error}")
+                raise
+
     def validate_settings(self, settings: TelegramBotSettings) -> bool:
         """Validate plugin settings.
 
@@ -227,10 +259,11 @@ class TelegramBotPlugin:
             message: The incoming message
         """
         try:
-            # Check if message is from owner
-            if not self._verify_owner(message.from_user.id, message.from_user.username):
-                logger.warning(f"Message from unauthorized user {message.from_user.id}")
-                return
+            # Check if message is from owner (only if require_owner is True)
+            if self.settings.require_owner:
+                if not self._verify_owner(message.from_user.id, message.from_user.username):
+                    logger.warning(f"Message from unauthorized user {message.from_user.id}")
+                    return
 
             # Process message based on chat type
             if message.chat.type == "private":

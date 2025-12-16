@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import asyncio
+import atexit
 import json
 import logging
 import os
@@ -25,9 +26,10 @@ import signal
 import sys
 from pathlib import Path
 
+import psutil
 from dotenv import load_dotenv
 
-from common.config import get_settings, validate_settings
+from common.config import get_settings, validate_settings, validate_environment_variables
 from common.logging import setup_logging
 from database.operations.shared import check_and_migrate_db, initialize_database
 from runtime.core.agent import AgentClient
@@ -89,6 +91,87 @@ def create_default_settings() -> None:
         logger.info("Created default settings.json file")
 
 
+class PIDManager:
+    """Manages PID file creation and cleanup with proper signal handling."""
+
+    def __init__(self, instance_dir: str | None = None):
+        """Initialize PID manager.
+        
+        Args:
+            instance_dir: Directory for PID files. If None, uses 'run' directory in project root.
+        """
+        if instance_dir is None:
+            instance_dir = os.path.join(os.getcwd(), "run")
+        
+        self.pid_file = os.path.join(instance_dir, "broca.pid")
+        self.lock_file = os.path.join(instance_dir, "broca.lock")
+        self.pid = os.getpid()
+        self._cleanup_registered = False
+
+    def create_pid_file(self) -> None:
+        """Create PID file and register cleanup handlers."""
+        # Create run directory if it doesn't exist
+        os.makedirs(os.path.dirname(self.pid_file), exist_ok=True)
+        
+        # Check if PID file exists and if process is still running
+        if os.path.exists(self.pid_file):
+            if self.is_process_running(self.pid_file):
+                raise RuntimeError(
+                    f"Another instance is already running (PID file exists: {self.pid_file})"
+                )
+            else:
+                # Stale PID file - remove it
+                logger.warning(f"Removing stale PID file: {self.pid_file}")
+                try:
+                    os.remove(self.pid_file)
+                except OSError:
+                    pass
+        
+        # Write PID file
+        with open(self.pid_file, "w") as f:
+            f.write(str(self.pid))
+        
+        logger.debug(f"Created PID file: {self.pid_file} (PID: {self.pid})")
+        
+        # Register cleanup handlers (only once)
+        if not self._cleanup_registered:
+            atexit.register(self.cleanup)
+            self._cleanup_registered = True
+
+    def cleanup(self) -> None:
+        """Clean up PID and lock files."""
+        try:
+            if os.path.exists(self.pid_file):
+                os.remove(self.pid_file)
+                logger.debug(f"Removed PID file: {self.pid_file}")
+            if os.path.exists(self.lock_file):
+                os.remove(self.lock_file)
+                logger.debug(f"Removed lock file: {self.lock_file}")
+        except OSError as e:
+            logger.warning(f"Failed to remove PID/lock files: {e}")
+
+
+    @staticmethod
+    def is_process_running(pid_file: str) -> bool:
+        """Check if the process in PID file is still running.
+        
+        Args:
+            pid_file: Path to PID file
+            
+        Returns:
+            True if process is running, False otherwise
+        """
+        if not os.path.exists(pid_file):
+            return False
+        
+        try:
+            with open(pid_file, "r") as f:
+                pid = int(f.read().strip())
+            return psutil.pid_exists(pid)
+        except (ValueError, OSError, psutil.NoSuchProcess):
+            return False
+
+
 class Application:
     """Main application class that coordinates all components."""
 
@@ -113,9 +196,13 @@ class Application:
         # Create default settings if needed
         create_default_settings()
 
-        # Save PID to file
-        with open("broca2.pid", "w") as f:
-            f.write(str(os.getpid()))
+        # Initialize PID manager
+        self.pid_manager = PIDManager()
+        try:
+            self.pid_manager.create_pid_file()
+        except RuntimeError as e:
+            logger.error(f"❌ {e}")
+            raise
 
         # Set up signal handlers for graceful shutdown
         self._setup_signal_handlers()
@@ -125,11 +212,15 @@ class Application:
 
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+            # Clean up PID file on signal
+            if hasattr(self, "pid_manager"):
+                self.pid_manager.cleanup()
             self._shutdown_event.set()
 
-        # Handle SIGTERM and SIGINT
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
+        # Handle SIGTERM and SIGINT (only on non-Windows platforms)
+        if sys.platform != "win32":
+            signal.signal(signal.SIGTERM, signal_handler)
+            signal.signal(signal.SIGINT, signal_handler)
 
     async def _check_settings(self):
         """Check if settings file has been modified."""
@@ -208,6 +299,18 @@ class Application:
     async def start(self) -> None:
         """Start all application components."""
         try:
+            # Validate environment variables (only in production mode)
+            settings = get_settings()
+            debug_mode = settings.get("debug_mode", False)
+            if not debug_mode:
+                try:
+                    validate_environment_variables(production_mode=True)
+                    logger.info("✅ Environment variables validated")
+                except ValueError as e:
+                    logger.error(f"❌ Environment variable validation failed: {e}")
+                    logger.error("Please check your .env file and ensure all values are set correctly")
+                    raise
+            
             # Initialize and migrate the database safely
             await initialize_database()
             await check_and_migrate_db()
@@ -308,11 +411,9 @@ class Application:
             logger.error(f"❌ Error during shutdown: {str(e)}")
         finally:
             # Always remove PID file, even if other cleanup fails
-            try:
-                os.remove("broca2.pid")
+            if hasattr(self, "pid_manager"):
+                self.pid_manager.cleanup()
                 logger.info("🗑️ PID file removed")
-            except OSError:
-                pass  # PID file might not exist
 
     def update_settings(self, settings: dict) -> None:
         """Update application settings.

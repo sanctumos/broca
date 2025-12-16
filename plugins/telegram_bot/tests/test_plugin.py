@@ -155,6 +155,60 @@ async def test_validate_settings(plugin):
 
 
 @pytest.mark.asyncio
+async def test_apply_settings_empty_dict(plugin):
+    """Test apply_settings with empty dict loads from environment."""
+    with patch("plugins.telegram_bot.plugin.TelegramBotSettings.from_env") as mock_from_env:
+        mock_settings = TelegramBotSettings(
+            bot_token="env_token",
+            owner_id=123456789,
+            message_mode=MessageMode.ECHO,
+            buffer_delay=5,
+        )
+        mock_from_env.return_value = mock_settings
+        
+        plugin.apply_settings({})
+        
+        assert plugin.settings == mock_settings
+        mock_from_env.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_dict_with_values(plugin):
+    """Test apply_settings with dict converts to TelegramBotSettings."""
+    settings_dict = {
+        "bot_token": "dict_token",
+        "owner_id": 987654321,
+        "message_mode": "live",
+        "buffer_delay": 10,
+    }
+    
+    plugin.apply_settings(settings_dict)
+    
+    assert plugin.settings is not None
+    assert plugin.settings.bot_token == "dict_token"
+    assert plugin.settings.owner_id == 987654321
+    assert plugin.settings.message_mode == MessageMode.LIVE
+    assert plugin.settings.buffer_delay == 10
+
+
+@pytest.mark.asyncio
+async def test_apply_settings_telegram_bot_settings_object(plugin):
+    """Test apply_settings with TelegramBotSettings object uses directly."""
+    settings_obj = TelegramBotSettings(
+        bot_token="obj_token",
+        owner_id=111222333,
+        message_mode=MessageMode.LISTEN,
+        buffer_delay=15,
+    )
+    
+    plugin.apply_settings(settings_obj)
+    
+    assert plugin.settings == settings_obj
+    assert plugin.settings.bot_token == "obj_token"
+    assert plugin.settings.owner_id == 111222333
+
+
+@pytest.mark.asyncio
 async def test_register_event_handler(plugin):
     """Test event handler registration."""
     handler = AsyncMock()
@@ -208,10 +262,25 @@ async def test_handle_message_from_owner(plugin, mock_message):
 
 @pytest.mark.asyncio
 async def test_handle_message_from_non_owner(plugin, mock_message):
-    """Test handling message from non-owner."""
-    plugin.settings = MagicMock(owner_id="987654321", owner_username=None)
+    """Test handling message from non-owner when require_owner=True."""
+    plugin.settings = MagicMock(owner_id="987654321", owner_username=None, require_owner=True)
     plugin.message_handler = AsyncMock()
+    plugin._verify_owner = MagicMock(return_value=False)
 
     await plugin._handle_message(mock_message)
 
     plugin.message_handler.handle_private_message.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_require_owner_false(plugin, mock_message):
+    """Test handling message when require_owner=False allows all users."""
+    plugin.settings = MagicMock(require_owner=False)
+    plugin.message_handler = AsyncMock()
+    plugin.message_handler.handle_private_message = AsyncMock()
+    mock_message.chat.type = "private"
+
+    await plugin._handle_message(mock_message)
+
+    # Should process message even without owner verification
+    plugin.message_handler.handle_private_message.assert_awaited_once_with(mock_message)

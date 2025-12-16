@@ -74,6 +74,41 @@ def test_settings_from_env_missing_owner():
             TelegramBotSettings.from_env()
 
 
+def test_settings_from_env_require_owner_false():
+    """Test settings with require_owner=False allows missing owner."""
+    with patch.dict(
+        os.environ,
+        {
+            "TELEGRAM_BOT_TOKEN": "1234567890:test_token",
+            "TELEGRAM_REQUIRE_OWNER": "false",
+            "TELEGRAM_MESSAGE_MODE": "echo",
+            "TELEGRAM_BUFFER_DELAY": "5",
+        },
+        clear=True,
+    ):
+        settings = TelegramBotSettings.from_env()
+        assert settings.bot_token == "1234567890:test_token"
+        assert settings.require_owner is False
+        assert settings.owner_id is None
+        assert settings.owner_username is None
+
+
+def test_settings_from_env_require_owner_true():
+    """Test settings with require_owner=True (default) requires owner."""
+    with patch.dict(
+        os.environ,
+        {
+            "TELEGRAM_BOT_TOKEN": "1234567890:test_token",
+            "TELEGRAM_REQUIRE_OWNER": "true",
+            "TELEGRAM_MESSAGE_MODE": "echo",
+            "TELEGRAM_BUFFER_DELAY": "5",
+        },
+        clear=True,
+    ):
+        with pytest.raises(ValueError):
+            TelegramBotSettings.from_env()
+
+
 def test_settings_to_dict():
     settings = TelegramBotSettings(
         bot_token="test_token",
@@ -87,6 +122,7 @@ def test_settings_to_dict():
     assert settings_dict["owner_username"] is None
     assert settings_dict["message_mode"] == "echo"
     assert settings_dict["buffer_delay"] == 5
+    assert settings_dict["require_owner"] is True
 
 
 def test_settings_from_dict():
@@ -103,6 +139,22 @@ def test_settings_from_dict():
     assert settings.owner_username is None
     assert settings.message_mode == MessageMode.ECHO
     assert settings.buffer_delay == 5
+    assert settings.require_owner is True  # Default value
+
+
+def test_settings_from_dict_require_owner_false():
+    """Test settings from dict with require_owner=False."""
+    settings_dict = {
+        "bot_token": "test_token",
+        "require_owner": False,
+        "message_mode": "echo",
+        "buffer_delay": 5,
+    }
+    settings = TelegramBotSettings.from_dict(settings_dict)
+    assert settings.bot_token == "test_token"
+    assert settings.require_owner is False
+    assert settings.owner_id is None
+    assert settings.owner_username is None
 
 
 def test_settings_from_dict_with_username():

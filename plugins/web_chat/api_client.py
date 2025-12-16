@@ -10,7 +10,6 @@ from typing import Any
 
 import aiohttp
 
-from common.logging import log_safe_value
 from plugins.web_chat.settings import WebChatSettings
 
 
@@ -39,8 +38,7 @@ class WebChatAPIClient:
             "Content-Type": "application/json",
             "User-Agent": "Broca2-WebChat-Plugin/1.0",
         }
-        self.logger.debug(f"API Key: {log_safe_value(self.settings.api_key, 10)}")
-        # Don't log headers as they contain the full API key
+        # API key is not logged for security reasons
         self.logger.debug("Request headers configured with API key")
         return headers
 
