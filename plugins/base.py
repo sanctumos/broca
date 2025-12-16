@@ -38,7 +38,7 @@ class BasePluginWrapper(Plugin):
         """Get the platform name."""
         return self._plugin.get_platform()
 
-    def get_message_handler(self) -> Callable:
+    def get_message_handler(self) -> Callable[[str, Any, int], Awaitable[None]]:
         """Get the message handler."""
         return self._plugin.get_message_handler()
 
