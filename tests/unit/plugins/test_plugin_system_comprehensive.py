@@ -69,8 +69,9 @@ class TestPluginSystemComprehensive:
     def test_telegram_bot_plugin_apply_settings(self):
         """Test TelegramBotPlugin apply_settings."""
         plugin = TelegramBotPlugin()
-        # TelegramBotPlugin doesn't have apply_settings method
-        assert not hasattr(plugin, "apply_settings")
+        # TelegramBotPlugin has apply_settings method
+        assert hasattr(plugin, "apply_settings")
+        assert callable(getattr(plugin, "apply_settings", None))
 
     def test_telegram_bot_plugin_validate_settings(self):
         """Test TelegramBotPlugin validate_settings."""
@@ -321,8 +322,8 @@ class TestPluginSystemComprehensive:
         """Test TelegramBotPlugin with invalid settings."""
         plugin = TelegramBotPlugin()
 
-        # TelegramBotPlugin doesn't have apply_settings method
-        assert not hasattr(plugin, "apply_settings")
+        # TelegramBotPlugin has apply_settings method
+        assert hasattr(plugin, "apply_settings")
 
     def test_web_chat_plugin_with_invalid_settings(self):
         """Test WebChatPlugin with invalid settings."""
