@@ -38,6 +38,7 @@ class QueueProcessor:
         plugin_manager: Any | None = None,
         telegram_client: Any | None = None,
         on_message_processed: Callable[[int, str], None] | None = None,
+        max_concurrent: int | None = None,
     ):
         """Initialize the queue processor.
 
@@ -47,6 +48,7 @@ class QueueProcessor:
             plugin_manager: The plugin manager instance for routing responses
             telegram_client: The Telegram client instance for typing indicator
             on_message_processed: Optional callback for when a message is processed
+            max_concurrent: Maximum number of concurrent messages to process (default: 3, or from config)
         """
         self.message_processor = message_processor
         self.message_mode = message_mode
@@ -59,6 +61,28 @@ class QueueProcessor:
         self._stop_event = asyncio.Event()
         self.letta_client = get_letta_client()
         self.agent_id = get_env_var("AGENT_ID", required=True)
+
+        # Concurrency control
+        if max_concurrent is None:
+            # Try to get from environment variable, then settings, default to 3
+            max_concurrent = int(get_env_var("QUEUE_MAX_CONCURRENT", default="3"))
+            try:
+                from common.config import get_settings
+
+                settings = get_settings()
+                if isinstance(settings, dict) and "queue_processor" in settings:
+                    queue_config = settings.get("queue_processor", {})
+                    if (
+                        isinstance(queue_config, dict)
+                        and "max_concurrent" in queue_config
+                    ):
+                        max_concurrent = int(queue_config["max_concurrent"])
+            except Exception:
+                pass  # Use default if settings unavailable
+
+        self.max_concurrent = max(1, max_concurrent)  # Ensure at least 1
+        self._concurrency_semaphore = asyncio.Semaphore(self.max_concurrent)
+        self._processing_tasks: set[asyncio.Task] = set()
 
     async def _process_with_core_block(
         self, message: str, letta_user_id: int
@@ -116,6 +140,111 @@ class QueueProcessor:
                 )
             return None, "failed"
 
+    async def _process_single_message(self, queue_item: Any) -> None:
+        """Process a single message from the queue.
+
+        Args:
+            queue_item: The queue item to process
+        """
+        try:
+            # Get message details
+            message_data = await get_message_text(queue_item.message_id)
+            if not message_data:
+                logger.warning(f"Message {queue_item.message_id} not found in database")
+                # Try to requeue, if max attempts exceeded it will be marked as failed
+                await requeue_failed_item(queue_item.id)
+                return
+
+            (
+                _,
+                message_text,
+            ) = message_data  # Get the message text (second element) instead of role
+
+            # Get user details
+            user_data = await get_user_details(queue_item.letta_user_id)
+            if not user_data:
+                logger.warning(
+                    f"User details not found for Letta user {queue_item.letta_user_id}"
+                )
+                # Try to requeue, if max attempts exceeded it will be marked as failed
+                await requeue_failed_item(queue_item.id)
+                return
+
+            display_name, username = user_data
+
+            # Format message with consistent metadata
+            platform_profile = await get_platform_profile_id(queue_item.letta_user_id)
+            if not platform_profile:
+                logger.warning(
+                    f"Platform profile not found for Letta user {queue_item.letta_user_id}"
+                )
+                # Try to requeue, if max attempts exceeded it will be marked as failed
+                await requeue_failed_item(queue_item.id)
+                return
+
+            platform_profile_id, platform_user_id = platform_profile
+
+            # Get platform name from profile
+            from database.operations.users import get_platform_profile
+
+            profile = await get_platform_profile(platform_profile_id)
+            platform_name = profile.platform if profile else None
+
+            formatted_message = self.formatter.format_message(
+                message=message_text,
+                platform_user_id=platform_user_id,
+                username=username,
+                platform=platform_name,
+            )
+
+            # Process message according to mode
+            if self.message_mode == "echo":
+                # Echo mode: Return the formatted message
+                logger.info("ECHO MODE: Returning formatted message")
+                response = formatted_message  # Use formatted message with metadata
+                status = "completed"
+            else:
+                # Process with agent
+                logger.info(f"Processing message in {self.message_mode.upper()} mode")
+                response, status = await self._process_with_core_block(
+                    message=formatted_message,
+                    letta_user_id=queue_item.letta_user_id,
+                )
+
+            if response:
+                # Update message and queue status
+                await update_message_with_response(queue_item.message_id, response)
+                await update_queue_status(queue_item.id, status)
+
+                # Route response through platform handler
+                if not await self._route_response(queue_item.message_id, response):
+                    logger.warning("Failed to route response through platform handler")
+            else:
+                # Try to requeue if no response, if max attempts exceeded it will be marked as failed
+                await requeue_failed_item(queue_item.id)
+                logger.warning(
+                    "No response received from agent - Message processing failed"
+                )
+
+        except Exception as e:
+            logger.error(f"Error processing queue item {queue_item.id}: {str(e)}")
+            # Try to requeue on error, if max attempts exceeded it will be marked as failed
+            await requeue_failed_item(queue_item.id)
+
+    async def _process_single_message_with_tracking(self, queue_item: Any) -> None:
+        """Wrapper to track message processing and manage semaphore.
+
+        Args:
+            queue_item: The queue item to process
+        """
+        try:
+            self.processing_messages.add(queue_item.id)
+            logger.info(f"Atomically dequeued message (Queue ID: {queue_item.id})")
+            await self._process_single_message(queue_item)
+        finally:
+            self.processing_messages.discard(queue_item.id)
+            self._concurrency_semaphore.release()
+
     async def _route_response(self, message_id: int, response: str) -> bool:
         """Route a response through the appropriate platform handler.
 
@@ -158,147 +287,58 @@ class QueueProcessor:
             return False
 
     async def start(self) -> None:
-        """Start processing the queue."""
+        """Start processing the queue with concurrent message processing."""
         if self.is_running:
             logger.warning("Queue processor is already running")
             return
 
         self.is_running = True
         self._stop_event.clear()
-        logger.info(f"Queue processor started in {self.message_mode.upper()} mode")
+        logger.info(
+            f"Queue processor started in {self.message_mode.upper()} mode "
+            f"(max concurrent: {self.max_concurrent})"
+        )
 
         try:
             while self.is_running and not self._stop_event.is_set():
                 try:
+                    # Wait for available concurrency slot
+                    await self._concurrency_semaphore.acquire()
+
                     # Atomically dequeue next message from queue
                     queue_item = await atomic_dequeue_item()
                     if not queue_item:
+                        self._concurrency_semaphore.release()
                         await asyncio.sleep(1)  # Wait before checking again
                         continue
 
-                    # Track this message as being processed
-                    self.processing_messages.add(queue_item.id)
-                    logger.info(
-                        f"Atomically dequeued message (Queue ID: {queue_item.id})"
+                    # Create task for concurrent processing
+                    task = asyncio.create_task(
+                        self._process_single_message_with_tracking(queue_item)
                     )
-
-                    try:
-                        # Get message details
-                        message_data = await get_message_text(queue_item.message_id)
-                        if not message_data:
-                            logger.warning(
-                                f"Message {queue_item.message_id} not found in database"
-                            )
-                            # Try to requeue, if max attempts exceeded it will be marked as failed
-                            await requeue_failed_item(queue_item.id)
-                            self.processing_messages.remove(queue_item.id)
-                            continue
-
-                        (
-                            _,
-                            message_text,
-                        ) = message_data  # Get the message text (second element) instead of role
-
-                        # Get user details
-                        user_data = await get_user_details(queue_item.letta_user_id)
-                        if not user_data:
-                            logger.warning(
-                                f"User details not found for Letta user {queue_item.letta_user_id}"
-                            )
-                            # Try to requeue, if max attempts exceeded it will be marked as failed
-                            await requeue_failed_item(queue_item.id)
-                            self.processing_messages.remove(queue_item.id)
-                            continue
-
-                        display_name, username = user_data
-
-                        # Format message with consistent metadata
-                        platform_profile = await get_platform_profile_id(
-                            queue_item.letta_user_id
-                        )
-                        if not platform_profile:
-                            logger.warning(
-                                f"Platform profile not found for Letta user {queue_item.letta_user_id}"
-                            )
-                            # Try to requeue, if max attempts exceeded it will be marked as failed
-                            await requeue_failed_item(queue_item.id)
-                            self.processing_messages.remove(queue_item.id)
-                            continue
-
-                        platform_profile_id, platform_user_id = platform_profile
-
-                        # Get platform name from profile
-                        from database.operations.users import get_platform_profile
-
-                        profile = await get_platform_profile(platform_profile_id)
-                        platform_name = profile.platform if profile else None
-
-                        formatted_message = self.formatter.format_message(
-                            message=message_text,
-                            platform_user_id=platform_user_id,
-                            username=username,
-                            platform=platform_name,
-                        )
-
-                        # Process message according to mode
-                        if self.message_mode == "echo":
-                            # Echo mode: Return the formatted message
-                            logger.info("ECHO MODE: Returning formatted message")
-                            response = (
-                                formatted_message  # Use formatted message with metadata
-                            )
-                            status = "completed"
-                        else:
-                            # Process with agent
-                            logger.info(
-                                f"Processing message in {self.message_mode.upper()} mode"
-                            )
-                            response, status = await self._process_with_core_block(
-                                message=formatted_message,
-                                letta_user_id=queue_item.letta_user_id,
-                            )
-
-                        if response:
-                            # Update message and queue status
-                            await update_message_with_response(
-                                queue_item.message_id, response
-                            )
-                            await update_queue_status(queue_item.id, status)
-
-                            # Route response through platform handler
-                            if not await self._route_response(
-                                queue_item.message_id, response
-                            ):
-                                logger.warning(
-                                    "Failed to route response through platform handler"
-                                )
-                        else:
-                            # Try to requeue if no response, if max attempts exceeded it will be marked as failed
-                            await requeue_failed_item(queue_item.id)
-                            logger.warning(
-                                "No response received from agent - Message processing failed"
-                            )
-
-                    except Exception as e:
-                        logger.error(
-                            f"Error processing queue item {queue_item.id}: {str(e)}"
-                        )
-                        # Try to requeue on error, if max attempts exceeded it will be marked as failed
-                        await requeue_failed_item(queue_item.id)
-
-                    finally:
-                        # Always remove from processing set
-                        self.processing_messages.remove(queue_item.id)
+                    self._processing_tasks.add(task)
+                    task.add_done_callback(self._processing_tasks.discard)
 
                 except asyncio.CancelledError:
                     logger.info("Queue processor received cancellation signal")
                     break
                 except Exception as e:
                     logger.error(f"Queue processor error: {str(e)}")
+                    # Release semaphore if we got an error before creating task
+                    try:
+                        self._concurrency_semaphore.release()
+                    except Exception:
+                        pass
                     await asyncio.sleep(1)  # Wait before retrying
 
         finally:
             self.is_running = False
+            # Wait for all processing tasks to complete
+            if self._processing_tasks:
+                logger.info(
+                    f"Waiting for {len(self._processing_tasks)} processing tasks to complete..."
+                )
+                await asyncio.gather(*self._processing_tasks, return_exceptions=True)
             logger.info("Queue processor stopped")
 
     async def stop(self) -> None:
@@ -311,8 +351,25 @@ class QueueProcessor:
         self.is_running = False
 
         # Wait for any in-progress messages to complete
-        while self.processing_messages:
+        timeout = 10.0  # Maximum wait time in seconds
+        start_time = asyncio.get_event_loop().time()
+        while self.processing_messages or self._processing_tasks:
+            if asyncio.get_event_loop().time() - start_time > timeout:
+                logger.warning(
+                    f"Timeout waiting for messages to complete. "
+                    f"Remaining: {len(self.processing_messages)} messages, "
+                    f"{len(self._processing_tasks)} tasks"
+                )
+                break
             await asyncio.sleep(0.1)
+
+        # Cancel any remaining tasks
+        for task in self._processing_tasks:
+            if not task.done():
+                task.cancel()
+
+        if self._processing_tasks:
+            await asyncio.gather(*self._processing_tasks, return_exceptions=True)
 
         logger.info("Queue processor stopped")
 
