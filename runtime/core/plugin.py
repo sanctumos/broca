@@ -21,8 +21,9 @@ import importlib.util
 import inspect
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import Any
 
 from common.exceptions import PluginError
 from plugins import Event, EventType, Plugin
@@ -75,7 +76,7 @@ class PluginManager:
         """Initialize the plugin manager."""
         self._plugins: dict[str, Plugin] = {}
         self._event_handlers: dict[EventType, list[Callable[[Event], None]]] = {}
-        self._platform_handlers: dict[str, Callable] = {}
+        self._platform_handlers: dict[str, Callable[[str, Any, int], Awaitable[None]]] = {}
         self._running = False
 
     async def load_plugin(self, plugin_path: str) -> None:
@@ -142,7 +143,7 @@ class PluginManager:
                                     f"Got: {sig}. "
                                     f"Handler must be an async function with at least 3 parameters."
                                 )
-                            self._platform_handlers[platform] = handler
+                            self._platform_handlers[platform] = handler  # type: ignore[assignment]
                             logger.info(
                                 f"Registered message handler for platform: {platform}"
                             )
@@ -265,7 +266,9 @@ class PluginManager:
                 except Exception as e:
                     logger.error(f"Error in event handler: {str(e)}")
 
-    def get_platform_handler(self, platform: str) -> Callable | None:
+    def get_platform_handler(
+        self, platform: str
+    ) -> Callable[[str, Any, int], Awaitable[None]] | None:
         """Get the message handler for a platform.
 
         Args:
@@ -277,7 +280,7 @@ class PluginManager:
         return self._platform_handlers.get(platform)
 
     async def discover_plugins(
-        self, plugins_dir: str = "plugins", config: dict = None
+        self, plugins_dir: str = "plugins", config: dict[str, Any] | None = None
     ) -> None:
         """Discover and load all plugins in the plugins directory with dynamic settings.
 
