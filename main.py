@@ -228,7 +228,8 @@ class Application:
             current_mtime = os.path.getmtime(self._settings_file)
             if current_mtime > self._settings_mtime:
                 logger.info("Settings file modified, reloading...")
-                settings = get_settings()
+                # Force reload to bypass cache and read fresh settings from disk
+                settings = get_settings(force_reload=True)
                 validate_settings(settings)
 
                 # Update message mode in queue processor and plugins
