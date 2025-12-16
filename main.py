@@ -29,7 +29,11 @@ from pathlib import Path
 import psutil
 from dotenv import load_dotenv
 
-from common.config import get_settings, validate_settings, validate_environment_variables
+from common.config import (
+    get_settings,
+    validate_environment_variables,
+    validate_settings,
+)
 from common.logging import setup_logging
 from database.operations.shared import check_and_migrate_db, initialize_database
 from runtime.core.agent import AgentClient
@@ -80,10 +84,14 @@ def create_default_settings() -> None:
                 # If we get here, file is valid JSON - don't recreate
         except json.JSONDecodeError:
             should_create = True
-            logger.warning("Settings file contains invalid JSON, recreating with defaults...")
+            logger.warning(
+                "Settings file contains invalid JSON, recreating with defaults..."
+            )
         except Exception as e:
             should_create = True
-            logger.warning(f"Failed to read settings file ({e}), recreating with defaults...")
+            logger.warning(
+                f"Failed to read settings file ({e}), recreating with defaults..."
+            )
 
     if should_create:
         with open(settings_path, "w") as f:
@@ -96,13 +104,13 @@ class PIDManager:
 
     def __init__(self, instance_dir: str | None = None):
         """Initialize PID manager.
-        
+
         Args:
             instance_dir: Directory for PID files. If None, uses 'run' directory in project root.
         """
         if instance_dir is None:
             instance_dir = os.path.join(os.getcwd(), "run")
-        
+
         self.pid_file = os.path.join(instance_dir, "broca.pid")
         self.lock_file = os.path.join(instance_dir, "broca.lock")
         self.pid = os.getpid()
@@ -112,7 +120,7 @@ class PIDManager:
         """Create PID file and register cleanup handlers."""
         # Create run directory if it doesn't exist
         os.makedirs(os.path.dirname(self.pid_file), exist_ok=True)
-        
+
         # Check if PID file exists and if process is still running
         if os.path.exists(self.pid_file):
             if self.is_process_running(self.pid_file):
@@ -126,13 +134,13 @@ class PIDManager:
                     os.remove(self.pid_file)
                 except OSError:
                     pass
-        
+
         # Write PID file
         with open(self.pid_file, "w") as f:
             f.write(str(self.pid))
-        
+
         logger.debug(f"Created PID file: {self.pid_file} (PID: {self.pid})")
-        
+
         # Register cleanup handlers (only once)
         if not self._cleanup_registered:
             atexit.register(self.cleanup)
@@ -150,22 +158,21 @@ class PIDManager:
         except OSError as e:
             logger.warning(f"Failed to remove PID/lock files: {e}")
 
-
     @staticmethod
     def is_process_running(pid_file: str) -> bool:
         """Check if the process in PID file is still running.
-        
+
         Args:
             pid_file: Path to PID file
-            
+
         Returns:
             True if process is running, False otherwise
         """
         if not os.path.exists(pid_file):
             return False
-        
+
         try:
-            with open(pid_file, "r") as f:
+            with open(pid_file) as f:
                 pid = int(f.read().strip())
             return psutil.pid_exists(pid)
         except (ValueError, OSError, psutil.NoSuchProcess):
@@ -204,23 +211,53 @@ class Application:
             logger.error(f"❌ {e}")
             raise
 
-        # Set up signal handlers for graceful shutdown
-        self._setup_signal_handlers()
+        # Signal handlers will be set up in start() after event loop is running
 
     def _setup_signal_handlers(self):
-        """Set up signal handlers for graceful shutdown."""
+        """Set up signal handlers for graceful shutdown.
 
-        def signal_handler(signum, frame):
-            logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        This must be called after the event loop is running.
+        Uses async signal handlers on Unix-like systems for better
+        integration with asyncio, with fallback to signal.signal().
+        """
+
+        def signal_handler(signum=None):
+            """Handle shutdown signals."""
+            logger.info(
+                f"Received signal {signum or 'SIGINT/SIGTERM'}, initiating graceful shutdown..."
+            )
             # Clean up PID file on signal
             if hasattr(self, "pid_manager"):
                 self.pid_manager.cleanup()
             self._shutdown_event.set()
 
-        # Handle SIGTERM and SIGINT (only on non-Windows platforms)
+        # Get the running event loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No event loop running, fall back to signal.signal()
+            if sys.platform != "win32":
+                signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s))
+                signal.signal(signal.SIGINT, lambda s, f: signal_handler(s))
+            else:
+                signal.signal(signal.SIGINT, lambda s, f: signal_handler(s))
+            return
+
+        # Use async signal handlers on Unix-like systems
         if sys.platform != "win32":
-            signal.signal(signal.SIGTERM, signal_handler)
-            signal.signal(signal.SIGINT, signal_handler)
+            try:
+                loop.add_signal_handler(signal.SIGTERM, signal_handler, signal.SIGTERM)
+                loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGINT)
+                logger.debug("Registered async signal handlers for SIGTERM and SIGINT")
+            except NotImplementedError:
+                # Fallback if add_signal_handler is not available
+                signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s))
+                signal.signal(signal.SIGINT, lambda s, f: signal_handler(s))
+                logger.debug("Fell back to signal.signal() for signal handlers")
+        else:
+            # Windows: use signal.signal() for SIGINT only (SIGTERM not available)
+            signal.signal(signal.SIGINT, lambda s, f: signal_handler(s))
+            logger.debug("Registered signal handler for SIGINT on Windows")
 
     async def _check_settings(self):
         """Check if settings file has been modified."""
@@ -309,9 +346,11 @@ class Application:
                     logger.info("✅ Environment variables validated")
                 except ValueError as e:
                     logger.error(f"❌ Environment variable validation failed: {e}")
-                    logger.error("Please check your .env file and ensure all values are set correctly")
+                    logger.error(
+                        "Please check your .env file and ensure all values are set correctly"
+                    )
                     raise
-            
+
             # Initialize and migrate the database safely
             await initialize_database()
             await check_and_migrate_db()
@@ -355,6 +394,9 @@ class Application:
 
             # Start settings monitor task
             asyncio.create_task(self._monitor_settings())
+
+            # Set up signal handlers after event loop is running
+            self._setup_signal_handlers()
 
             # Keep application running until shutdown signal
             await self._shutdown_event.wait()

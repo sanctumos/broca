@@ -37,7 +37,9 @@ class TestMainFocused:
             create_default_settings()
             # Function logs twice: once for file not existing, once for creation
             assert mock_logger.info.call_count == 2
-            mock_logger.info.assert_any_call("Settings file does not exist, creating default...")
+            mock_logger.info.assert_any_call(
+                "Settings file does not exist, creating default..."
+            )
             mock_logger.info.assert_any_call("Created default settings.json file")
 
     def test_create_default_settings_default_values(self):
@@ -230,11 +232,15 @@ class TestApplicationMocked:
 
             # Check that PID file was created in run/ directory
             calls = [str(call) for call in mock_file.call_args_list]
-            pid_file_call = any("run" in str(call) and "broca.pid" in str(call) for call in calls)
+            pid_file_call = any(
+                "run" in str(call) and "broca.pid" in str(call) for call in calls
+            )
             assert pid_file_call, "PID file should be created in run/ directory"
 
-    def test_application_signal_handlers(self):
-        """Test Application sets up signal handlers."""
+    @pytest.mark.asyncio
+    async def test_application_signal_handlers(self):
+        """Test Application sets up signal handlers after event loop is running."""
+        mock_loop = MagicMock()
         with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
             "main.create_default_settings"
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
@@ -245,7 +251,7 @@ class TestApplicationMocked:
             "os.getpid", return_value=12345
         ), patch(
             "main.signal.signal"
-        ) as mock_signal, patch(
+        ), patch(
             "sys.platform", "linux"
         ), patch(
             "os.path.exists", return_value=False
@@ -255,13 +261,20 @@ class TestApplicationMocked:
             "atexit.register"
         ), patch(
             "psutil.pid_exists", return_value=False
+        ), patch(
+            "asyncio.get_running_loop", return_value=mock_loop
         ):
             from main import Application
 
-            Application()
+            app = Application()
 
-            # Signal handlers are only set up on non-Windows platforms
-            assert mock_signal.call_count == 2  # SIGTERM and SIGINT
+            # Signal handlers are now set up in start() after event loop is running
+            # Call _setup_signal_handlers() directly to test it
+            app._setup_signal_handlers()
+
+            # On Unix-like systems with async signal handler support,
+            # add_signal_handler should be called
+            assert mock_loop.add_signal_handler.call_count == 2  # SIGTERM and SIGINT
 
     @pytest.mark.asyncio
     async def test_application_process_message(self):
