@@ -17,7 +17,9 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import asyncio
 import json
+import logging
 import os
 from collections.abc import Callable
 from typing import Any, Literal
@@ -27,6 +29,33 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _SETTINGS_CACHE = None
 _TYPED_SETTINGS_CACHE = None
+
+logger = logging.getLogger(__name__)
+
+
+class QueueProcessorConfig(BaseSettings):
+    """Configuration for queue processor."""
+
+    max_concurrent: int = Field(
+        default=3,
+        ge=1,
+        le=50,
+        description="Maximum concurrent messages to process (1-50)",
+    )
+
+
+class DatabasePoolConfig(BaseSettings):
+    """Configuration for database connection pool."""
+
+    pool_size: int = Field(
+        default=5, ge=1, le=100, description="Number of connections in pool (1-100)"
+    )
+    max_overflow: int = Field(
+        default=10,
+        ge=0,
+        le=50,
+        description="Maximum overflow connections beyond pool_size (0-50)",
+    )
 
 
 class Settings(BaseSettings):
@@ -52,6 +81,14 @@ class Settings(BaseSettings):
     plugins: dict | None = Field(
         default_factory=dict, description="Plugin-specific configuration settings"
     )
+    queue_processor: QueueProcessorConfig | dict | None = Field(
+        default_factory=dict,
+        description="Queue processor configuration",
+    )
+    database: DatabasePoolConfig | dict | None = Field(
+        default_factory=dict,
+        description="Database connection pool configuration",
+    )
 
     @field_validator("queue_refresh")
     @classmethod
@@ -73,11 +110,27 @@ class Settings(BaseSettings):
             raise ValueError("max_retries should not exceed 10")
         return v
 
+    @field_validator("queue_processor", mode="before")
+    @classmethod
+    def validate_queue_processor(cls, v):
+        """Convert dict to QueueProcessorConfig if needed."""
+        if isinstance(v, dict):
+            return QueueProcessorConfig(**v)
+        return v
+
+    @field_validator("database", mode="before")
+    @classmethod
+    def validate_database(cls, v):
+        """Convert dict to DatabasePoolConfig if needed."""
+        if isinstance(v, dict):
+            return DatabasePoolConfig(**v)
+        return v
+
     model_config = SettingsConfigDict(
         env_prefix="BROCA_",
         case_sensitive=False,
         validate_assignment=True,
-        extra="forbid",  # Prevent extra fields
+        extra="allow",  # Allow extra fields for plugins
     )
 
 
@@ -122,22 +175,22 @@ def get_env_var(
 
 def validate_environment_variables(production_mode: bool = True) -> None:
     """Validate environment variables to detect placeholder/test values.
-    
+
     This function checks for placeholder values in critical environment variables
     that should not be used in production. It helps prevent accidental use of
     test credentials in production environments.
-    
+
     Args:
         production_mode: If True, raise errors for placeholder values.
                         If False, only log warnings (for development).
-    
+
     Raises:
         ValueError: If placeholder values are detected in production mode.
     """
     import logging
-    
+
     logger = logging.getLogger(__name__)
-    
+
     # Define critical environment variables and their placeholder patterns
     critical_vars = {
         "AGENT_API_KEY": [
@@ -167,7 +220,7 @@ def validate_environment_variables(production_mode: bool = True) -> None:
             "test",
         ],
     }
-    
+
     # Patterns that indicate placeholder values
     placeholder_patterns = [
         "your_",
@@ -180,21 +233,21 @@ def validate_environment_variables(production_mode: bool = True) -> None:
         "test_",
         "test-",
     ]
-    
+
     errors = []
     warnings = []
-    
+
     for var_name, known_placeholders in critical_vars.items():
         value = os.environ.get(var_name)
-        
+
         if not value:
             # Missing required variable - only warn, don't error
             # (some may be optional depending on which plugins are enabled)
             warnings.append(f"Environment variable {var_name} is not set")
             continue
-        
+
         value_lower = value.lower().strip()
-        
+
         # Check against known placeholder values
         if value_lower in [p.lower() for p in known_placeholders]:
             msg = (
@@ -206,7 +259,7 @@ def validate_environment_variables(production_mode: bool = True) -> None:
             else:
                 warnings.append(msg)
             continue
-        
+
         # Check for placeholder patterns
         for pattern in placeholder_patterns:
             if pattern in value_lower:
@@ -219,11 +272,11 @@ def validate_environment_variables(production_mode: bool = True) -> None:
                 else:
                     warnings.append(msg)
                 break
-    
+
     # Log warnings
     for warning in warnings:
         logger.warning(f"⚠️ {warning}")
-    
+
     # Raise errors in production mode
     if errors:
         error_msg = (
@@ -396,9 +449,228 @@ def save_settings(settings: dict, settings_file: str = "settings.json") -> None:
 
     try:
         with open(settings_file, "w") as f:
-            json.dump(settings, f)
+            json.dump(settings, f, indent=2)
         _SETTINGS_CACHE = settings
     except (OSError, PermissionError) as e:
         raise ValueError(f"Failed to save settings: {str(e)}") from e
     except Exception as e:
         raise ValueError(f"Failed to save settings: {str(e)}") from e
+
+
+class ConfigurationManager:
+    """Unified configuration management system with hot-reloading and change notifications."""
+
+    def __init__(self, settings_file: str = "settings.json"):
+        """Initialize the configuration manager.
+
+        Args:
+            settings_file: Path to the settings JSON file
+        """
+        self.settings_file = settings_file
+        self._settings: Settings | None = None
+        self._callbacks: dict[str, list[Callable[[Any, Any], None]]] = {}
+        self._last_mtime = 0
+        self._monitoring = False
+        self._stop_event = asyncio.Event()
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get a configuration value using dot notation.
+
+        Args:
+            key: Configuration key (supports dot notation, e.g., 'queue_processor.max_concurrent')
+            default: Default value if key is not found
+
+        Returns:
+            Configuration value or default
+
+        Examples:
+            >>> config.get('message_mode')
+            'live'
+            >>> config.get('queue_processor.max_concurrent')
+            3
+            >>> config.get('plugins.telegram_bot.enabled', False)
+            False
+        """
+        if self._settings is None:
+            self._load_settings()
+
+        # Support dot notation for nested keys
+        keys = key.split(".")
+        value = self._settings.model_dump()
+
+        try:
+            for k in keys:
+                if isinstance(value, dict):
+                    value = value.get(k)
+                else:
+                    value = getattr(value, k, None)
+                if value is None:
+                    return default
+            return value
+        except (AttributeError, KeyError, TypeError):
+            return default
+
+    def get_typed(self, force_reload: bool = False) -> Settings:
+        """Get fully validated Pydantic Settings object.
+
+        Args:
+            force_reload: If True, reload settings even if cached
+
+        Returns:
+            Validated Settings object
+        """
+        if self._settings is None or force_reload:
+            self._load_settings(force_reload=force_reload)
+        return self._settings
+
+    def subscribe(self, key: str, callback: Callable[[Any, Any], None]) -> None:
+        """Subscribe to configuration changes for a specific key.
+
+        Args:
+            key: Configuration key to monitor (supports dot notation)
+            callback: Function to call when the key changes (old_value, new_value)
+
+        Examples:
+            >>> def on_mode_change(old, new):
+            ...     print(f"Mode changed from {old} to {new}")
+            >>> config.subscribe('message_mode', on_mode_change)
+        """
+        if key not in self._callbacks:
+            self._callbacks[key] = []
+        self._callbacks[key].append(callback)
+        logger.debug(f"Subscribed to config changes for key: {key}")
+
+    def unsubscribe(self, key: str, callback: Callable[[Any, Any], None]) -> None:
+        """Unsubscribe from configuration changes.
+
+        Args:
+            key: Configuration key
+            callback: Callback function to remove
+        """
+        if key in self._callbacks:
+            try:
+                self._callbacks[key].remove(callback)
+                if not self._callbacks[key]:
+                    del self._callbacks[key]
+            except ValueError:
+                pass
+
+    def _load_settings(self, force_reload: bool = False) -> None:
+        """Load and validate settings from file."""
+        raw_settings = get_settings(self.settings_file, force_reload=force_reload)
+        old_settings = self._settings
+
+        try:
+            self._settings = Settings(**raw_settings)
+            logger.debug("Settings loaded and validated successfully")
+
+            # Notify subscribers of changes
+            if old_settings is not None:
+                self._notify_changes(old_settings, self._settings)
+        except Exception as e:
+            logger.error(f"Failed to load settings: {e}")
+            if old_settings is None:
+                raise
+            # Keep old settings if reload fails
+            logger.warning("Keeping previous settings due to validation error")
+
+    def _notify_changes(self, old_settings: Settings, new_settings: Settings) -> None:
+        """Notify subscribers of configuration changes."""
+        old_dict = old_settings.model_dump()
+        new_dict = new_settings.model_dump()
+
+        # Check all subscribed keys
+        for key in list(self._callbacks.keys()):
+            old_value = self._get_nested_value(old_dict, key)
+            new_value = self._get_nested_value(new_dict, key)
+
+            if old_value != new_value:
+                for callback in self._callbacks[key]:
+                    try:
+                        callback(old_value, new_value)
+                    except Exception as e:
+                        logger.error(f"Error in config change callback for {key}: {e}")
+
+    def _get_nested_value(self, data: dict, key: str) -> Any:
+        """Get nested value from dict using dot notation."""
+        keys = key.split(".")
+        value = data
+        for k in keys:
+            if isinstance(value, dict):
+                value = value.get(k)
+            else:
+                return None
+            if value is None:
+                return None
+        return value
+
+    async def start_monitoring(self, check_interval: float = 1.0) -> None:
+        """Start monitoring settings file for changes.
+
+        Args:
+            check_interval: How often to check for changes (seconds)
+        """
+        if self._monitoring:
+            logger.warning("Configuration monitoring already started")
+            return
+
+        self._monitoring = True
+        self._stop_event.clear()
+
+        # Get initial mtime
+        if os.path.exists(self.settings_file):
+            self._last_mtime = os.path.getmtime(self.settings_file)
+
+        logger.info(f"Started monitoring configuration file: {self.settings_file}")
+
+        try:
+            while not self._stop_event.is_set():
+                await asyncio.sleep(check_interval)
+
+                if not os.path.exists(self.settings_file):
+                    continue
+
+                current_mtime = os.path.getmtime(self.settings_file)
+                if current_mtime > self._last_mtime:
+                    logger.info("Configuration file modified, reloading...")
+                    self._load_settings(force_reload=True)
+                    self._last_mtime = current_mtime
+
+        except asyncio.CancelledError:
+            logger.info("Configuration monitoring cancelled")
+        finally:
+            self._monitoring = False
+            logger.info("Configuration monitoring stopped")
+
+    def stop_monitoring(self) -> None:
+        """Stop monitoring settings file for changes."""
+        self._stop_event.set()
+        self._monitoring = False
+
+    def reload(self) -> None:
+        """Manually reload configuration from file."""
+        logger.info("Manually reloading configuration...")
+        self._load_settings(force_reload=True)
+        if os.path.exists(self.settings_file):
+            self._last_mtime = os.path.getmtime(self.settings_file)
+
+
+# Global configuration manager instance
+_config_manager: ConfigurationManager | None = None
+
+
+def get_config_manager(
+    settings_file: str = "settings.json",
+) -> ConfigurationManager:
+    """Get or create the global configuration manager instance.
+
+    Args:
+        settings_file: Path to settings file
+
+    Returns:
+        ConfigurationManager instance
+    """
+    global _config_manager
+    if _config_manager is None:
+        _config_manager = ConfigurationManager(settings_file)
+    return _config_manager
