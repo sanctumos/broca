@@ -30,13 +30,12 @@ import psutil
 from dotenv import load_dotenv
 
 from common.config import (
+    get_config_manager,
     get_settings,
     validate_environment_variables,
-    validate_settings,
 )
 from common.logging import setup_logging
 from database.operations.shared import check_and_migrate_db, initialize_database
-from database.pool import ConnectionPool, initialize_pool
 from runtime.core.agent import AgentClient
 from runtime.core.plugin import PluginManager
 from runtime.core.queue import QueueProcessor
@@ -201,6 +200,16 @@ class Application:
         self._shutdown_event = asyncio.Event()
         self._tasks = set()
 
+        # Initialize unified configuration manager
+        self.config_manager = get_config_manager(self._settings_file)
+
+        # Subscribe to configuration changes
+        self.config_manager.subscribe("message_mode", self._on_message_mode_change)
+        self.config_manager.subscribe("debug_mode", self._on_debug_mode_change)
+        self.config_manager.subscribe(
+            "queue_processor.max_concurrent", self._on_max_concurrent_change
+        )
+
         # Create default settings if needed
         create_default_settings()
 
@@ -260,53 +269,46 @@ class Application:
             signal.signal(signal.SIGINT, lambda s, f: signal_handler(s))
             logger.debug("Registered signal handler for SIGINT on Windows")
 
+    def _on_message_mode_change(self, old_value, new_value) -> None:
+        """Handle message mode configuration changes."""
+        logger.info(f"Updating message mode from {old_value} to {new_value}")
+        if self.queue_processor:
+            self.queue_processor.set_message_mode(new_value)
+            logger.info(f"🔵 Message processing mode changed to: {new_value.upper()}")
+        # Note: Plugin updates handled asynchronously in _monitor_settings
+
+    def _on_debug_mode_change(self, old_value, new_value) -> None:
+        """Handle debug mode configuration changes."""
+        if hasattr(self, "agent") and self.agent:
+            self.agent.debug_mode = new_value
+            logger.info(f"Debug mode {'enabled' if new_value else 'disabled'}")
+
+    def _on_max_concurrent_change(self, old_value, new_value) -> None:
+        """Handle max concurrent configuration changes."""
+        logger.info(
+            f"Queue processor max_concurrent changed from {old_value} to {new_value}. "
+            "Note: This requires queue processor restart to take effect."
+        )
+
     async def _check_settings(self):
-        """Check if settings file has been modified."""
+        """Check if settings file has been modified (legacy method, now uses config_manager)."""
+        # ConfigurationManager handles reloading automatically
+        # This method is kept for backward compatibility
         try:
             current_mtime = os.path.getmtime(self._settings_file)
             if current_mtime > self._settings_mtime:
-                logger.info("Settings file modified, reloading...")
-                # Force reload to bypass cache and read fresh settings from disk
-                settings = get_settings(force_reload=True)
-                validate_settings(settings)
+                logger.info(
+                    "Settings file modified, reloading via ConfigurationManager..."
+                )
+                self.config_manager.reload()
 
-                # Update message mode in queue processor and plugins
-                if "message_mode" in settings:
-                    new_mode = settings["message_mode"]
-                    logger.info(f"Updating message mode to: {new_mode}")
-
-                    # Update queue processor if it exists
-                    if self.queue_processor:
-                        self.queue_processor.set_message_mode(new_mode)
-                        logger.info(
-                            f"🔵 Message processing mode changed to: {new_mode.upper()}"
-                        )
-
-                    # Update all plugins that support message mode changes
-                    if self.plugin_manager:
-                        await self.plugin_manager.update_message_mode(new_mode)
-                        logger.info(
-                            f"🔵 Plugin message modes updated to: {new_mode.upper()}"
-                        )
-
-                # Update debug mode
-                if "debug_mode" in settings:
-                    self.agent.debug_mode = settings["debug_mode"]
+                # Update plugins that support message mode changes
+                settings = self.config_manager.get_typed()
+                if self.plugin_manager:
+                    await self.plugin_manager.update_message_mode(settings.message_mode)
                     logger.info(
-                        f"Debug mode {'enabled' if settings['debug_mode'] else 'disabled'}"
+                        f"🔵 Plugin message modes updated to: {settings.message_mode.upper()}"
                     )
-
-                # Update queue refresh interval
-                if "queue_refresh" in settings and self.queue_processor:
-                    self.queue_processor.refresh_interval = settings["queue_refresh"]
-                    logger.info(
-                        f"Queue refresh interval set to {settings['queue_refresh']} seconds"
-                    )
-
-                # Update max retries
-                if "max_retries" in settings and self.queue_processor:
-                    self.queue_processor.max_retries = settings["max_retries"]
-                    logger.info(f"Max retries set to {settings['max_retries']}")
 
                 self._settings_mtime = current_mtime
                 logger.info("Settings reloaded successfully")
@@ -355,7 +357,7 @@ class Application:
             # Initialize and migrate the database safely (before pool, uses direct connection)
             await initialize_database()
             await check_and_migrate_db()
-            
+
             # Initialize database connection pool after database is ready
             await self.db_pool.initialize()
 
@@ -386,9 +388,8 @@ class Application:
                 plugin_manager=self.plugin_manager,
             )
 
-            # Set initial message mode from settings
-            settings = get_settings()
-            initial_mode = settings.get("message_mode", "echo")
+            # Set initial message mode from unified config
+            initial_mode = self.config_manager.get("message_mode", "echo")
             self.queue_processor.set_message_mode(initial_mode)
 
             # Start queue processor
@@ -396,7 +397,10 @@ class Application:
 
             logger.info("✅ Application started successfully!")
 
-            # Start settings monitor task
+            # Start unified configuration manager monitoring
+            asyncio.create_task(self.config_manager.start_monitoring())
+
+            # Start legacy settings monitor task (for plugin updates)
             asyncio.create_task(self._monitor_settings())
 
             # Set up signal handlers after event loop is running
@@ -451,7 +455,7 @@ class Application:
             # Stop plugin manager last
             logger.info("🛑 Stopping plugin manager...")
             await self.plugin_manager.stop()
-            
+
             # Close database connection pool
             if hasattr(self, "db_pool"):
                 logger.info("🛑 Closing database connection pool...")
