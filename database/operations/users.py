@@ -11,7 +11,7 @@ import aiosqlite
 from runtime.core.letta_client import get_letta_client
 
 from ..models import LettaUser, PlatformProfile
-from .shared import get_db_path
+from ..pool import get_pool
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ async def get_or_create_letta_user(
         block = client.blocks.create(**block_data)
 
         # 3. Create user record with Letta identity ID and block ID
-        async with aiosqlite.connect(get_db_path()) as db:
+        async with get_pool().connection() as db:
             cursor = await db.execute(
                 """
                 INSERT INTO letta_users (
@@ -117,7 +117,7 @@ async def get_or_create_platform_profile(
     now = datetime.utcnow().isoformat()
     metadata_json = json.dumps(metadata) if metadata else None
 
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         # Check if profile exists
         async with db.execute(
             "SELECT * FROM platform_profiles WHERE platform = ? AND platform_user_id = ?",
@@ -249,7 +249,7 @@ async def update_letta_user(
     if not updates:
         raise ValueError("No updates specified")
 
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         query = f"""
             UPDATE letta_users
             SET {', '.join(updates)}
@@ -277,7 +277,7 @@ async def update_letta_user(
 
 async def get_user_details(letta_user_id: int) -> tuple[str, str] | None:
     """Get user details for a Letta user."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         async with db.execute(
             """
             SELECT display_name, username
@@ -299,7 +299,7 @@ async def get_all_users() -> list[dict[str, Any]]:
     Returns:
         List[Dict[str, Any]]: List of user records with associated profile data.
     """
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         async with db.execute(
             """
             SELECT
@@ -331,7 +331,7 @@ async def get_all_users() -> list[dict[str, Any]]:
 
 async def get_platform_profile_id(letta_user_id: int) -> tuple[int, str] | None:
     """Get platform profile ID and platform user ID for a Letta user."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         async with db.execute(
             """
             SELECT id, platform_user_id
@@ -348,7 +348,7 @@ async def get_platform_profile_id(letta_user_id: int) -> tuple[int, str] | None:
 
 async def get_platform_profile(profile_id: int) -> PlatformProfile | None:
     """Get platform profile by ID."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         async with db.execute(
             """
             SELECT id, letta_user_id, platform, platform_user_id, username,
@@ -376,7 +376,7 @@ async def get_platform_profile(profile_id: int) -> PlatformProfile | None:
 
 async def get_letta_user_block_id(letta_user_id: int) -> str | None:
     """Get the Letta block ID for a user."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         async with db.execute(
             """
             SELECT letta_block_id
@@ -394,7 +394,7 @@ async def get_letta_user_block_id(letta_user_id: int) -> str | None:
 async def upsert_user(user_id: int, username: str, first_name: str) -> None:
     """Upsert a user's details."""
     now = datetime.utcnow().isoformat()
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         await db.execute(
             """
             INSERT INTO platform_profiles (

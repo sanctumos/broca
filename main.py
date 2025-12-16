@@ -36,6 +36,7 @@ from common.config import (
 )
 from common.logging import setup_logging
 from database.operations.shared import check_and_migrate_db, initialize_database
+from database.pool import ConnectionPool, initialize_pool
 from runtime.core.agent import AgentClient
 from runtime.core.plugin import PluginManager
 from runtime.core.queue import QueueProcessor
@@ -351,9 +352,12 @@ class Application:
                     )
                     raise
 
-            # Initialize and migrate the database safely
+            # Initialize and migrate the database safely (before pool, uses direct connection)
             await initialize_database()
             await check_and_migrate_db()
+            
+            # Initialize database connection pool after database is ready
+            await self.db_pool.initialize()
 
             # Initialize the agent
             logger.info("🔄 Initializing agent API connection...")
@@ -447,6 +451,11 @@ class Application:
             # Stop plugin manager last
             logger.info("🛑 Stopping plugin manager...")
             await self.plugin_manager.stop()
+            
+            # Close database connection pool
+            if hasattr(self, "db_pool"):
+                logger.info("🛑 Closing database connection pool...")
+                await self.db_pool.close()
 
             logger.info("✅ Application stopped successfully")
 
