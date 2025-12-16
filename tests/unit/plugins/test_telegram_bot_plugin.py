@@ -58,10 +58,10 @@ class TestTelegramBotPlugin:
 
         test_settings = {"token": "test_token"}
 
-        # Test with validate_settings method (fallback since TelegramBotPlugin doesn't have apply_settings)
-        with patch.object(wrapper._plugin, "validate_settings") as mock_validate:
+        # Test with apply_settings method (plugin has apply_settings)
+        with patch.object(wrapper._plugin, "apply_settings") as mock_apply:
             wrapper.apply_settings(test_settings)
-            mock_validate.assert_called_once_with(test_settings)
+            mock_apply.assert_called_once_with(test_settings)
 
     def test_plugin_wrapper_apply_settings_fallback(self):
         """Test plugin wrapper apply_settings fallback."""
@@ -69,8 +69,11 @@ class TestTelegramBotPlugin:
 
         test_settings = {"token": "test_token"}
 
-        # Test fallback to validate_settings (since TelegramBotPlugin doesn't have apply_settings)
-        with patch.object(wrapper._plugin, "validate_settings") as mock_validate:
+        # Test fallback to validate_settings when apply_settings doesn't exist
+        # Remove apply_settings to test fallback behavior
+        with patch.object(wrapper._plugin, "apply_settings", None), patch.object(
+            wrapper._plugin, "validate_settings"
+        ) as mock_validate:
             wrapper.apply_settings(test_settings)
             mock_validate.assert_called_once_with(test_settings)
 
@@ -208,19 +211,13 @@ class TestTelegramBotPlugin:
 
     def test_telegram_bot_plugin_apply_settings(self):
         """Test TelegramBotPlugin apply_settings method."""
-        with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
-            mock_settings_instance = MagicMock()
-            mock_settings.return_value = mock_settings_instance
+        plugin = TelegramBotPluginWrapper()
+        test_settings = {"bot_token": "test_token"}
 
-            plugin = TelegramBotPluginWrapper()
-            test_settings = {"bot_token": "test_token"}
-
-            # The apply_settings method calls validate_settings as fallback
-            with patch.object(
-                plugin._plugin, "validate_settings", return_value=True
-            ) as mock_validate:
-                plugin.apply_settings(test_settings)
-                mock_validate.assert_called_once_with(test_settings)
+        # The plugin has apply_settings, so it will be called
+        with patch.object(plugin._plugin, "apply_settings") as mock_apply:
+            plugin.apply_settings(test_settings)
+            mock_apply.assert_called_once_with(test_settings)
 
     @pytest.mark.asyncio
     async def test_telegram_bot_plugin_start(self):

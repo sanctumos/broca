@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from plugins import Plugin
+from plugins.base import BasePluginWrapper
 from plugins.telegram_bot.handlers import MessageHandler
 from plugins.telegram_bot.message_handler import TelegramMessageHandler
 from plugins.telegram_bot.settings import TelegramBotSettings
@@ -12,61 +13,12 @@ from plugins.telegram_bot.settings import TelegramBotSettings
 logger = logging.getLogger(__name__)
 
 
-class TelegramBotPluginWrapper(Plugin):
+class TelegramBotPluginWrapper(BasePluginWrapper):
     """Wrapper for TelegramBotPlugin to make it compatible with auto-discovery."""
 
     def __init__(self):
         """Initialize the wrapper."""
-        self._plugin = TelegramBotPlugin()
-
-    def get_name(self) -> str:
-        """Get the plugin name."""
-        return self._plugin.get_name()
-
-    def get_platform(self) -> str:
-        """Get the platform name."""
-        return self._plugin.get_platform()
-
-    def get_message_handler(self):
-        """Get the message handler."""
-        return self._plugin.get_message_handler()
-
-    def get_settings(self):
-        """Get plugin settings."""
-        return self._plugin.get_settings()
-
-    def apply_settings(self, settings):
-        """Apply settings to the plugin."""
-        if hasattr(self._plugin, "apply_settings"):
-            self._plugin.apply_settings(settings)
-        else:
-            # Fallback for backward compatibility
-            if hasattr(self._plugin, "validate_settings"):
-                self._plugin.validate_settings(settings)
-
-    def validate_settings(self, settings):
-        """Validate plugin settings."""
-        if hasattr(self._plugin, "validate_settings"):
-            return self._plugin.validate_settings(settings)
-        return True
-
-    async def start(self):
-        """Start the plugin."""
-        await self._plugin.start()
-
-    async def stop(self):
-        """Stop the plugin."""
-        await self._plugin.stop()
-
-    def register_event_handler(self, event_type, handler):
-        """Register an event handler."""
-        if hasattr(self._plugin, "register_event_handler"):
-            self._plugin.register_event_handler(event_type, handler)
-
-    def emit_event(self, event):
-        """Emit an event."""
-        if hasattr(self._plugin, "emit_event"):
-            self._plugin.emit_event(event)
+        super().__init__(TelegramBotPlugin())
 
 
 class TelegramBotPlugin:
