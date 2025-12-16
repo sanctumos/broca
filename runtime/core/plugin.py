@@ -30,6 +30,44 @@ from plugins import Event, EventType, Plugin
 logger = logging.getLogger(__name__)
 
 
+def validate_handler_signature(handler: Callable) -> bool:
+    """Validate that handler has correct signature for message routing.
+    
+    Expected signature: async def handler(response: str, profile: Any, message_id: int) -> None
+    
+    Args:
+        handler: The handler function to validate
+        
+    Returns:
+        True if handler has valid signature, False otherwise
+    """
+    if not callable(handler):
+        return False
+    
+    # Check if async
+    if not inspect.iscoroutinefunction(handler):
+        return False
+    
+    # Get signature
+    try:
+        sig = inspect.signature(handler)
+        params = list(sig.parameters.values())
+        
+        # Should have at least 3 parameters (response, profile, message_id)
+        # Note: self is not included for bound methods, but we check the actual callable
+        if len(params) < 3:
+            return False
+        
+        # First param should be response (str)
+        # Second param should be profile (Any)
+        # Third param should be message_id (int)
+        # We don't strictly check types, just that we have enough parameters
+        return True
+    except (ValueError, TypeError):
+        # If we can't inspect, assume invalid
+        return False
+
+
 class PluginManager:
     """Manages plugin lifecycles and event routing."""
 
@@ -39,44 +77,6 @@ class PluginManager:
         self._event_handlers: dict[EventType, list[Callable[[Event], None]]] = {}
         self._platform_handlers: dict[str, Callable] = {}
         self._running = False
-
-    @staticmethod
-    def _validate_handler_signature(handler: Callable) -> bool:
-        """Validate that handler matches expected signature.
-        
-        Expected signature: async def handler(response: str, profile: Any, message_id: int) -> None
-        
-        Args:
-            handler: The handler function to validate
-            
-        Returns:
-            bool: True if signature is valid, False otherwise
-        """
-        if not callable(handler):
-            return False
-        
-        try:
-            sig = inspect.signature(handler)
-            params = list(sig.parameters.values())
-            
-            # Check parameter count (should have 3: response, profile, message_id)
-            if len(params) != 3:
-                return False
-            
-            # Check parameter names (flexible on types, but names should match)
-            param_names = [p.name for p in params]
-            expected_names = ['response', 'profile', 'message_id']
-            if param_names != expected_names:
-                return False
-            
-            # Check if async
-            if not inspect.iscoroutinefunction(handler):
-                return False
-            
-            return True
-        except (ValueError, TypeError):
-            # If we can't inspect the signature, reject it
-            return False
 
     async def load_plugin(self, plugin_path: str) -> None:
         """Load a plugin from the given path.
@@ -88,15 +88,24 @@ class PluginManager:
             PluginError: If plugin loading fails
         """
         try:
-            # Use full package path to avoid module name collisions
-            # Convert plugins/plugin_name/plugin.py -> plugins.plugin_name.plugin
-            plugin_dir = Path(plugin_path).parent
-            plugin_parent = plugin_dir.parent
-            if plugin_parent.name != "plugins":
-                # Fallback for non-standard paths
-                module_name = f"plugin_{Path(plugin_path).stem}"
-            else:
-                module_name = f"plugins.{plugin_dir.name}.plugin"
+            # Convert path to unique module name using package path
+            # e.g., "plugins/telegram_bot/plugin.py" -> "plugins.telegram_bot.plugin"
+            plugin_path_obj = Path(plugin_path).resolve()
+            plugin_dir = plugin_path_obj.parent
+            
+            # Get relative path from project root (assuming plugins/ is in root)
+            # Find plugins directory in path
+            parts = plugin_path_obj.parts
+            try:
+                plugins_idx = parts.index("plugins")
+                # Get everything after plugins/
+                module_parts = parts[plugins_idx:]
+                # Remove .py extension from last part
+                module_parts = list(module_parts[:-1]) + [module_parts[-1].replace(".py", "")]
+                module_name = ".".join(module_parts)
+            except ValueError:
+                # Fallback to old method if plugins/ not in path
+                module_name = plugin_path_obj.stem
             
             spec = importlib.util.spec_from_file_location(module_name, plugin_path)
             if spec is None:
@@ -120,11 +129,12 @@ class PluginManager:
                     if platform:
                         handler = plugin.get_message_handler()
                         if handler:
-                            # Validate handler signature
-                            if not self._validate_handler_signature(handler):
+                            # Validate handler signature before registering
+                            if not validate_handler_signature(handler):
                                 raise PluginError(
-                                    f"Plugin {plugin_name} handler signature invalid. "
-                                    f"Expected: async def handler(response: str, profile: Any, message_id: int) -> None"
+                                    f"Plugin {plugin_name} handler has invalid signature. "
+                                    f"Expected: async def handler(response: str, profile: Any, message_id: int) -> None. "
+                                    f"Got: {inspect.signature(handler) if callable(handler) else 'not callable'}"
                                 )
                             self._platform_handlers[platform] = handler
                             logger.info(
