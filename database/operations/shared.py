@@ -13,16 +13,16 @@ VALID_TABLE_NAMES = set(SCHEMA.keys())
 
 def validate_table_name(table_name: str) -> str:
     """Validate that a table name is in the whitelist.
-    
+
     This prevents SQL injection by ensuring only known table names
     can be used in dynamic SQL queries.
-    
+
     Args:
         table_name: Table name to validate
-        
+
     Returns:
         The validated table name
-        
+
     Raises:
         ValueError: If table name is not in whitelist
     """
@@ -35,10 +35,26 @@ def validate_table_name(table_name: str) -> str:
 
 
 def get_db_path() -> str:
-    """Get the database path, respecting test environment."""
-    return os.environ.get("TEST_DB_PATH") or os.path.join(
-        os.path.dirname(__file__), "..", "..", "sanctum.db"
-    )
+    """Get the database path, respecting environment variables and test environment.
+
+    Priority:
+    1. TEST_DB_PATH (for tests)
+    2. DB_PATH (for configuration)
+    3. Default: sanctum.db in project root
+
+    Returns:
+        Path to the database file
+    """
+    # Test environment takes precedence
+    if "TEST_DB_PATH" in os.environ:
+        return os.environ["TEST_DB_PATH"]
+
+    # Allow configuration via DB_PATH environment variable
+    if "DB_PATH" in os.environ:
+        return os.environ["DB_PATH"]
+
+    # Default to sanctum.db in project root
+    return os.path.join(os.path.dirname(__file__), "..", "..", "sanctum.db")
 
 
 # Set up logging
