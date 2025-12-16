@@ -120,6 +120,123 @@ def get_env_var(
     return value
 
 
+def validate_environment_variables(production_mode: bool = True) -> None:
+    """Validate environment variables to detect placeholder/test values.
+    
+    This function checks for placeholder values in critical environment variables
+    that should not be used in production. It helps prevent accidental use of
+    test credentials in production environments.
+    
+    Args:
+        production_mode: If True, raise errors for placeholder values.
+                        If False, only log warnings (for development).
+    
+    Raises:
+        ValueError: If placeholder values are detected in production mode.
+    """
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Define critical environment variables and their placeholder patterns
+    critical_vars = {
+        "AGENT_API_KEY": [
+            "your_letta_api_key_here",
+            "your-api-key-here",
+            "placeholder",
+            "test",
+            "123456",
+            "changeme",
+        ],
+        "AGENT_ENDPOINT": [
+            "your-endpoint-here",
+            "placeholder",
+            "example.com",
+            "localhost",
+        ],
+        "TELEGRAM_API_HASH": [
+            "your_telegram_api_hash_here",
+            "placeholder",
+            "123456",
+            "test",
+        ],
+        "TELEGRAM_BOT_TOKEN": [
+            "your_bot_token_here",
+            "placeholder",
+            "123456",
+            "test",
+        ],
+    }
+    
+    # Patterns that indicate placeholder values
+    placeholder_patterns = [
+        "your_",
+        "your-",
+        "_here",
+        "-here",
+        "placeholder",
+        "changeme",
+        "example",
+        "test_",
+        "test-",
+    ]
+    
+    errors = []
+    warnings = []
+    
+    for var_name, known_placeholders in critical_vars.items():
+        value = os.environ.get(var_name)
+        
+        if not value:
+            # Missing required variable - only warn, don't error
+            # (some may be optional depending on which plugins are enabled)
+            warnings.append(f"Environment variable {var_name} is not set")
+            continue
+        
+        value_lower = value.lower().strip()
+        
+        # Check against known placeholder values
+        if value_lower in [p.lower() for p in known_placeholders]:
+            msg = (
+                f"Environment variable {var_name} appears to be a placeholder: "
+                f"{value[:20]}..."
+            )
+            if production_mode:
+                errors.append(msg)
+            else:
+                warnings.append(msg)
+            continue
+        
+        # Check for placeholder patterns
+        for pattern in placeholder_patterns:
+            if pattern in value_lower:
+                msg = (
+                    f"Environment variable {var_name} may contain a placeholder "
+                    f"pattern: {pattern}"
+                )
+                if production_mode:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
+                break
+    
+    # Log warnings
+    for warning in warnings:
+        logger.warning(f"⚠️ {warning}")
+    
+    # Raise errors in production mode
+    if errors:
+        error_msg = (
+            "Invalid environment variables detected. Please ensure all "
+            "environment variables are set to production values, not placeholders.\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )
+        if production_mode:
+            raise ValueError(error_msg)
+        else:
+            logger.warning(f"⚠️ {error_msg}")
+
+
 def get_typed_settings(
     settings_file: str = "settings.json", force_reload: bool = False
 ) -> Settings:
