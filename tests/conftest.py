@@ -54,12 +54,26 @@ async def temp_db() -> AsyncGenerator[str, None]:
     original_db_path = os.environ.get("TEST_DB_PATH")
     os.environ["TEST_DB_PATH"] = db_path
 
+    # Initialize connection pool for tests (small pool for tests)
+    from database.pool import initialize_pool, get_pool
+    pool = initialize_pool(pool_size=2, max_overflow=3)
+    await pool.initialize()
+
     try:
         # Initialize the test database
         await initialize_database()
         yield db_path
     finally:
-        # Cleanup
+        # Cleanup - close connection pool first
+        try:
+            await get_pool().close()
+        except Exception:
+            pass
+        
+        # Reset global pool
+        import database.pool
+        database.pool._pool = None
+        
         if os.path.exists(db_path):
             os.unlink(db_path)
         if original_db_path:

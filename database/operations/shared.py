@@ -6,6 +6,7 @@ import os
 import aiosqlite
 
 from ..models import SCHEMA
+from ..pool import get_pool
 
 # Whitelist of valid table names for SQL injection prevention
 VALID_TABLE_NAMES = set(SCHEMA.keys())
@@ -63,8 +64,14 @@ logger = logging.getLogger(__name__)
 
 async def initialize_database():
     """Safely initialize the database by creating tables if they don't exist.
-    This function will never drop or modify existing data."""
+    This function will never drop or modify existing data.
+    
+    Note: Uses direct connection (not pool) since this is called during initialization
+    before the pool is ready.
+    """
     try:
+        # Use direct connection for initialization (pool may not be ready yet)
+        import aiosqlite
         async with aiosqlite.connect(get_db_path()) as db:
             # Enable foreign keys
             await db.execute("PRAGMA foreign_keys = ON")
@@ -88,7 +95,7 @@ async def initialize_database():
 
 async def check_and_migrate_db():
     """Check and migrate the database schema if needed."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         # Check if all tables exist
         for table_name in SCHEMA.keys():
             try:
@@ -104,7 +111,7 @@ async def check_and_migrate_db():
 
 async def get_dashboard_stats() -> dict:
     """Get statistics for the dashboard."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         stats = {}
 
         # Get user count

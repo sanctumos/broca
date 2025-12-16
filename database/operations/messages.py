@@ -6,7 +6,7 @@ from typing import Any
 import aiosqlite
 
 from ..models import PlatformProfile
-from .shared import get_db_path
+from ..pool import get_pool
 
 
 async def insert_message(
@@ -19,7 +19,7 @@ async def insert_message(
     """Insert a new message into the database."""
     now = timestamp or datetime.utcnow().isoformat()
 
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         cursor = await db.execute(
             """
             INSERT INTO messages (
@@ -38,7 +38,7 @@ async def insert_message(
 
 async def get_message_text(message_id: int) -> tuple[str, str] | None:
     """Get the message text and role for a message ID."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         async with db.execute(
             """
             SELECT role, message
@@ -55,7 +55,7 @@ async def get_message_text(message_id: int) -> tuple[str, str] | None:
 
 async def update_message_with_response(message_id: int, agent_response: str) -> None:
     """Update a message with the agent's response and mark as processed."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         await db.execute(
             """
             UPDATE messages
@@ -75,7 +75,7 @@ async def get_message_history() -> list[dict]:
     Returns:
         List[dict]: List of message records with associated user and status information.
     """
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         async with db.execute(
             """
             SELECT
@@ -118,7 +118,7 @@ async def get_messages(
     letta_user_id: int, platform_profile_id: int, limit: int = 10
 ) -> list[dict[str, Any]]:
     """Get recent messages for a user and platform profile."""
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         cursor = await db.execute(
             """
             SELECT
@@ -156,7 +156,7 @@ async def get_message_platform_profile(message_id: int) -> PlatformProfile | Non
     Returns:
         Optional[PlatformProfile]: The platform profile or None if not found
     """
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         async with db.execute(
             """
             SELECT
@@ -196,7 +196,7 @@ async def update_message_status(
     """
     processed = 1 if status == "success" else 0
 
-    async with aiosqlite.connect(get_db_path()) as db:
+    async with get_pool().connection() as db:
         await db.execute(
             """
             UPDATE messages
@@ -207,3 +207,5 @@ async def update_message_status(
             (processed, response, message_id),
         )
         await db.commit()
+
+
