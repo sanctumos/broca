@@ -130,15 +130,25 @@ class PluginManager:
                         handler = plugin.get_message_handler()
                         if handler:
                             # Validate handler signature before registering
+                            # This enforces the handler contract: async handler(response: str, profile: Any, message_id: int) -> None
                             if not validate_handler_signature(handler):
+                                try:
+                                    sig = inspect.signature(handler) if callable(handler) else "not callable"
+                                except (ValueError, TypeError):
+                                    sig = "unable to inspect"
                                 raise PluginError(
-                                    f"Plugin {plugin_name} handler has invalid signature. "
+                                    f"Plugin '{plugin_name}' has invalid message handler signature. "
                                     f"Expected: async def handler(response: str, profile: Any, message_id: int) -> None. "
-                                    f"Got: {inspect.signature(handler) if callable(handler) else 'not callable'}"
+                                    f"Got: {sig}. "
+                                    f"Handler must be an async function with at least 3 parameters."
                                 )
                             self._platform_handlers[platform] = handler
                             logger.info(
                                 f"Registered message handler for platform: {platform}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Plugin '{plugin_name}' has platform '{platform}' but no message handler"
                             )
 
                     self._plugins[plugin_name] = plugin
