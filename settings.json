@@ -1,14 +1,6 @@
 {
-  "debug_mode": false,
-  "queue_refresh": 5,
-  "max_retries": 3,
-  "message_mode": "live",
-  "queue_processor": {
-    "max_concurrent": 3
-  },
-  "database": {
-    "pool_size": 5,
-    "max_overflow": 10
-  },
-  "plugins": {}
+    "debug_mode": false,
+    "queue_refresh": 5,
+    "max_retries": 3,
+    "message_mode": "live"
 }

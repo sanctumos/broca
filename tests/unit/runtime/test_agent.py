@@ -38,6 +38,11 @@ async def test_agent_client_send_message():
         result = await agent.process_message("test message")
 
         assert result == "test response"
+        # Verify it was called with input parameter (v1.0+ API)
+        mock_client.agents.messages.create.assert_called_once_with(
+            agent_id="test-agent-123",
+            input="test message"
+        )
 
 
 @pytest.mark.unit

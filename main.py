@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 
 from common.config import (
     get_config_manager,
+    get_env_var,
     get_settings,
     validate_environment_variables,
 )
@@ -324,7 +325,17 @@ class Application:
         Returns:
             The agent's response or None if processing failed
         """
-        return await self.agent.process_message(message)
+        # Check if background processing is enabled
+        use_background = get_env_var(
+            "USE_BACKGROUND_PROCESSING", default="true", cast_type=lambda x: x.lower() == "true"
+        )
+        
+        if use_background:
+            # Use async streaming method for long-running tasks
+            return await self.agent.process_message_async(message)
+        else:
+            # Use synchronous method (backward compatibility)
+            return await self.agent.process_message(message)
 
     async def _on_message_processed(self, user_id: int, response: str) -> None:
         """Handle processed messages.

@@ -278,8 +278,39 @@ class TestApplicationMocked:
 
     @pytest.mark.asyncio
     async def test_application_process_message(self):
-        """Test Application _process_message delegates to agent."""
-        with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
+        """Test Application _process_message delegates to agent async method."""
+        with patch.dict(os.environ, {
+            "AGENT_ID": "test-agent-123",
+            "USE_BACKGROUND_PROCESSING": "true"
+        }), patch(
+            "main.create_default_settings"
+        ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
+            "main.QueueProcessor"
+        ), patch(
+            "builtins.open", mock_open()
+        ), patch(
+            "os.getpid", return_value=12345
+        ), patch(
+            "main.signal.signal"
+        ):
+            from main import Application
+
+            app = Application()
+
+            mock_response = "Test response"
+            app.agent.process_message_async = AsyncMock(return_value=mock_response)
+
+            result = await app._process_message("Test message")
+            assert result == mock_response
+            app.agent.process_message_async.assert_called_once_with("Test message")
+
+    @pytest.mark.asyncio
+    async def test_application_process_message_fallback_to_sync(self):
+        """Test Application _process_message falls back to sync when background disabled."""
+        with patch.dict(os.environ, {
+            "AGENT_ID": "test-agent-123",
+            "USE_BACKGROUND_PROCESSING": "false"
+        }), patch(
             "main.create_default_settings"
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
@@ -300,6 +331,9 @@ class TestApplicationMocked:
             result = await app._process_message("Test message")
             assert result == mock_response
             app.agent.process_message.assert_called_once_with("Test message")
+            # Async method should not be called when disabled
+            if hasattr(app.agent, 'process_message_async'):
+                assert not hasattr(app.agent.process_message_async, 'call_count') or app.agent.process_message_async.call_count == 0
 
     @pytest.mark.asyncio
     async def test_application_on_message_processed(self):
