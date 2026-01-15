@@ -24,7 +24,7 @@ class LettaClient:
         # API key is not logged for security reasons
 
         # Initialize the official Letta client
-        self._client = Letta(base_url=self.api_endpoint, token=self.api_key)
+        self._client = Letta(base_url=self.api_endpoint, api_key=self.api_key)
 
     @property
     def client(self):
@@ -45,6 +45,11 @@ class LettaClient:
     def identities(self):
         """Get the identities API client."""
         return self._client.identities
+
+    @property
+    def conversations(self):
+        """Get the conversations API client."""
+        return self._client.conversations
 
     def close(self):
         """Close the client."""
