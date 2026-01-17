@@ -101,59 +101,55 @@ class AgentClient:
             logger.debug(f"Debug mode: returning message without processing: {message}")
             return message
 
+        def _extract_content(msg) -> str | None:
+            if hasattr(msg, "content"):
+                content = msg.content
+                if isinstance(content, str):
+                    return content
+                if isinstance(content, list):
+                    parts = []
+                    for part in content:
+                        if hasattr(part, "text"):
+                            parts.append(part.text)
+                        elif isinstance(part, dict) and "text" in part:
+                            parts.append(part["text"])
+                    if parts:
+                        return "\n".join(parts)
+            if hasattr(msg, "text"):
+                return msg.text
+            return None
+
         async def _process_with_letta():
             client = get_letta_client()
 
             logger.debug(f"Sending message to agent {self.agent_id}: {message}")
             response = client.agents.messages.create(
                 agent_id=self.agent_id,
-                input=message,  # v1.0+ API: use input parameter instead of messages
+                input=message,
             )
 
-            logger.debug(f"Received response: {response}")
-
-            if not hasattr(response, "messages"):
-                logger.error("Response does not have 'messages' attribute")
-                return None
-
-            if not response.messages:
-                logger.warning("No messages in response")
+            messages = getattr(response, "messages", None)
+            if not messages:
+                logger.warning("No messages returned for response")
                 return None
 
             response_content = None
-            for msg in response.messages:
-                logger.debug(
-                    f"Processing message: id={msg.id}, type={msg.message_type}"
-                )
-
-                if msg.message_type == "reasoning_message":
-                    logger.debug(f"Found reasoning: {msg.reasoning}")
+            for msg in messages:
+                if getattr(msg, "message_type", None) == "reasoning_message":
                     continue
-
-                if hasattr(msg, "content"):
-                    response_content = msg.content
+                response_content = _extract_content(msg)
+                if response_content:
                     break
 
             if response_content is None:
-                logger.error("No response content found in any message")
-                for msg in response.messages:
-                    if msg.message_type == "reasoning_message" and hasattr(
-                        msg, "reasoning"
-                    ):
-                        response_content = msg.reasoning
-                        break
+                logger.error("No response content found in run messages")
 
             return response_content
 
         try:
-            return await exponential_backoff(
-                _process_with_letta,
-                config=LETTA_RETRY_CONFIG,
-                circuit_breaker=LETTA_CIRCUIT_BREAKER,
-                retry_on_exception=self._should_retry_exception,
-            )
+            return await _process_with_letta()
         except Exception as e:
-            logger.error(f"Error processing message after retries: {str(e)}")
+            logger.error(f"Error processing message: {str(e)}")
             return None
 
     def _should_retry_exception(self, exception: Exception) -> bool:
@@ -193,155 +189,9 @@ class AgentClient:
             logger.debug(f"Debug mode: returning message without processing: {message}")
             return message
 
-        async def _process_with_streaming():
-            client = get_letta_client()
-
-            logger.debug(f"Sending message to agent {self.agent_id} with streaming: {message}")
-            
-            # Start streaming with background mode
-            stream = client.agents.messages.create(
-                agent_id=self.agent_id,
-                input=message,
-                streaming=True,
-                background=True,
-                include_pings=True,  # Prevent connection timeouts
-            )
-
-            conversation_id = None
-            message_id = None
-            event_count = 0
-
-            # Consume stream - only extract conversation_id/message_id, discard everything else
-            try:
-                async for event in stream:
-                    event_count += 1
-                    
-                    # Capture conversation_id from early events (ONLY thing we need from stream)
-                    if not conversation_id:
-                        # Check various possible attributes for conversation_id
-                        if hasattr(event, 'conversation_id') and event.conversation_id:
-                            conversation_id = event.conversation_id
-                            logger.debug(f"Captured conversation_id from stream event #{event_count}: {conversation_id}")
-                        elif hasattr(event, 'conversation') and hasattr(event.conversation, 'id'):
-                            conversation_id = event.conversation.id
-                            logger.debug(f"Captured conversation_id from stream event #{event_count}: {conversation_id}")
-                        elif hasattr(event, 'run') and hasattr(event.run, 'conversation_id'):
-                            conversation_id = event.run.conversation_id
-                            logger.debug(f"Captured conversation_id from stream event #{event_count}: {conversation_id}")
-                        # Also check if event itself has a data attribute with conversation info
-                        elif hasattr(event, 'data'):
-                            data = event.data
-                            if hasattr(data, 'conversation_id') and data.conversation_id:
-                                conversation_id = data.conversation_id
-                                logger.debug(f"Captured conversation_id from stream event data #{event_count}: {conversation_id}")
-                    
-                    # Also try to capture message_id if available
-                    if not message_id:
-                        if hasattr(event, 'message_id') and event.message_id:
-                            message_id = event.message_id
-                        elif hasattr(event, 'messages') and event.messages:
-                            # Get message_id from first message if available
-                            for msg in event.messages:
-                                if hasattr(msg, 'id'):
-                                    message_id = msg.id
-                                    break
-                    
-                    # Discard all other stream content - we don't need it
-                    # Log periodically to show stream is active
-                    if event_count % 100 == 0:
-                        logger.debug(f"Stream active: processed {event_count} events, conversation_id={'captured' if conversation_id else 'not yet'}")
-                
-                logger.debug(f"Stream closed after {event_count} events - processing complete")
-                
-            except Exception as stream_error:
-                logger.error(f"Error consuming stream after {event_count} events: {str(stream_error)}")
-                # If we got conversation_id before error, we can still try to fetch message
-                if not conversation_id:
-                    logger.warning("No conversation_id captured from stream, cannot fetch message")
-                    raise
-
-            # Stream closed = processing complete
-            # Now fetch the actual message using non-streaming API
-            if conversation_id:
-                logger.debug(f"Fetching final message from conversation {conversation_id}")
-                try:
-                    messages_response = client.conversations.messages.list(
-                        conversation_id=conversation_id,
-                        order='desc',
-                        limit=10
-                    )
-                    
-                    # Extract assistant message from the list
-                    if hasattr(messages_response, 'data') and messages_response.data:
-                        for msg in messages_response.data:
-                            # Look for assistant message
-                            if hasattr(msg, 'message_type'):
-                                if msg.message_type == 'assistant_message' or msg.message_type == 'assistant':
-                                    if hasattr(msg, 'content') and msg.content:
-                                        logger.debug("Found assistant message in conversation")
-                                        return msg.content
-                                    elif hasattr(msg, 'text') and msg.text:
-                                        return msg.text
-                    
-                    logger.warning(f"No assistant message found in conversation {conversation_id}")
-                    return None
-                    
-                except Exception as fetch_error:
-                    logger.error(f"Error fetching message from conversation: {str(fetch_error)}")
-                    raise
-            
-            # Fallback: try to get message by message_id if we have it
-            if message_id:
-                logger.debug(f"Attempting to fetch message by message_id: {message_id}")
-                try:
-                    # Try to get message from agent messages list
-                    messages_response = client.agents.messages.list(
-                        agent_id=self.agent_id,
-                        limit=10
-                    )
-                    if hasattr(messages_response, 'data') and messages_response.data:
-                        for msg in messages_response.data:
-                            if hasattr(msg, 'id') and msg.id == message_id:
-                                if hasattr(msg, 'content') and msg.content:
-                                    return msg.content
-                except Exception as fetch_error:
-                    logger.error(f"Error fetching message by message_id: {str(fetch_error)}")
-            
-            logger.error("Could not extract conversation_id or message_id from stream")
-            return None
-
-        # Get max wait time from config (default 10 minutes)
-        max_wait = int(get_env_var("LONG_TASK_MAX_WAIT", default="600"))
-        
-        try:
-            # Wrap with timeout to prevent indefinite waiting
-            return await asyncio.wait_for(
-                exponential_backoff(
-                    _process_with_streaming,
-                    config=LETTA_RETRY_CONFIG,
-                    circuit_breaker=LETTA_CIRCUIT_BREAKER,
-                    retry_on_exception=self._should_retry_exception,
-                ),
-                timeout=max_wait,
-            )
-        except asyncio.TimeoutError:
-            logger.error(f"Stream processing timed out after {max_wait} seconds")
-            # Fallback to async method if streaming times out
-            logger.info("Attempting fallback to create_async method")
-            try:
-                return await self._fallback_to_async(message)
-            except Exception as fallback_error:
-                logger.error(f"Fallback method also failed: {str(fallback_error)}")
-                return None
-        except Exception as e:
-            logger.error(f"Error processing message with streaming after retries: {str(e)}")
-            # Try fallback to async method
-            logger.info("Attempting fallback to create_async method")
-            try:
-                return await self._fallback_to_async(message)
-            except Exception as fallback_error:
-                logger.error(f"Fallback method also failed: {str(fallback_error)}")
-                return None
+        # Streaming responses are not async-iterable in the sync client.
+        # Fall back to run-based polling to avoid blocking.
+        return await self.process_message(message)
 
     async def _fallback_to_async(self, message: str) -> str | None:
         """Fallback method using create_async if streaming fails.

@@ -14,6 +14,7 @@ from database.operations.messages import (
 from database.operations.queue import (
     atomic_dequeue_item,
     requeue_failed_item,
+    requeue_stale_processing_items,
     update_queue_status,
 )
 from database.operations.users import (
@@ -62,25 +63,8 @@ class QueueProcessor:
         self.letta_client = get_letta_client()
         self.agent_id = get_env_var("AGENT_ID", required=True)
 
-        # Concurrency control
-        if max_concurrent is None:
-            # Try to get from environment variable, then settings, default to 3
-            max_concurrent = int(get_env_var("QUEUE_MAX_CONCURRENT", default="3"))
-            try:
-                from common.config import get_settings
-
-                settings = get_settings()
-                if isinstance(settings, dict) and "queue_processor" in settings:
-                    queue_config = settings.get("queue_processor", {})
-                    if (
-                        isinstance(queue_config, dict)
-                        and "max_concurrent" in queue_config
-                    ):
-                        max_concurrent = int(queue_config["max_concurrent"])
-            except Exception:
-                pass  # Use default if settings unavailable
-
-        self.max_concurrent = max(1, max_concurrent)  # Ensure at least 1
+        # Hard constraint: single-flight processing only
+        self.max_concurrent = 1
         self._concurrency_semaphore = asyncio.Semaphore(self.max_concurrent)
         self._processing_tasks: set[asyncio.Task] = set()
 
@@ -99,9 +83,24 @@ class QueueProcessor:
         try:
             # Attach core block
             logger.info(f"Attaching user core block {block_id[:8]}... to agent")
-            self.letta_client.agents.blocks.attach(
-                agent_id=self.agent_id, block_id=block_id
-            )
+            try:
+                self.letta_client.agents.blocks.attach(
+                    agent_id=self.agent_id, block_id=block_id
+                )
+            except Exception as attach_error:
+                message = str(attach_error).lower()
+                if (
+                    "unique constraint" in message
+                    or "already exists" in message
+                    or "duplicate key" in message
+                    or "409" in message
+                    or "unique_agent_block" in message
+                ):
+                    logger.info(
+                        f"Core block {block_id[:8]} already attached; continuing"
+                    )
+                else:
+                    raise
 
             # Process the message
             logger.info(
@@ -204,12 +203,24 @@ class QueueProcessor:
                 response = formatted_message  # Use formatted message with metadata
                 status = "completed"
             else:
-                # Process with agent
+                # Process with agent (guarded by timeout)
                 logger.info(f"Processing message in {self.message_mode.upper()} mode")
-                response, status = await self._process_with_core_block(
-                    message=formatted_message,
-                    letta_user_id=queue_item.letta_user_id,
+                timeout_seconds = max(
+                    300, int(get_env_var("MESSAGE_PROCESS_TIMEOUT", default="300"))
                 )
+                try:
+                    response, status = await asyncio.wait_for(
+                        self._process_with_core_block(
+                            message=formatted_message,
+                            letta_user_id=queue_item.letta_user_id,
+                        ),
+                        timeout=timeout_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(
+                        f"Message processing timed out after {timeout_seconds}s"
+                    )
+                    response, status = None, "failed"
 
             if response:
                 # Update message and queue status
@@ -220,6 +231,16 @@ class QueueProcessor:
                 if not await self._route_response(queue_item.message_id, response):
                     logger.warning("Failed to route response through platform handler")
             else:
+                # Backoff before requeue to avoid spam retries
+                attempts = getattr(queue_item, "attempts", 0) or 0
+                delay = min(5 * (2**attempts), 300)
+                if delay > 0:
+                    logger.warning(
+                        f"Backing off for {delay:.0f}s before requeue "
+                        f"(attempt {attempts + 1})"
+                    )
+                    await asyncio.sleep(delay)
+
                 # Try to requeue if no response, if max attempts exceeded it will be marked as failed
                 await requeue_failed_item(queue_item.id)
                 logger.warning(
@@ -228,6 +249,14 @@ class QueueProcessor:
 
         except Exception as e:
             logger.error(f"Error processing queue item {queue_item.id}: {str(e)}")
+            attempts = getattr(queue_item, "attempts", 0) or 0
+            delay = min(5 * (2**attempts), 300)
+            if delay > 0:
+                logger.warning(
+                    f"Backing off for {delay:.0f}s before requeue "
+                    f"(attempt {attempts + 1})"
+                )
+                await asyncio.sleep(delay)
             # Try to requeue on error, if max attempts exceeded it will be marked as failed
             await requeue_failed_item(queue_item.id)
 
@@ -300,6 +329,9 @@ class QueueProcessor:
         )
 
         try:
+            # Requeue any stuck processing items from previous crashes
+            await requeue_stale_processing_items()
+
             while self.is_running and not self._stop_event.is_set():
                 try:
                     # Wait for available concurrency slot
