@@ -132,12 +132,12 @@ async def atomic_dequeue_item() -> QueueItem | None:
             return None
 
 
-async def requeue_failed_item(queue_id: int, max_attempts: int = 3) -> bool:
-    """Requeue a failed item if it hasn't exceeded max attempts.
+async def requeue_failed_item(queue_id: int, max_attempts: int | None = None) -> bool:
+    """Requeue a failed item, optionally enforcing max attempts.
 
     Args:
         queue_id: ID of the queue item to requeue
-        max_attempts: Maximum number of attempts before giving up
+        max_attempts: Maximum number of attempts before giving up; None for unlimited
 
     Returns:
         True if item was requeued, False if max attempts exceeded
@@ -155,7 +155,7 @@ async def requeue_failed_item(queue_id: int, max_attempts: int = 3) -> bool:
 
                 attempts = row[0]
 
-                if attempts >= max_attempts:
+                if max_attempts is not None and attempts >= max_attempts:
                     # Mark as permanently failed
                     await db.execute(
                         """
@@ -171,19 +171,22 @@ async def requeue_failed_item(queue_id: int, max_attempts: int = 3) -> bool:
                     )
                     return False
 
-                # Requeue as pending
+                # Requeue as pending and increment attempts
                 await db.execute(
                     """
                     UPDATE queue
-                    SET status = 'pending', timestamp = ?
+                    SET status = 'pending', timestamp = ?, attempts = attempts + 1
                     WHERE id = ?
                 """,
                     (datetime.utcnow().isoformat(), queue_id),
                 )
                 await db.commit()
-                logger.info(
-                    f"Requeued item {queue_id} (attempt {attempts + 1}/{max_attempts})"
-                )
+                if max_attempts is None:
+                    logger.info(f"Requeued item {queue_id} (attempt {attempts + 1})")
+                else:
+                    logger.info(
+                        f"Requeued item {queue_id} (attempt {attempts + 1}/{max_attempts})"
+                    )
                 return True
 
     try:
@@ -239,6 +242,47 @@ async def update_queue_status(
                     timestamp=row[5],
                 )
             raise ValueError(f"Queue item with ID {queue_id} not found")
+
+
+async def requeue_stale_processing_items(max_age_seconds: int = 300) -> int:
+    """Requeue processing items that are older than max_age_seconds."""
+    cutoff = datetime.utcnow().timestamp() - max_age_seconds
+
+    async with get_pool().connection() as db:
+        async with db.execute(
+            """
+            SELECT id, timestamp
+            FROM queue
+            WHERE status = 'processing'
+            """
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        stale_ids = []
+        for row_id, ts in rows:
+            try:
+                if ts:
+                    ts_value = datetime.fromisoformat(ts).timestamp()
+                    if ts_value < cutoff:
+                        stale_ids.append(row_id)
+            except Exception:
+                stale_ids.append(row_id)
+
+        if not stale_ids:
+            return 0
+
+        now = datetime.utcnow().isoformat()
+        await db.executemany(
+            """
+            UPDATE queue
+            SET status = 'pending', timestamp = ?
+            WHERE id = ?
+            """,
+            [(now, row_id) for row_id in stale_ids],
+        )
+        await db.commit()
+        logger.warning(f"Requeued {len(stale_ids)} stale processing items")
+        return len(stale_ids)
 
 
 async def get_all_queue_items() -> list[dict[str, Any]]:

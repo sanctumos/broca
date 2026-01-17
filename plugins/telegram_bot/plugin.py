@@ -1,12 +1,13 @@
 """Telegram bot plugin using aiogram."""
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from plugins import Plugin
 from plugins.base import BasePluginWrapper
-from plugins.telegram_bot.handlers import MessageHandler
+from plugins.telegram_bot.message_handler import MessageFormatter
 from plugins.telegram_bot.message_handler import TelegramMessageHandler
 from plugins.telegram_bot.settings import TelegramBotSettings
 
@@ -30,6 +31,8 @@ class TelegramBotPlugin:
         self.bot = None
         self.dp = None
         self.message_handler = None  # Initialize lazily
+        self.polling_task = None
+        self.response_formatter = MessageFormatter()
         self.event_handlers: dict[str, Callable[[dict[str, Any]], Awaitable[None]]] = {}
         logger.info("Initialized TelegramBotPlugin")
 
@@ -47,21 +50,15 @@ class TelegramBotPlugin:
         Returns:
             str: Platform name
         """
-        return "telegram_bot"
+        return "telegram"
 
-    def get_message_handler(self) -> MessageHandler:
+    def get_message_handler(self) -> Callable[[str, Any, int], Awaitable[None]]:
         """Get the message handler.
 
         Returns:
-            MessageHandler: Message handler instance
+            Callable: Message handler coroutine
         """
-        if self.message_handler is None:
-            try:
-                self.message_handler = TelegramMessageHandler()
-            except Exception as e:
-                logger.warning(f"Could not initialize TelegramMessageHandler: {e}")
-                return None
-        return self.message_handler
+        return self._handle_response
 
     def get_settings(self) -> TelegramBotSettings:
         """Get the plugin settings.
@@ -171,6 +168,9 @@ class TelegramBotPlugin:
                 )
                 return
 
+            # Initialize message handler before polling
+            self.message_handler = TelegramMessageHandler()
+
             # Initialize bot and dispatcher
             self.bot = Bot(token=settings.bot_token)
             self.dp = Dispatcher()
@@ -184,9 +184,9 @@ class TelegramBotPlugin:
             )
             self.dp.message.register(self._handle_message)
 
-            # Start polling
-            await self.dp.start_polling(self.bot)
-            logger.info("Plugin started successfully")
+            # Start polling in the background so startup can continue
+            self.polling_task = asyncio.create_task(self.dp.start_polling(self.bot))
+            logger.info("Plugin started successfully (polling task running)")
         except ImportError as e:
             logger.error(f"aiogram not available: {e}")
             raise
@@ -197,6 +197,12 @@ class TelegramBotPlugin:
     async def stop(self) -> None:
         """Stop the plugin."""
         try:
+            if self.polling_task:
+                self.polling_task.cancel()
+                try:
+                    await self.polling_task
+                except asyncio.CancelledError:
+                    pass
             if self.bot:
                 await self.bot.session.close()
             logger.info("Plugin stopped successfully")
@@ -217,28 +223,41 @@ class TelegramBotPlugin:
                     logger.warning(f"Message from unauthorized user {message.from_user.id}")
                     return
 
-            # Process message based on chat type
-            if message.chat.type == "private":
-                await self.message_handler.handle_private_message(message)
-            elif message.chat.type == "group":
-                await self.message_handler.handle_group_message(message)
-            elif message.chat.type == "channel":
-                await self.message_handler.handle_channel_message(message)
+            # Process incoming message and enqueue
+            await self.message_handler.process_incoming_message(message)
         except Exception as e:
             logger.error(f"Error handling message: {e}")
             raise
 
-    async def _handle_response(self, response: str, message) -> None:
+    async def _handle_response(self, response: str, profile: Any, message_id: int) -> None:
         """Handle outgoing responses.
 
         Args:
             response: The response to send
-            message: The original message
+            profile: Platform profile for the target user
+            message_id: The original message ID
         """
+        if not self.bot:
+            logger.error("Telegram bot is not initialized; cannot send response")
+            return
+
         try:
-            await self.message_handler.process_outgoing_message(message, response)
+            chat_id = int(profile.platform_user_id)
+        except (TypeError, ValueError):
+            logger.error(
+                f"Invalid Telegram platform_user_id for message {message_id}: "
+                f"{profile.platform_user_id}"
+            )
+            return
+
+        formatted = self.response_formatter.format_response(response)
+        try:
+            await self.bot.send_message(chat_id=chat_id, text=formatted, parse_mode="Markdown")
         except Exception as e:
-            logger.error(f"Error handling response for message {response}: {e}")
+            logger.error(f"Error handling response for message {message_id}: {e}")
+            if "can't parse entities" in str(e).lower():
+                await self.bot.send_message(chat_id=chat_id, text=formatted)
+                return
             raise
 
     async def _handle_start_command(self, message) -> None:
@@ -274,6 +293,14 @@ Available commands:
         """
         if self.settings.owner_id and user_id == self.settings.owner_id:
             return True
-        if self.settings.owner_username and username == self.settings.owner_username:
-            return True
+        if self.settings.owner_username:
+            if not username:
+                logger.warning(
+                    "Owner username configured but incoming message has no username"
+                )
+                return False
+            normalized_owner = self.settings.owner_username.lstrip("@").lower()
+            normalized_user = username.lstrip("@").lower()
+            if normalized_user == normalized_owner:
+                return True
         return False

@@ -118,7 +118,12 @@ class PluginManager:
 
             # Find and instantiate the plugin class
             for _name, obj in module.__dict__.items():
-                if isinstance(obj, type) and issubclass(obj, Plugin) and obj != Plugin:
+                if (
+                    isinstance(obj, type)
+                    and issubclass(obj, Plugin)
+                    and obj != Plugin
+                    and obj.__module__ == module.__name__
+                ):
                     plugin = obj()
                     plugin_name = plugin.get_name()
 

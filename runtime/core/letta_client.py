@@ -24,7 +24,10 @@ class LettaClient:
         # API key is not logged for security reasons
 
         # Initialize the official Letta client
-        self._client = Letta(base_url=self.api_endpoint, api_key=self.api_key)
+        # Disable internal client retries; rely on our own backoff.
+        self._client = Letta(
+            base_url=self.api_endpoint, api_key=self.api_key, max_retries=0
+        )
 
     @property
     def client(self):
@@ -50,6 +53,11 @@ class LettaClient:
     def conversations(self):
         """Get the conversations API client."""
         return self._client.conversations
+
+    @property
+    def runs(self):
+        """Get the runs API client."""
+        return self._client.runs
 
     def close(self):
         """Close the client."""

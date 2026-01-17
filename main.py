@@ -37,6 +37,7 @@ from common.config import (
 )
 from common.logging import setup_logging
 from database.operations.shared import check_and_migrate_db, initialize_database
+from database.pool import initialize_pool
 from runtime.core.agent import AgentClient
 from runtime.core.plugin import PluginManager
 from runtime.core.queue import QueueProcessor
@@ -214,6 +215,15 @@ class Application:
         # Create default settings if needed
         create_default_settings()
 
+        # Initialize database connection pool config
+        settings = get_settings()
+        database_settings = {}
+        if isinstance(settings, dict):
+            database_settings = settings.get("database", {}) or {}
+        pool_size = int(database_settings.get("pool_size", 5))
+        max_overflow = int(database_settings.get("max_overflow", 10))
+        self.db_pool = initialize_pool(pool_size=pool_size, max_overflow=max_overflow)
+
         # Initialize PID manager
         self.pid_manager = PIDManager()
         try:
@@ -327,7 +337,9 @@ class Application:
         """
         # Check if background processing is enabled
         use_background = get_env_var(
-            "USE_BACKGROUND_PROCESSING", default="true", cast_type=lambda x: x.lower() == "true"
+            "USE_BACKGROUND_PROCESSING",
+            default="false",
+            cast_type=lambda x: x.lower() == "true",
         )
         
         if use_background:

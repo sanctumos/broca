@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from database.operations.users import get_or_create_platform_profile
+from runtime.core.message import MessageFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ class MessageHandler:
         self.buffer = MessageBuffer(delay=buffer_delay)
         self.letta_client = None  # Initialize lazily
         self.message_mode = "listen"  # Default message mode
+        self.formatter = MessageFormatter()
 
     async def handle_message(self, message: dict[str, Any]) -> None:
         """Handle a message.

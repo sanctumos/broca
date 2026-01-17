@@ -72,9 +72,6 @@ class ConnectionPool:
         db_path = get_db_path()
         conn = await aiosqlite.connect(db_path)
         await conn.execute("PRAGMA foreign_keys = ON")
-        async with self._lock:
-            self._created += 1
-        logger.debug(f"Created new connection (total: {self._created})")
         return conn
 
     @asynccontextmanager
@@ -94,19 +91,32 @@ class ConnectionPool:
                 conn = self._pool.get_nowait()
             except asyncio.QueueEmpty:
                 # Pool empty, check if we can create new connection
+                should_create = False
                 async with self._lock:
                     current_count = self._created
                     if current_count < self.pool_size + self.max_overflow:
+                        self._created += 1
+                        should_create = True
+
+                if should_create:
+                    try:
                         conn = await self._create_connection()
-                    else:
-                        # Wait for connection to become available (with timeout to prevent hanging)
-                        try:
-                            conn = await asyncio.wait_for(self._pool.get(), timeout=30.0)
-                        except asyncio.TimeoutError:
-                            raise RuntimeError(
-                                "Timeout waiting for database connection. "
-                                "All connections are in use."
-                            )
+                        logger.debug(
+                            f"Created new connection (total: {self._created})"
+                        )
+                    except Exception:
+                        async with self._lock:
+                            self._created -= 1
+                        raise
+                else:
+                    # Wait for connection to become available (with timeout to prevent hanging)
+                    try:
+                        conn = await asyncio.wait_for(self._pool.get(), timeout=30.0)
+                    except asyncio.TimeoutError:
+                        raise RuntimeError(
+                            "Timeout waiting for database connection. "
+                            "All connections are in use."
+                        )
 
             yield conn
 
@@ -136,8 +146,15 @@ class ConnectionPool:
         # Only pre-populate if pool is empty and we haven't created connections yet
         if self._pool.empty() and self._created == 0:
             for _ in range(self.pool_size):
-                conn = await self._create_connection()
-                await self._pool.put(conn)
+                async with self._lock:
+                    self._created += 1
+                try:
+                    conn = await self._create_connection()
+                    await self._pool.put(conn)
+                except Exception:
+                    async with self._lock:
+                        self._created -= 1
+                    raise
             logger.info(f"Connection pool initialized with {self.pool_size} connections")
         else:
             logger.debug("Connection pool already has connections, skipping pre-population")
