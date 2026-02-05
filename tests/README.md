@@ -5,19 +5,22 @@ Comprehensive test suite for the Broca2 message processing system, designed to a
 ## 🏗️ Test Structure
 
 ```
-tests/
+tests/                      # Main test suite (pytest tests/)
 ├── unit/                    # Unit tests for individual components
 │   ├── runtime/            # Runtime core tests
 │   ├── database/           # Database operation tests
 │   ├── cli/                # CLI tool tests
 │   ├── common/             # Common utility tests
-│   └── plugins/            # Plugin system tests
+│   └── plugins/            # Plugin system tests (telegram_bot, etc.)
 ├── integration/            # Integration tests for component interactions
 ├── e2e/                    # End-to-end tests for complete workflows
 ├── fixtures/               # Reusable test fixtures
 ├── utils/                  # Test utilities and helpers
 ├── conftest.py            # Global pytest configuration
 └── __init__.py            # Test package initialization
+
+tests-disabled/             # Tests for disabled/removed plugins (not run by default)
+└── unit/plugins/           # fake_plugin, legacy telegram, web_chat
 ```
 
 ## 🚀 Quick Start
@@ -91,38 +94,29 @@ pytest tests/unit/runtime/test_core.py::TestQueueProcessor::test_queue_processor
 
 ### Integration Tests (`tests/integration/`)
 
-**Purpose**: Test component interactions and workflows
+**Purpose**: Test component interactions and workflows with real DB and mocked externals.
 
 **Coverage**:
-- Plugin system integration
-- Database operations integration
-- Runtime core integration
-- CLI tools integration
-- Complete message processing workflows
+- **Queue flow** (`test_queue_flow_integration.py`): Real SQLite (temp_db), seed user/message/queue, run QueueProcessor in echo mode, assert message and queue updated.
+- **Plugin manager** (`test_plugin_manager_integration.py`): Discover and start the minimal `tests/fixtures/integration_plugin` plugin.
+- **Application lifecycle** (`test_application_lifecycle_integration.py`): Application start/stop with mocked Letta and PID, minimal plugin only.
 
 **Key Features**:
-- Test component interactions
-- Verify data flow between components
-- Test error propagation
-- Test concurrent operations
+- Test component interactions with real database and pool
+- Verify data flow from queue through processor to DB
+- No live Telegram or Letta; all externals mocked
 
 ### End-to-End Tests (`tests/e2e/`)
 
-**Purpose**: Test complete system workflows
+**Purpose**: Test full system workflows in one process with real DB and mocked externals.
 
 **Coverage**:
-- Complete message processing flows
-- System lifecycle management
-- Concurrent operations
-- Error recovery scenarios
-- Performance under load
-- Real-world usage scenarios
+- **Full message flow** (`test_message_flow_e2e.py`): Start Application (mocked Letta/PID), seed one message into queue, run app until queue processes it, assert message has response and queue status completed.
 
 **Key Features**:
-- Test complete user workflows
-- Verify system behavior under load
-- Test error recovery
-- Test performance characteristics
+- Application started and stopped cleanly
+- Real database, real queue processor loop
+- Externals (Letta, Telegram) mocked; use before trying a live bot
 
 ## 🔧 Test Configuration
 

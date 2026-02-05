@@ -62,16 +62,15 @@ def run_all_tests(verbose: bool = False) -> int:
 
 
 def run_coverage_tests(verbose: bool = False) -> int:
-    """Run tests with coverage reporting."""
+    """Run tests with coverage reporting. Config in pyproject.toml [tool.coverage]."""
     cmd = [
         "python",
         "-m",
         "pytest",
-        "--cov=.",
+        "--cov",
         "--cov-report=term-missing",
         "--cov-report=html:htmlcov",
         "--cov-report=xml:coverage.xml",
-        "--cov-fail-under=80",
         "tests/",
     ]
     if verbose:
