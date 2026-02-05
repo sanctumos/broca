@@ -338,10 +338,10 @@ class Application:
         # Check if background processing is enabled
         use_background = get_env_var(
             "USE_BACKGROUND_PROCESSING",
-            default="false",
+            default="true",
             cast_type=lambda x: x.lower() == "true",
         )
-        
+
         if use_background:
             # Use async streaming method for long-running tasks
             return await self.agent.process_message_async(message)

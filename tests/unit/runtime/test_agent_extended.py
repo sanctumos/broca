@@ -46,7 +46,7 @@ class TestAgentClientExtended:
         """Test agent client initialization in production mode."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,
                 "AGENT_ID": "test-agent",
             }.get(key, default)
         )
@@ -91,15 +91,26 @@ class TestAgentClientExtended:
             }.get(key, default)
         )
 
-        with patch("runtime.core.agent.get_letta_client"):
-            with patch("runtime.core.agent.exponential_backoff") as mock_backoff:
-                mock_backoff.return_value = "Test response"
+        with patch("runtime.core.agent.get_letta_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_get_client.return_value = mock_client
 
-                agent = AgentClient()
-                message = "Test message"
+            mock_response = MagicMock()
+            mock_message = MagicMock()
+            mock_message.message_type = "assistant_message"
+            mock_message.content = "Test response"
+            mock_response.messages = [mock_message]
+            mock_client.agents.messages.create.return_value = mock_response
 
-                result = await agent.process_message(message)
-                assert result == "Test response"
+            agent = AgentClient()
+            message = "Test message"
+
+            result = await agent.process_message(message)
+            assert result == "Test response"
+            mock_client.agents.messages.create.assert_called_once_with(
+                agent_id="test-agent",
+                input="Test message",
+            )
 
     @patch("runtime.core.agent.get_env_var")
     def test_agent_client_should_retry_exception(self, mock_get_env_var):
@@ -158,7 +169,9 @@ class TestAgentClientExtended:
 
     @patch("runtime.core.agent.get_env_var")
     @pytest.mark.asyncio
-    async def test_agent_client_process_message_async_debug_mode(self, mock_get_env_var):
+    async def test_agent_client_process_message_async_debug_mode(
+        self, mock_get_env_var
+    ):
         """Test process_message_async in debug mode."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
@@ -175,11 +188,13 @@ class TestAgentClientExtended:
 
     @patch("runtime.core.agent.get_env_var")
     @pytest.mark.asyncio
-    async def test_agent_client_process_message_async_streaming_success(self, mock_get_env_var):
+    async def test_agent_client_process_message_async_streaming_success(
+        self, mock_get_env_var
+    ):
         """Test process_message_async with successful streaming."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,
                 "AGENT_ID": "test-agent",
                 "LONG_TASK_MAX_WAIT": "600",
             }.get(key, default)
@@ -193,6 +208,10 @@ class TestAgentClientExtended:
             async def mock_stream_generator():
                 mock_event = MagicMock()
                 mock_event.conversation_id = "conv-123"
+                mock_event.conversation = None
+                mock_event.run = None
+                mock_event.data = None
+                mock_event.messages = None
                 yield mock_event
 
             # Mock stream object
@@ -207,7 +226,9 @@ class TestAgentClientExtended:
             mock_assistant_msg.message_type = "assistant_message"
             mock_assistant_msg.content = "Final response"
             mock_messages_response.data = [mock_assistant_msg]
-            mock_client.conversations.messages.list.return_value = mock_messages_response
+            mock_client.conversations.messages.list.return_value = (
+                mock_messages_response
+            )
 
             agent = AgentClient()
             result = await agent.process_message_async("Test message")
@@ -218,21 +239,21 @@ class TestAgentClientExtended:
                 input="Test message",
                 streaming=True,
                 background=True,
-                include_pings=True
+                include_pings=True,
             )
             mock_client.conversations.messages.list.assert_called_once_with(
-                conversation_id="conv-123",
-                order='desc',
-                limit=10
+                conversation_id="conv-123", order="desc", limit=10
             )
 
     @patch("runtime.core.agent.get_env_var")
     @pytest.mark.asyncio
-    async def test_agent_client_process_message_async_no_conversation_id(self, mock_get_env_var):
+    async def test_agent_client_process_message_async_no_conversation_id(
+        self, mock_get_env_var
+    ):
         """Test process_message_async when conversation_id is not found in stream."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,
                 "AGENT_ID": "test-agent",
                 "LONG_TASK_MAX_WAIT": "600",
             }.get(key, default)
@@ -245,7 +266,11 @@ class TestAgentClientExtended:
             # Create async generator for stream with no conversation_id
             async def mock_stream_generator():
                 mock_event = MagicMock()
-                # No conversation_id attribute
+                mock_event.conversation_id = None
+                mock_event.conversation = None
+                mock_event.run = None
+                mock_event.data = None
+                mock_event.messages = None
                 yield mock_event
 
             mock_stream = mock_stream_generator()
@@ -262,7 +287,7 @@ class TestAgentClientExtended:
         """Test process_message_async with timeout."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,
                 "AGENT_ID": "test-agent",
                 "LONG_TASK_MAX_WAIT": "1",  # 1 second timeout
             }.get(key, default)
@@ -282,7 +307,9 @@ class TestAgentClientExtended:
             mock_client.agents.messages.create.return_value = mock_stream
 
             # Mock fallback method
-            with patch.object(AgentClient, '_fallback_to_async', new_callable=AsyncMock) as mock_fallback:
+            with patch.object(
+                AgentClient, "_fallback_to_async", new_callable=AsyncMock
+            ) as mock_fallback:
                 mock_fallback.return_value = "Fallback response"
                 agent = AgentClient()
                 result = await agent.process_message_async("Test message")
@@ -295,7 +322,7 @@ class TestAgentClientExtended:
         """Test _fallback_to_async method."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,
                 "AGENT_ID": "test-agent",
             }.get(key, default)
         )
@@ -315,24 +342,27 @@ class TestAgentClientExtended:
             mock_assistant_msg.message_type = "assistant_message"
             mock_assistant_msg.content = "Polled response"
             mock_messages_response.data = [mock_assistant_msg]
-            mock_client.conversations.messages.list.return_value = mock_messages_response
+            mock_client.conversations.messages.list.return_value = (
+                mock_messages_response
+            )
 
             agent = AgentClient()
             result = await agent._fallback_to_async("Test message")
 
             assert result == "Polled response"
             mock_client.agents.messages.create_async.assert_called_once_with(
-                agent_id="test-agent",
-                input="Test message"
+                agent_id="test-agent", input="Test message"
             )
 
     @patch("runtime.core.agent.get_env_var")
     @pytest.mark.asyncio
-    async def test_agent_client_process_message_async_conversation_id_from_run(self, mock_get_env_var):
+    async def test_agent_client_process_message_async_conversation_id_from_run(
+        self, mock_get_env_var
+    ):
         """Test process_message_async extracting conversation_id from event.run."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,
                 "AGENT_ID": "test-agent",
                 "LONG_TASK_MAX_WAIT": "600",
             }.get(key, default)
@@ -345,9 +375,13 @@ class TestAgentClientExtended:
             # Create async generator with conversation_id in event.run
             async def mock_stream_generator():
                 mock_event = MagicMock()
+                mock_event.conversation_id = None
                 mock_run = MagicMock()
                 mock_run.conversation_id = "conv-from-run"
                 mock_event.run = mock_run
+                mock_event.conversation = None
+                mock_event.data = None
+                mock_event.messages = None
                 yield mock_event
 
             mock_stream = mock_stream_generator()
@@ -359,25 +393,27 @@ class TestAgentClientExtended:
             mock_assistant_msg.message_type = "assistant"
             mock_assistant_msg.text = "Response from run"
             mock_messages_response.data = [mock_assistant_msg]
-            mock_client.conversations.messages.list.return_value = mock_messages_response
+            mock_client.conversations.messages.list.return_value = (
+                mock_messages_response
+            )
 
             agent = AgentClient()
             result = await agent.process_message_async("Test message")
 
             assert result == "Response from run"
             mock_client.conversations.messages.list.assert_called_once_with(
-                conversation_id="conv-from-run",
-                order='desc',
-                limit=10
+                conversation_id="conv-from-run", order="desc", limit=10
             )
 
     @patch("runtime.core.agent.get_env_var")
     @pytest.mark.asyncio
-    async def test_agent_client_process_message_async_stream_error_with_conversation_id(self, mock_get_env_var):
+    async def test_agent_client_process_message_async_stream_error_with_conversation_id(
+        self, mock_get_env_var
+    ):
         """Test process_message_async when stream errors but conversation_id was captured."""
         mock_get_env_var.side_effect = (
             lambda key, default=None, required=False, cast_type=None: {
-                "DEBUG_MODE": "false",
+                "DEBUG_MODE": False,
                 "AGENT_ID": "test-agent",
                 "LONG_TASK_MAX_WAIT": "600",
             }.get(key, default)
@@ -391,6 +427,10 @@ class TestAgentClientExtended:
             async def mock_stream_generator():
                 mock_event = MagicMock()
                 mock_event.conversation_id = "conv-error"
+                mock_event.conversation = None
+                mock_event.run = None
+                mock_event.data = None
+                mock_event.messages = None
                 yield mock_event
                 raise Exception("Stream error")
 
@@ -403,7 +443,9 @@ class TestAgentClientExtended:
             mock_assistant_msg.message_type = "assistant_message"
             mock_assistant_msg.content = "Recovered response"
             mock_messages_response.data = [mock_assistant_msg]
-            mock_client.conversations.messages.list.return_value = mock_messages_response
+            mock_client.conversations.messages.list.return_value = (
+                mock_messages_response
+            )
 
             agent = AgentClient()
             result = await agent.process_message_async("Test message")

@@ -9,15 +9,6 @@ from aiogram import Bot, Dispatcher
 from plugins.telegram_bot.plugin import TelegramBotPlugin
 from plugins.telegram_bot.settings import MessageMode, TelegramBotSettings
 
-# Patch DB and LettaClient at the module level before any code under test is imported
-patch(
-    "database.operations.users.get_or_create_letta_user", new_callable=AsyncMock
-).start()
-patch(
-    "database.operations.users.get_or_create_platform_profile", new_callable=AsyncMock
-).start()
-patch("runtime.core.letta_client.LettaClient").start()
-
 
 @pytest.fixture
 def mock_bot():
@@ -65,9 +56,15 @@ def mock_message(mock_user):
 def plugin():
     """Create a properly initialized plugin for testing."""
     plugin = TelegramBotPlugin()
-    # Mock the message_handler and settings
+    plugin.settings = TelegramBotSettings(
+        bot_token="test_token",
+        owner_id=123456789,
+        message_mode=MessageMode.ECHO,
+        buffer_delay=5,
+        require_owner=False,
+    )
     plugin.message_handler = MagicMock()
-    plugin.settings = MagicMock()
+    plugin.message_handler.process_incoming_message = AsyncMock()
     return plugin
 
 
@@ -75,7 +72,7 @@ def plugin():
 async def test_plugin_initialization(plugin):
     """Test plugin initialization."""
     assert plugin.get_name() == "telegram_bot"
-    assert plugin.get_platform() == "telegram_bot"
+    assert plugin.get_platform() == "telegram"
     assert plugin.get_message_handler() is not None
     assert plugin.get_settings() is not None
 
@@ -84,16 +81,22 @@ async def test_plugin_initialization(plugin):
 async def test_plugin_start(plugin):
     """Test plugin start."""
     with (
-        patch("aiogram.Bot", new_callable=AsyncMock) as mock_bot,
-        patch("aiogram.Dispatcher.start_polling", new_callable=AsyncMock) as mock_poll,
+        patch("aiogram.Bot", new_callable=AsyncMock),
+        patch("aiogram.Dispatcher") as mock_dispatcher,
+        patch("asyncio.create_task") as mock_create_task,
     ):
-        plugin.bot = mock_bot
-        plugin.dp = MagicMock()
-        plugin.dp.start_polling = mock_poll
+        mock_dp = MagicMock()
+        mock_dp.start_polling = AsyncMock()
+        mock_dispatcher.return_value = mock_dp
+        mock_task = MagicMock()
+        mock_create_task.return_value = mock_task
+
         await plugin.start()
         assert plugin.bot is not None
         assert plugin.dp is not None
-        mock_poll.assert_awaited()
+        mock_dp.start_polling.assert_called_once_with(plugin.bot)
+        mock_create_task.assert_called_once()
+        assert plugin.polling_task == mock_task
 
 
 @pytest.mark.asyncio
@@ -109,21 +112,21 @@ async def test_plugin_stop(plugin):
 @pytest.mark.asyncio
 async def test_handle_message(plugin, mock_message):
     """Test message handling."""
-    plugin._verify_owner = MagicMock(return_value=True)
-    plugin.message_handler.handle_private_message = AsyncMock()
     mock_message.chat.type = "private"
     await plugin._handle_message(mock_message)
-    plugin.message_handler.handle_private_message.assert_awaited_once_with(mock_message)
+    plugin.message_handler.process_incoming_message.assert_awaited_once_with(
+        mock_message
+    )
 
 
 @pytest.mark.asyncio
 async def test_handle_response(plugin, mock_message):
     """Test response handling."""
-    plugin.message_handler.process_outgoing_message = AsyncMock()
-    await plugin._handle_response("Test response", mock_message)
-    plugin.message_handler.process_outgoing_message.assert_awaited_once_with(
-        mock_message, "Test response"
-    )
+    plugin.bot = AsyncMock()
+    profile = MagicMock()
+    profile.platform_user_id = "123456789"
+    await plugin._handle_response("Test response", profile, 1)
+    plugin.bot.send_message.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -157,7 +160,9 @@ async def test_validate_settings(plugin):
 @pytest.mark.asyncio
 async def test_apply_settings_empty_dict(plugin):
     """Test apply_settings with empty dict loads from environment."""
-    with patch("plugins.telegram_bot.plugin.TelegramBotSettings.from_env") as mock_from_env:
+    with patch(
+        "plugins.telegram_bot.plugin.TelegramBotSettings.from_env"
+    ) as mock_from_env:
         mock_settings = TelegramBotSettings(
             bot_token="env_token",
             owner_id=123456789,
@@ -165,9 +170,9 @@ async def test_apply_settings_empty_dict(plugin):
             buffer_delay=5,
         )
         mock_from_env.return_value = mock_settings
-        
+
         plugin.apply_settings({})
-        
+
         assert plugin.settings == mock_settings
         mock_from_env.assert_called_once()
 
@@ -181,9 +186,9 @@ async def test_apply_settings_dict_with_values(plugin):
         "message_mode": "live",
         "buffer_delay": 10,
     }
-    
+
     plugin.apply_settings(settings_dict)
-    
+
     assert plugin.settings is not None
     assert plugin.settings.bot_token == "dict_token"
     assert plugin.settings.owner_id == 987654321
@@ -200,9 +205,9 @@ async def test_apply_settings_telegram_bot_settings_object(plugin):
         message_mode=MessageMode.LISTEN,
         buffer_delay=15,
     )
-    
+
     plugin.apply_settings(settings_obj)
-    
+
     assert plugin.settings == settings_obj
     assert plugin.settings.bot_token == "obj_token"
     assert plugin.settings.owner_id == 111222333
@@ -254,33 +259,50 @@ async def test_verify_owner_failure(plugin, mock_user):
 async def test_handle_message_from_owner(plugin, mock_message):
     """Test handling message from owner."""
     plugin._verify_owner = MagicMock(return_value=True)
-    plugin.message_handler.handle_private_message = AsyncMock()
+    plugin.settings.require_owner = True
     mock_message.chat.type = "private"
     await plugin._handle_message(mock_message)
-    plugin.message_handler.handle_private_message.assert_awaited_once_with(mock_message)
+    plugin.message_handler.process_incoming_message.assert_awaited_once_with(
+        mock_message
+    )
 
 
 @pytest.mark.asyncio
 async def test_handle_message_from_non_owner(plugin, mock_message):
     """Test handling message from non-owner when require_owner=True."""
-    plugin.settings = MagicMock(owner_id="987654321", owner_username=None, require_owner=True)
-    plugin.message_handler = AsyncMock()
+    plugin.settings = TelegramBotSettings(
+        bot_token="test_token",
+        owner_id=987654321,
+        message_mode=MessageMode.ECHO,
+        buffer_delay=5,
+        require_owner=True,
+    )
+    plugin.message_handler = MagicMock()
+    plugin.message_handler.process_incoming_message = AsyncMock()
     plugin._verify_owner = MagicMock(return_value=False)
 
     await plugin._handle_message(mock_message)
 
-    plugin.message_handler.handle_private_message.assert_not_called()
+    plugin.message_handler.process_incoming_message.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_handle_message_require_owner_false(plugin, mock_message):
     """Test handling message when require_owner=False allows all users."""
-    plugin.settings = MagicMock(require_owner=False)
-    plugin.message_handler = AsyncMock()
-    plugin.message_handler.handle_private_message = AsyncMock()
+    plugin.settings = TelegramBotSettings(
+        bot_token="test_token",
+        owner_id=123456789,
+        message_mode=MessageMode.ECHO,
+        buffer_delay=5,
+        require_owner=False,
+    )
+    plugin.message_handler = MagicMock()
+    plugin.message_handler.process_incoming_message = AsyncMock()
     mock_message.chat.type = "private"
 
     await plugin._handle_message(mock_message)
 
     # Should process message even without owner verification
-    plugin.message_handler.handle_private_message.assert_awaited_once_with(mock_message)
+    plugin.message_handler.process_incoming_message.assert_awaited_once_with(
+        mock_message
+    )
