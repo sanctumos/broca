@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2025-01-05
+
+### Added
+- **Letta identity threading**: `sender_id` is now passed from plugins through the queue and agent so the Letta API receives the correct `identity_id` per sender
+- **Database**: `get_letta_identity_id(platform_user_id, platform)` in `database/operations/users.py` for resolving Letta identity IDs from platform user IDs
+
+### Changed
+- **Agent**: `process_message`, `create`, `stream`, and `create_async` accept optional `sender_id` and forward it to the Letta client
+- **Queue**: Processor retrieves identity_id from the database and invokes the agent with `sender_id`
+- **Main**: `_process_message` accepts and passes `sender_id` from queue payload to the agent
+- **Telegram Bot plugin**: Passes Telegram user ID as `sender_id` when enqueueing and when calling the processor
+
+### Known limitations / TODO
+- **Image handling**: Previous progress on image/attachment handling was lost; basic text flow is restored. Image support is planned for a future release.
+
+---
+
 ## [0.10.0] - 2025-01-04
 
 ### Added
@@ -27,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Message Handler Requirements**: Standardized response handler pattern with `(response, profile, message_id)` signature
 - **Settings Management**: Implemented lazy initialization and fallback patterns for plugin settings
 - **Import Patterns**: Established lazy import patterns for self-contained plugins
-- **Documentation**: 
+- **Documentation**:
   - Updated plugin development guide with critical implementation details
   - Added troubleshooting section with common issues and solutions
   - Enhanced examples with complete plugin implementations
@@ -60,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Installation Method**: Switched from egg-info package installation to simple requirements.txt approach
 - **CLI Execution**: Updated CLI tools to use module-based execution (`python -m cli.btool`) instead of global commands
-- **Documentation Updates**: 
+- **Documentation Updates**:
   - Updated README with new multi-agent folder structure
   - Revised installation instructions for agent-specific directories
   - Updated CLI usage examples to reflect new execution method
@@ -106,7 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Project Rebranding**: Renamed from "Broca 2" to "Sanctum: Broca 2" across all documentation and references
 - **Architecture Restructure**: Clean separation between core and platform-specific code
 - **Database Schema**: Refactored LettaUser model, removed redundant `conversation_history_limit` field
-- **Documentation Updates**: 
+- **Documentation Updates**:
   - Enhanced README with middleware role explanation and multi-agent architecture plans
   - Updated project analysis and documentation formatting
   - Revised project plans for Telegram bot implementation

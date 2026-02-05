@@ -1,6 +1,6 @@
 
 
-# Sanctum: Broca 2 (v0.10.0)
+# Sanctum: Broca 2 (v0.11.0)
 
 A CLI-first, plugin-based message processing system for agent communication.
 
@@ -160,16 +160,16 @@ from plugins import Plugin
 class MyPlugin(Plugin):
     def get_name(self) -> str:
         return "my_plugin"
-    
+
     def get_platform(self) -> str:
         return "my_platform"
-    
+
     def get_message_handler(self) -> Callable:
         return self._handle_message
-    
+
     async def start(self) -> None:
         # Initialize plugin
-        
+
     async def stop(self) -> None:
         # Cleanup plugin
 ```
@@ -281,10 +281,10 @@ For managing multiple Broca instances on the same machine, use the following str
    # For each Letta agent, create a folder named after the agent ID
    mkdir ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
    cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
-   
+
    # Clone a complete Broca repository for this agent
    git clone https://github.com/sanctumos/broca.git broca
-   
+
    # Note: Virtual environment is managed at the Sanctum level, not per Broca instance
    # The venv in ~/sanctum/venv/ is shared by all Sanctum tools
    ```
@@ -294,7 +294,7 @@ For managing multiple Broca instances on the same machine, use the following str
    # Copy base configuration from the cloned repository
    cp ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/broca/.env.example ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
    cp ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/broca/settings.json ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/
-   
+
    # Edit agent-specific configuration
    nano ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368/.env
    # Set AGENT_ENDPOINT, AGENT_API_KEY, and other agent-specific settings
@@ -304,13 +304,13 @@ For managing multiple Broca instances on the same machine, use the following str
    ```bash
    # From the agent folder
    cd ~/sanctum/agent-721679f6-c8af-4e01-8677-dc042dc80368
-   
+
    # Activate the Sanctum-wide virtual environment
    source ~/sanctum/venv/bin/activate  # On Windows: ~/sanctum/venv/Scripts/activate
-   
+
    # Run the instance from the agent's Broca clone
    python broca/main.py
-   
+
    # Or use the CLI tools
    python -m broca.cli.btool queue list
    ```

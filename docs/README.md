@@ -110,7 +110,7 @@ Each agent instance requires its own `.env` file with:
    ```bash
    git clone https://github.com/sanctumos/broca.git broca2
    cd broca2
-   
+
    # Create shared virtual environment
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -122,11 +122,11 @@ Each agent instance requires its own `.env` file with:
    # For each Letta agent, create a folder named after the agent ID
    mkdir agent-721679f6-c8af-4e01-8677-dc042dc80368
    cd agent-721679f6-c8af-4e01-8677-dc042dc80368
-   
+
    # Copy base configuration
    cp ../.env.example .env
    cp ../settings.json .
-   
+
    # Edit agent-specific configuration
    nano .env
    # Set AGENT_ENDPOINT, AGENT_API_KEY, and other agent-specific settings
@@ -211,28 +211,33 @@ Broca 2 supports a plugin-based architecture for extensible message handling:
 
 ## 🔮 Recent Improvements
 
-1. **Multi-Agent Architecture**
+1. **v0.11.0 – Letta identity threading**
+   - `sender_id` is threaded from plugins through queue and agent so Letta receives the correct `identity_id` per sender
+   - Database helper `get_letta_identity_id(platform_user_id, platform)` for resolving identity IDs
+   - Image/attachment handling is planned for a future release (previous progress was lost)
+
+3. **Multi-Agent Architecture**
    - Support for multiple agent instances
    - Shared base installation with instance isolation
    - Per-agent configuration and database management
 
-2. **Core Block Management**
+4. **Core Block Management**
    - Proper attachment/detachment cycle
    - Reliable block ID storage
    - Error handling and cleanup
 
-3. **Message Formatting**
+5. **Message Formatting**
    - Standardized format across components
    - Emoji-based logging system
    - Improved metadata handling
    - Telegram markdown support
 
-4. **Client Architecture**
+6. **Client Architecture**
    - Singleton Letta client implementation
    - Standardized environment variables
    - Improved configuration management
 
-5. **Status Tracking**
+7. **Status Tracking**
    - Comprehensive status system
    - Mode-specific status workflows
    - Status history and monitoring
@@ -309,4 +314,4 @@ Broca 2 is built so that all CLI tools and plugin interfaces are **MCP'able** (m
    - [ ] Add comprehensive status monitoring endpoints
    - [ ] Create deployment documentation
    - [ ] Add container support
-   - [ ] Create automated deployment scripts 
+   - [ ] Create automated deployment scripts
