@@ -319,7 +319,9 @@ class TestApplicationMocked:
 
             result = await app._process_message("Test message")
             assert result == mock_response
-            app.agent.process_message_async.assert_called_once_with("Test message")
+            app.agent.process_message_async.assert_called_once_with(
+                "Test message", None
+            )
 
     @pytest.mark.asyncio
     async def test_application_process_message_fallback_to_sync(self):
@@ -351,7 +353,7 @@ class TestApplicationMocked:
 
             result = await app._process_message("Test message")
             assert result == mock_response
-            app.agent.process_message.assert_called_once_with("Test message")
+            app.agent.process_message.assert_called_once_with("Test message", None)
             # Async method should not be called when disabled
             if hasattr(app.agent, "process_message_async"):
                 assert (

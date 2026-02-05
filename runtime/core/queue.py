@@ -18,6 +18,7 @@ from database.operations.queue import (
     update_queue_status,
 )
 from database.operations.users import (
+    get_letta_identity_id,
     get_letta_user_block_id,
     get_platform_profile_id,
     get_user_details,
@@ -104,11 +105,17 @@ class QueueProcessor:
                 else:
                     raise
 
-            # Process the message
+            # Process the message (pass sender_id so Letta scopes conversation per user)
             logger.info(
                 f"Processing message with attached core block {block_id[:8]}..."
             )
-            response = await self.message_processor(message)
+            identity_id = await get_letta_identity_id(letta_user_id)
+            if not identity_id:
+                logger.warning(
+                    "letta_user_id=%s has no letta_identity_id; sending without sender_id (conversation may be shared)",
+                    letta_user_id,
+                )
+            response = await self.message_processor(message, sender_id=identity_id)
 
             # Detach core block (sync SDK call run in thread)
             logger.info(f"Detaching core block {block_id[:8]}... from agent")

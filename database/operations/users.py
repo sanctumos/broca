@@ -292,6 +292,17 @@ async def get_user_details(letta_user_id: int) -> tuple[str, str] | None:
             return None
 
 
+async def get_letta_identity_id(letta_user_id: int) -> str | None:
+    """Return the Letta identity ID for a letta user, or None if not found."""
+    async with get_pool().connection() as db:
+        async with db.execute(
+            "SELECT letta_identity_id FROM letta_users WHERE id = ?",
+            (letta_user_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row and row[0] else None
+
+
 async def get_all_users() -> list[dict[str, Any]]:
     """
     Retrieve all users with their details, including platform profile information.

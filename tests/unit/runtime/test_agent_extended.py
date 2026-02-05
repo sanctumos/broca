@@ -1,6 +1,6 @@
 """Extended unit tests for runtime agent client."""
 
-import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -107,11 +107,16 @@ class TestAgentClientExtended:
 
             result = await agent.process_message(message)
             assert result == "Test response"
-            # SDK 1.x: create(agent_id, *, input=...)
-            mock_client.agents.messages.create.assert_called_once_with(
-                "test-agent",
-                input="Test message",
+            call = mock_client.agents.messages.create.call_args
+            assert call[0][0] == "test-agent"
+            msgs = call[1]["messages"]
+            assert len(msgs) == 1
+            m = msgs[0]
+            assert (m.get("role") or getattr(m, "role", None)) == "user"
+            content = (
+                m.get("content") if isinstance(m, dict) else getattr(m, "content", None)
             )
+            assert content == "Test message"
 
     @patch("runtime.core.agent.get_env_var")
     def test_agent_client_should_retry_exception(self, mock_get_env_var):
@@ -205,8 +210,8 @@ class TestAgentClientExtended:
             mock_client = MagicMock()
             mock_get_client.return_value = mock_client
 
-            # Create async generator for stream
-            async def mock_stream_generator():
+            # Create sync iterator for stream (create_stream returns sync generator)
+            def mock_stream_generator():
                 mock_event = MagicMock()
                 mock_event.conversation_id = "conv-123"
                 mock_event.conversation = None
@@ -215,13 +220,8 @@ class TestAgentClientExtended:
                 mock_event.messages = None
                 yield mock_event
 
-            # Mock stream object
-            mock_stream = mock_stream_generator()
+            mock_client.agents.messages.create.return_value = mock_stream_generator()
 
-            # Mock messages.create to return stream
-            mock_client.agents.messages.create.return_value = mock_stream
-
-            # Mock conversations.messages.list to return final message
             mock_messages_response = MagicMock()
             mock_assistant_msg = MagicMock()
             mock_assistant_msg.message_type = "assistant_message"
@@ -235,14 +235,18 @@ class TestAgentClientExtended:
             result = await agent.process_message_async("Test message")
 
             assert result == "Final response"
-            # SDK 1.x: create(agent_id, *, input=..., streaming=..., ...)
-            mock_client.agents.messages.create.assert_called_once_with(
-                "test-agent",
-                input="Test message",
-                streaming=True,
-                background=True,
-                include_pings=True,
+            mock_client.agents.messages.create.assert_called_once()
+            call = mock_client.agents.messages.create.call_args
+            assert call[0][0] == "test-agent"
+            assert call[1].get("include_pings") is True
+            msgs = call[1]["messages"]
+            assert len(msgs) == 1
+            m = msgs[0]
+            assert (m.get("role") or getattr(m, "role", None)) == "user"
+            content = (
+                m.get("content") if isinstance(m, dict) else getattr(m, "content", None)
             )
+            assert content == "Test message"
             # SDK 1.x: list(conversation_id, *, order=..., limit=...)
             mock_client.conversations.messages.list.assert_called_once_with(
                 "conv-123", order="desc", limit=10
@@ -266,8 +270,7 @@ class TestAgentClientExtended:
             mock_client = MagicMock()
             mock_get_client.return_value = mock_client
 
-            # Create async generator for stream with no conversation_id
-            async def mock_stream_generator():
+            def mock_stream_generator():
                 mock_event = MagicMock()
                 mock_event.conversation_id = None
                 mock_event.conversation = None
@@ -276,8 +279,7 @@ class TestAgentClientExtended:
                 mock_event.messages = None
                 yield mock_event
 
-            mock_stream = mock_stream_generator()
-            mock_client.agents.messages.create.return_value = mock_stream
+            mock_client.agents.messages.create.return_value = mock_stream_generator()
 
             agent = AgentClient()
             result = await agent.process_message_async("Test message")
@@ -301,13 +303,12 @@ class TestAgentClientExtended:
             mock_get_client.return_value = mock_client
 
             # Mock stream that never closes (simulating timeout)
-            async def slow_stream():
+            def slow_stream():
                 while True:
-                    await asyncio.sleep(2)  # Sleep longer than timeout
+                    time.sleep(2)
                     yield MagicMock()
 
-            mock_stream = slow_stream()
-            mock_client.agents.messages.create.return_value = mock_stream
+            mock_client.agents.messages.create.return_value = slow_stream()
 
             # Mock fallback method
             with patch.object(
@@ -353,10 +354,16 @@ class TestAgentClientExtended:
             result = await agent._fallback_to_async("Test message")
 
             assert result == "Polled response"
-            # SDK 1.x: create_async(agent_id, *, input=...)
-            mock_client.agents.messages.create_async.assert_called_once_with(
-                "test-agent", input="Test message"
+            call = mock_client.agents.messages.create_async.call_args
+            assert call[0][0] == "test-agent"
+            msgs = call[1]["messages"]
+            assert len(msgs) == 1
+            m = msgs[0]
+            assert (m.get("role") or getattr(m, "role", None)) == "user"
+            content = (
+                m.get("content") if isinstance(m, dict) else getattr(m, "content", None)
             )
+            assert content == "Test message"
 
     @patch("runtime.core.agent.get_env_var")
     @pytest.mark.asyncio
@@ -376,8 +383,7 @@ class TestAgentClientExtended:
             mock_client = MagicMock()
             mock_get_client.return_value = mock_client
 
-            # Create async generator with conversation_id in event.run
-            async def mock_stream_generator():
+            def mock_stream_generator():
                 mock_event = MagicMock()
                 mock_event.conversation_id = None
                 mock_run = MagicMock()
@@ -388,8 +394,7 @@ class TestAgentClientExtended:
                 mock_event.messages = None
                 yield mock_event
 
-            mock_stream = mock_stream_generator()
-            mock_client.agents.messages.create.return_value = mock_stream
+            mock_client.agents.messages.create.return_value = mock_stream_generator()
 
             # Mock conversations.messages.list
             mock_messages_response = MagicMock()
@@ -428,8 +433,7 @@ class TestAgentClientExtended:
             mock_client = MagicMock()
             mock_get_client.return_value = mock_client
 
-            # Create async generator that raises error after first event
-            async def mock_stream_generator():
+            def mock_stream_generator():
                 mock_event = MagicMock()
                 mock_event.conversation_id = "conv-error"
                 mock_event.conversation = None
@@ -439,8 +443,7 @@ class TestAgentClientExtended:
                 yield mock_event
                 raise Exception("Stream error")
 
-            mock_stream = mock_stream_generator()
-            mock_client.agents.messages.create.return_value = mock_stream
+            mock_client.agents.messages.create.return_value = mock_stream_generator()
 
             # Mock conversations.messages.list
             mock_messages_response = MagicMock()

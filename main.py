@@ -329,11 +329,14 @@ class Application:
         except Exception as e:
             logger.error(f"Failed to reload settings: {str(e)}")
 
-    async def _process_message(self, message: str) -> str | None:
+    async def _process_message(
+        self, message: str, sender_id: str | None = None
+    ) -> str | None:
         """Process a message through the agent.
 
         Args:
             message: The message to process
+            sender_id: Optional Letta identity ID to scope conversation per user
 
         Returns:
             The agent's response or None if processing failed
@@ -347,10 +350,10 @@ class Application:
 
         if use_background:
             # Use async streaming method for long-running tasks
-            return await self.agent.process_message_async(message)
+            return await self.agent.process_message_async(message, sender_id)
         else:
             # Use synchronous method (backward compatibility)
-            return await self.agent.process_message(message)
+            return await self.agent.process_message(message, sender_id)
 
     async def _on_message_processed(self, user_id: int, response: str) -> None:
         """Handle processed messages.
@@ -426,6 +429,10 @@ class Application:
             asyncio.create_task(self.queue_processor.start())
 
             logger.info("✅ Application started successfully!")
+
+            # Set initial settings mtime so first _check_settings() doesn't spuriously reload
+            if os.path.exists(self._settings_file):
+                self._settings_mtime = os.path.getmtime(self._settings_file)
 
             # Start unified configuration manager monitoring
             asyncio.create_task(self.config_manager.start_monitoring())

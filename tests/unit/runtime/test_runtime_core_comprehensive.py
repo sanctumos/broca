@@ -248,7 +248,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor initialization."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -261,7 +261,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor start method."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -276,7 +276,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor stop method."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -290,7 +290,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor set_message_mode method."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -304,7 +304,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor _process_queue_item method doesn't exist."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -315,7 +315,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor _process_message_live_mode method doesn't exist."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -326,7 +326,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor _process_message_echo_mode method doesn't exist."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -337,7 +337,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor _process_message_dry_run_mode method doesn't exist."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -348,7 +348,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor _handle_message_processing_error method doesn't exist."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -359,7 +359,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor _handle_plugin_response method doesn't exist."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -370,7 +370,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor _handle_plugin_error method doesn't exist."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -381,7 +381,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor _handle_message_processed_callback method doesn't exist."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -485,7 +485,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor and AgentClient integration."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -500,7 +500,7 @@ class TestRuntimeCoreComprehensive:
         """Test full message processing flow."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)
@@ -528,7 +528,7 @@ class TestRuntimeCoreComprehensive:
         """Test QueueProcessor start with error."""
         with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
 
-            def mock_message_processor(message):
+            def mock_message_processor(message, sender_id=None):
                 return message
 
             processor = QueueProcessor(mock_message_processor)

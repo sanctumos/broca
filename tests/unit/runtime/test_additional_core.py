@@ -64,11 +64,16 @@ async def test_agent_client_send_message_success():
         result = await agent.process_message("Test message")
 
         assert result == "Test response"
-        # Verify it was called with input parameter (v1.0+ API)
-        # SDK 1.x: create(agent_id, *, input=...)
-        mock_client.agents.messages.create.assert_called_once_with(
-            "test-agent-123", input="Test message"
+        call = mock_client.agents.messages.create.call_args
+        assert call[0][0] == "test-agent-123"
+        msgs = call[1]["messages"]
+        assert len(msgs) == 1
+        m = msgs[0]
+        assert (m.get("role") or getattr(m, "role", None)) == "user"
+        content = (
+            m.get("content") if isinstance(m, dict) else getattr(m, "content", None)
         )
+        assert content == "Test message"
 
 
 @pytest.mark.unit
