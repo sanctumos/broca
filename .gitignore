@@ -57,6 +57,7 @@ coverage.xml
 logs/
 
 # Local development
+tmp/
 .env
 *.db
 sanctum.db

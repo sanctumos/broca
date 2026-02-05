@@ -72,26 +72,24 @@ def test_letta_client_properties():
         mock_letta_instance = MagicMock()
         mock_agents = MagicMock()
         mock_blocks = MagicMock()
-        mock_identities = MagicMock()
         mock_conversations = MagicMock()
         mock_runs = MagicMock()
 
         mock_letta_instance.agents = mock_agents
         mock_letta_instance.blocks = mock_blocks
-        mock_letta_instance.identities = mock_identities
         mock_letta_instance.conversations = mock_conversations
         mock_letta_instance.runs = mock_runs
         mock_letta_class.return_value = mock_letta_instance
 
         client = LettaClient()
 
-        # Test property accessors
+        # Test property accessors (identities not on SDK 1.7.x; we use create_identity instead)
         assert client.agents == mock_agents
         assert client.blocks == mock_blocks
-        assert client.identities == mock_identities
         assert client.conversations == mock_conversations
         assert client.client == mock_letta_instance
         assert client.runs == mock_runs
+        assert callable(getattr(client, "create_identity", None))
 
 
 @pytest.mark.unit

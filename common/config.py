@@ -173,16 +173,23 @@ def get_env_var(
     return value
 
 
-def validate_environment_variables(production_mode: bool = True) -> None:
+def validate_environment_variables(
+    production_mode: bool = True,
+    plugins_config: dict | None = None,
+) -> None:
     """Validate environment variables to detect placeholder/test values.
 
     This function checks for placeholder values in critical environment variables
-    that should not be used in production. It helps prevent accidental use of
-    test credentials in production environments.
+    that should not be used in production. Core agent vars are always validated;
+    plugin-specific vars are only validated when that plugin is enabled in
+    plugins_config (e.g. plugins_config["telegram_bot"]["enabled"] is not False).
 
     Args:
         production_mode: If True, raise errors for placeholder values.
                         If False, only log warnings (for development).
+        plugins_config: Optional dict of plugin config (e.g. from settings["plugins"]).
+                        If a plugin key has "enabled": false, its vars are skipped.
+                        If None or plugin key missing, plugin vars are validated.
 
     Raises:
         ValueError: If placeholder values are detected in production mode.
@@ -191,8 +198,21 @@ def validate_environment_variables(production_mode: bool = True) -> None:
 
     logger = logging.getLogger(__name__)
 
-    # Define critical environment variables and their placeholder patterns
-    critical_vars = {
+    # Patterns that indicate placeholder values
+    placeholder_patterns = [
+        "your_",
+        "your-",
+        "_here",
+        "-here",
+        "placeholder",
+        "changeme",
+        "example",
+        "test_",
+        "test-",
+    ]
+
+    # Core agent vars (always validated)
+    core_vars = {
         "AGENT_API_KEY": [
             "your_letta_api_key_here",
             "your-api-key-here",
@@ -207,32 +227,38 @@ def validate_environment_variables(production_mode: bool = True) -> None:
             "example.com",
             "localhost",
         ],
-        "TELEGRAM_API_HASH": [
-            "your_telegram_api_hash_here",
-            "placeholder",
-            "123456",
-            "test",
-        ],
-        "TELEGRAM_BOT_TOKEN": [
-            "your_bot_token_here",
-            "placeholder",
-            "123456",
-            "test",
-        ],
     }
 
-    # Patterns that indicate placeholder values
-    placeholder_patterns = [
-        "your_",
-        "your-",
-        "_here",
-        "-here",
-        "placeholder",
-        "changeme",
-        "example",
-        "test_",
-        "test-",
-    ]
+    # Plugin-scoped vars: only validated when plugin is enabled (enabled != False)
+    plugin_vars = {
+        "telegram_bot": {
+            "TELEGRAM_API_HASH": [
+                "your_telegram_api_hash_here",
+                "placeholder",
+                "123456",
+                "test",
+            ],
+            "TELEGRAM_BOT_TOKEN": [
+                "your_bot_token_here",
+                "placeholder",
+                "123456",
+                "test",
+            ],
+        },
+    }
+
+    def is_plugin_enabled(plugin_key: str) -> bool:
+        # No plugins config => only validate core vars (allow starting without plugin env)
+        if plugins_config is None:
+            return False
+        plugin_cfg = plugins_config.get(plugin_key) or {}
+        return plugin_cfg.get("enabled", True) is not False
+
+    # Build full set of vars to validate
+    critical_vars = dict(core_vars)
+    for plugin_key, var_map in plugin_vars.items():
+        if is_plugin_enabled(plugin_key):
+            critical_vars.update(var_map)
 
     errors = []
     warnings = []

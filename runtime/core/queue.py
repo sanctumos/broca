@@ -81,11 +81,13 @@ class QueueProcessor:
             return None, "failed"
 
         try:
-            # Attach core block
+            # Attach core block (sync SDK call run in thread to avoid blocking event loop)
             logger.info(f"Attaching user core block {block_id[:8]}... to agent")
             try:
-                self.letta_client.agents.blocks.attach(
-                    agent_id=self.agent_id, block_id=block_id
+                await asyncio.to_thread(
+                    self.letta_client.agents.blocks.attach,
+                    block_id,
+                    agent_id=self.agent_id,
                 )
             except Exception as attach_error:
                 message = str(attach_error).lower()
@@ -108,10 +110,12 @@ class QueueProcessor:
             )
             response = await self.message_processor(message)
 
-            # Detach core block
+            # Detach core block (sync SDK call run in thread)
             logger.info(f"Detaching core block {block_id[:8]}... from agent")
-            self.letta_client.agents.blocks.detach(
-                agent_id=self.agent_id, block_id=block_id
+            await asyncio.to_thread(
+                self.letta_client.agents.blocks.detach,
+                block_id,
+                agent_id=self.agent_id,
             )
 
             if not response:
@@ -129,8 +133,10 @@ class QueueProcessor:
                 logger.info(
                     f"Cleaning up: Detaching core block {block_id[:8]}... from agent"
                 )
-                self.letta_client.agents.blocks.detach(
-                    agent_id=self.agent_id, block_id=block_id
+                await asyncio.to_thread(
+                    self.letta_client.agents.blocks.detach,
+                    block_id,
+                    agent_id=self.agent_id,
                 )
                 logger.info("Core block successfully detached")
             except Exception as detach_error:
@@ -163,10 +169,10 @@ class QueueProcessor:
             user_data = await get_user_details(queue_item.letta_user_id)
             if not user_data:
                 logger.warning(
-                    f"User details not found for Letta user {queue_item.letta_user_id}"
+                    f"User details not found for Letta user {queue_item.letta_user_id} "
+                    "(orphaned queue item); marking as failed"
                 )
-                # Try to requeue, if max attempts exceeded it will be marked as failed
-                await requeue_failed_item(queue_item.id)
+                await update_queue_status(queue_item.id, "failed")
                 return
 
             display_name, username = user_data
@@ -175,10 +181,10 @@ class QueueProcessor:
             platform_profile = await get_platform_profile_id(queue_item.letta_user_id)
             if not platform_profile:
                 logger.warning(
-                    f"Platform profile not found for Letta user {queue_item.letta_user_id}"
+                    f"Platform profile not found for Letta user {queue_item.letta_user_id} "
+                    "(orphaned queue item); marking as failed"
                 )
-                # Try to requeue, if max attempts exceeded it will be marked as failed
-                await requeue_failed_item(queue_item.id)
+                await update_queue_status(queue_item.id, "failed")
                 return
 
             platform_profile_id, platform_user_id = platform_profile

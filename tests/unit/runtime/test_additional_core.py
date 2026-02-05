@@ -65,8 +65,9 @@ async def test_agent_client_send_message_success():
 
         assert result == "Test response"
         # Verify it was called with input parameter (v1.0+ API)
+        # SDK 1.x: create(agent_id, *, input=...)
         mock_client.agents.messages.create.assert_called_once_with(
-            agent_id="test-agent-123", input="Test message"
+            "test-agent-123", input="Test message"
         )
 
 
