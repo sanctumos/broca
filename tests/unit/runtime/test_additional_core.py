@@ -59,8 +59,7 @@ async def test_agent_client_send_message_success():
         assert result == "Test response"
         # Verify it was called with input parameter (v1.0+ API)
         mock_client.agents.messages.create.assert_called_once_with(
-            agent_id="test-agent-123",
-            input="Test message"
+            agent_id="test-agent-123", input="Test message"
         )
 
 
@@ -186,7 +185,7 @@ async def test_plugin_manager_load_plugin_no_spec():
         mock_path.return_value.stem = "test_plugin"
         mock_spec.return_value = None
 
-        with pytest.raises(Exception, match="Could not load plugin from"):
+        with pytest.raises(Exception, match="Failed to load plugin from"):
             await manager.load_plugin("test_plugin.py")
 
 
@@ -209,7 +208,7 @@ async def test_plugin_manager_load_plugin_no_plugin_class():
         mock_module_from_spec.return_value = mock_module
         mock_module.__dict__ = {}  # No plugin class
 
-        with pytest.raises(Exception, match="No plugin class found in"):
+        with pytest.raises(Exception, match="Failed to load plugin from"):
             await manager.load_plugin("test_plugin.py")
 
 

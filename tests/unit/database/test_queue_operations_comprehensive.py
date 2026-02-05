@@ -258,7 +258,9 @@ class TestQueueOperationsComprehensive:
             with patch("database.operations.queue.get_pool") as mock_get_pool:
                 mock_db = MockDatabase()
                 mock_pool = AsyncMock()
-                mock_pool.connection.return_value.__aenter__.return_value = mock_db
+                mock_pool.connection = lambda: AsyncContextManagerMock(
+                    return_value=mock_db
+                )
                 mock_get_pool.return_value = mock_pool
                 mock_cursor = AsyncMock()
                 mock_cursor.fetchone.return_value = (2,)  # attempts = 2
@@ -641,7 +643,9 @@ class TestQueueOperationsComprehensive:
             with patch("database.operations.queue.get_pool") as mock_get_pool:
                 mock_db = MockDatabase()
                 mock_pool = AsyncMock()
-                mock_pool.connection.return_value.__aenter__.return_value = mock_db
+                mock_pool.connection = lambda _db=mock_db: AsyncContextManagerMock(
+                    return_value=_db
+                )
                 mock_get_pool.return_value = mock_pool
                 mock_cursor = AsyncMock()
                 mock_cursor.fetchone.return_value = (

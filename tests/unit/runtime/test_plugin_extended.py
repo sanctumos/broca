@@ -25,7 +25,10 @@ class MockPlugin(Plugin):
         return self._platform
 
     def get_message_handler(self):
-        return AsyncMock()
+        async def handler(response: str, profile, message_id: int) -> None:
+            return None
+
+        return handler
 
     async def start(self):
         pass
@@ -64,17 +67,25 @@ class TestPluginManagerExtended:
             with patch(
                 "runtime.core.plugin.importlib.util.module_from_spec"
             ) as mock_module:
-                mock_spec.return_value = MagicMock()
-                mock_module.return_value = MagicMock()
+                module_name = "test_plugin"
+                spec = MagicMock()
+                spec.loader = MagicMock()
+                spec.loader.exec_module = MagicMock()
+                mock_spec.return_value = spec
 
-                # Mock the module to contain our MockPlugin
-                mock_module.return_value.__dict__ = {
-                    "MockPlugin": MockPlugin,
-                    "Plugin": Plugin,
-                }
+                from types import ModuleType
+
+                module_obj = ModuleType(module_name)
+                mock_module.return_value = module_obj
+
+                original_module = MockPlugin.__module__
+                MockPlugin.__module__ = module_name
+                module_obj.MockPlugin = MockPlugin
+                module_obj.Plugin = Plugin
 
                 with patch("builtins.open", create=True):
                     await manager.load_plugin("test_plugin.py")
+                MockPlugin.__module__ = original_module
 
                 assert "test_plugin" in manager.get_loaded_plugins()
 

@@ -10,6 +10,10 @@ from runtime.core.letta_client import LettaClient, get_letta_client
 @pytest.mark.unit
 def test_letta_client_initialization():
     """Test LettaClient initialization with v1.0+ API (api_key parameter)."""
+    import runtime.core.letta_client
+
+    runtime.core.letta_client._letta_client = None
+
     with patch("runtime.core.letta_client.get_env_var") as mock_env, patch(
         "runtime.core.letta_client.Letta"
     ) as mock_letta_class:
@@ -26,7 +30,8 @@ def test_letta_client_initialization():
         # Verify Letta was called with api_key (v1.0+ API) not token
         mock_letta_class.assert_called_once_with(
             base_url="http://test.endpoint",
-            api_key="test-api-key"
+            api_key="test-api-key",
+            max_retries=0,
         )
 
 
@@ -39,6 +44,7 @@ def test_get_letta_client_singleton():
 
         # Clear singleton
         import runtime.core.letta_client
+
         runtime.core.letta_client._letta_client = None
 
         client1 = get_letta_client()
@@ -51,6 +57,10 @@ def test_get_letta_client_singleton():
 @pytest.mark.unit
 def test_letta_client_properties():
     """Test LettaClient property accessors."""
+    import runtime.core.letta_client
+
+    runtime.core.letta_client._letta_client = None
+
     with patch("runtime.core.letta_client.get_env_var") as mock_env, patch(
         "runtime.core.letta_client.Letta"
     ) as mock_letta_class:
@@ -58,17 +68,19 @@ def test_letta_client_properties():
             "AGENT_ENDPOINT": "http://test.endpoint",
             "AGENT_API_KEY": "test-api-key",
         }.get(key)
-        
+
         mock_letta_instance = MagicMock()
         mock_agents = MagicMock()
         mock_blocks = MagicMock()
         mock_identities = MagicMock()
         mock_conversations = MagicMock()
-        
+        mock_runs = MagicMock()
+
         mock_letta_instance.agents = mock_agents
         mock_letta_instance.blocks = mock_blocks
         mock_letta_instance.identities = mock_identities
         mock_letta_instance.conversations = mock_conversations
+        mock_letta_instance.runs = mock_runs
         mock_letta_class.return_value = mock_letta_instance
 
         client = LettaClient()
@@ -79,11 +91,16 @@ def test_letta_client_properties():
         assert client.identities == mock_identities
         assert client.conversations == mock_conversations
         assert client.client == mock_letta_instance
+        assert client.runs == mock_runs
 
 
 @pytest.mark.unit
 def test_letta_client_close():
     """Test LettaClient close method."""
+    import runtime.core.letta_client
+
+    runtime.core.letta_client._letta_client = None
+
     with patch("runtime.core.letta_client.get_env_var") as mock_env, patch(
         "runtime.core.letta_client.Letta"
     ):

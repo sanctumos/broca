@@ -187,6 +187,10 @@ class TestApplicationMocked:
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
         ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
+        ), patch(
             "builtins.open", mock_open()
         ), patch(
             "os.getpid", return_value=12345
@@ -211,6 +215,10 @@ class TestApplicationMocked:
             "main.create_default_settings"
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
+        ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
         ), patch(
             "builtins.open", mock_open()
         ) as mock_file, patch(
@@ -246,6 +254,10 @@ class TestApplicationMocked:
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
         ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
+        ), patch(
             "builtins.open", mock_open()
         ), patch(
             "os.getpid", return_value=12345
@@ -279,13 +291,17 @@ class TestApplicationMocked:
     @pytest.mark.asyncio
     async def test_application_process_message(self):
         """Test Application _process_message delegates to agent async method."""
-        with patch.dict(os.environ, {
-            "AGENT_ID": "test-agent-123",
-            "USE_BACKGROUND_PROCESSING": "true"
-        }), patch(
-            "main.create_default_settings"
-        ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
+        with patch.dict(
+            os.environ,
+            {"AGENT_ID": "test-agent-123", "USE_BACKGROUND_PROCESSING": "true"},
+        ), patch("main.create_default_settings"), patch("main.PluginManager"), patch(
+            "main.AgentClient"
+        ), patch(
             "main.QueueProcessor"
+        ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
         ), patch(
             "builtins.open", mock_open()
         ), patch(
@@ -307,13 +323,17 @@ class TestApplicationMocked:
     @pytest.mark.asyncio
     async def test_application_process_message_fallback_to_sync(self):
         """Test Application _process_message falls back to sync when background disabled."""
-        with patch.dict(os.environ, {
-            "AGENT_ID": "test-agent-123",
-            "USE_BACKGROUND_PROCESSING": "false"
-        }), patch(
-            "main.create_default_settings"
-        ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
+        with patch.dict(
+            os.environ,
+            {"AGENT_ID": "test-agent-123", "USE_BACKGROUND_PROCESSING": "false"},
+        ), patch("main.create_default_settings"), patch("main.PluginManager"), patch(
+            "main.AgentClient"
+        ), patch(
             "main.QueueProcessor"
+        ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
         ), patch(
             "builtins.open", mock_open()
         ), patch(
@@ -332,8 +352,11 @@ class TestApplicationMocked:
             assert result == mock_response
             app.agent.process_message.assert_called_once_with("Test message")
             # Async method should not be called when disabled
-            if hasattr(app.agent, 'process_message_async'):
-                assert not hasattr(app.agent.process_message_async, 'call_count') or app.agent.process_message_async.call_count == 0
+            if hasattr(app.agent, "process_message_async"):
+                assert (
+                    not hasattr(app.agent.process_message_async, "call_count")
+                    or app.agent.process_message_async.call_count == 0
+                )
 
     @pytest.mark.asyncio
     async def test_application_on_message_processed(self):
@@ -342,6 +365,10 @@ class TestApplicationMocked:
             "main.create_default_settings"
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
+        ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
         ), patch(
             "builtins.open", mock_open()
         ), patch(
@@ -365,6 +392,10 @@ class TestApplicationMocked:
             "main.create_default_settings"
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
+        ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
         ), patch(
             "builtins.open", mock_open()
         ), patch(
@@ -392,6 +423,10 @@ class TestApplicationMocked:
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
         ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
+        ), patch(
             "builtins.open", mock_open()
         ), patch(
             "os.getpid", return_value=12345
@@ -411,6 +446,10 @@ class TestApplicationMocked:
             "main.create_default_settings"
         ), patch("main.PluginManager"), patch("main.AgentClient"), patch(
             "main.QueueProcessor"
+        ), patch(
+            "main.get_settings", return_value={}
+        ), patch(
+            "main.get_config_manager", return_value=MagicMock()
         ), patch(
             "builtins.open", mock_open()
         ), patch(
