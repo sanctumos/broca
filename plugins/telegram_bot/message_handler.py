@@ -48,8 +48,11 @@ class TelegramMessageHandler:
             first_name = message.from_user.first_name
             timestamp = message.date
 
-            # Sanitize inputs
-            message = self.formatter.sanitize_text(message.text)
+            # Sanitize inputs (photo/document messages have caption, not text)
+            raw_text = getattr(message, "text", None) or getattr(
+                message, "caption", None
+            )
+            message = self.formatter.sanitize_text(raw_text)
             sender_first_name = (
                 self.formatter.sanitize_text(first_name) if first_name else "Unknown"
             )

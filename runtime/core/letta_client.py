@@ -39,11 +39,15 @@ class LettaClient:
         logger.debug(f"Initializing Letta client with endpoint: {self.api_endpoint}")
         # API key is not logged for security reasons
 
-        # Initialize the official Letta client
-        # Disable internal client retries; rely on our own backoff.
-        self._client = Letta(
-            base_url=self.api_endpoint, api_key=self.api_key, max_retries=0
-        )
+        # Initialize the official Letta client (SDK may use token= or api_key=).
+        try:
+            self._client = Letta(
+                base_url=self.api_endpoint, token=self.api_key, timeout=60.0
+            )
+        except TypeError:
+            self._client = Letta(
+                base_url=self.api_endpoint, api_key=self.api_key, max_retries=0
+            )
 
     @property
     def client(self):
@@ -69,6 +73,11 @@ class LettaClient:
     def runs(self):
         """Get the runs API client."""
         return self._client.runs
+
+    @property
+    def messages(self):
+        """Get the top-level messages API (list/retrieve by message_id)."""
+        return self._client.messages
 
     async def create_identity(
         self,

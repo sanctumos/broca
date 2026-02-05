@@ -5,10 +5,11 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from plugins import Plugin
 from plugins.base import BasePluginWrapper
-from plugins.telegram_bot.message_handler import MessageFormatter
-from plugins.telegram_bot.message_handler import TelegramMessageHandler
+from plugins.telegram_bot.message_handler import (
+    MessageFormatter,
+    TelegramMessageHandler,
+)
 from plugins.telegram_bot.settings import TelegramBotSettings
 
 logger = logging.getLogger(__name__)
@@ -184,8 +185,51 @@ class TelegramBotPlugin:
             )
             self.dp.message.register(self._handle_message)
 
-            # Start polling in the background so startup can continue
-            self.polling_task = asyncio.create_task(self.dp.start_polling(self.bot))
+            # Start polling in the background so startup can continue (retry on transient network errors)
+            async def _run_polling() -> None:
+                from aiogram.exceptions import TelegramNetworkError
+
+                max_retries = 5
+                retry_delay = 15
+                attempt = 0
+                while True:
+                    try:
+                        await self.dp.start_polling(self.bot)
+                        logger.warning(
+                            "Telegram polling stopped unexpectedly (no exception). "
+                            "Check bot token and Telegram API access."
+                        )
+                        break
+                    except asyncio.CancelledError:
+                        raise
+                    except TelegramNetworkError as e:
+                        attempt += 1
+                        if attempt >= max_retries:
+                            logger.error(
+                                "Telegram polling failed after %s attempts (last: %s). "
+                                "Check bot token and network (api.telegram.org).",
+                                max_retries,
+                                e,
+                                exc_info=True,
+                            )
+                            raise
+                        logger.warning(
+                            "Telegram network error (attempt %s/%s): %s. Retrying in %ss.",
+                            attempt,
+                            max_retries,
+                            e,
+                            retry_delay,
+                        )
+                        await asyncio.sleep(retry_delay)
+                    except Exception as e:
+                        logger.error(
+                            "Telegram polling exited with error: %s. Check bot token and network.",
+                            e,
+                            exc_info=True,
+                        )
+                        raise
+
+            self.polling_task = asyncio.create_task(_run_polling())
             logger.info("Plugin started successfully (polling task running)")
         except ImportError as e:
             logger.error(f"aiogram not available: {e}")
@@ -219,8 +263,12 @@ class TelegramBotPlugin:
         try:
             # Check if message is from owner (only if require_owner is True)
             if self.settings.require_owner:
-                if not self._verify_owner(message.from_user.id, message.from_user.username):
-                    logger.warning(f"Message from unauthorized user {message.from_user.id}")
+                if not self._verify_owner(
+                    message.from_user.id, message.from_user.username
+                ):
+                    logger.warning(
+                        f"Message from unauthorized user {message.from_user.id}"
+                    )
                     return
 
             # Process incoming message and enqueue
@@ -229,7 +277,9 @@ class TelegramBotPlugin:
             logger.error(f"Error handling message: {e}")
             raise
 
-    async def _handle_response(self, response: str, profile: Any, message_id: int) -> None:
+    async def _handle_response(
+        self, response: str, profile: Any, message_id: int
+    ) -> None:
         """Handle outgoing responses.
 
         Args:
@@ -252,7 +302,9 @@ class TelegramBotPlugin:
 
         formatted = self.response_formatter.format_response(response)
         try:
-            await self.bot.send_message(chat_id=chat_id, text=formatted, parse_mode="Markdown")
+            await self.bot.send_message(
+                chat_id=chat_id, text=formatted, parse_mode="Markdown"
+            )
         except Exception as e:
             logger.error(f"Error handling response for message {message_id}: {e}")
             if "can't parse entities" in str(e).lower():

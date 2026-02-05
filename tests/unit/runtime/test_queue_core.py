@@ -41,7 +41,7 @@ def test_queue_item():
 async def test_queue_processor_init():
     """Test QueueProcessor initialization."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -56,7 +56,7 @@ async def test_queue_processor_init():
 async def test_queue_processor_start():
     """Test QueueProcessor start."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -74,7 +74,7 @@ async def test_queue_processor_start():
 async def test_queue_processor_stop():
     """Test QueueProcessor stop."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -90,7 +90,7 @@ async def test_queue_processor_stop():
 async def test_queue_processor_add_item():
     """Test QueueProcessor add_item."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -105,7 +105,7 @@ async def test_queue_processor_add_item():
 async def test_queue_processor_get_next_item():
     """Test QueueProcessor get_next_item."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -120,7 +120,7 @@ async def test_queue_processor_get_next_item():
 async def test_queue_processor_process_item():
     """Test QueueProcessor process_item."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -135,7 +135,7 @@ async def test_queue_processor_process_item():
 async def test_queue_processor_retry_item():
     """Test QueueProcessor retry_item."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -150,7 +150,7 @@ async def test_queue_processor_retry_item():
 async def test_queue_processor_get_stats():
     """Test QueueProcessor get_stats."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -165,7 +165,7 @@ async def test_queue_processor_get_stats():
 async def test_queue_processor_clear_completed():
     """Test QueueProcessor clear_completed."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -179,7 +179,7 @@ async def test_queue_processor_clear_completed():
 def test_queue_processor_set_message_mode():
     """Test QueueProcessor set_message_mode."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):
@@ -195,7 +195,7 @@ def test_queue_processor_set_message_mode():
 def test_queue_processor_properties():
     """Test QueueProcessor properties."""
 
-    def mock_message_processor(message: str) -> str:
+    def mock_message_processor(message: str, sender_id: str | None = None) -> str:
         return f"Processed: {message}"
 
     with patch.dict("os.environ", {"AGENT_ID": "test_agent"}):

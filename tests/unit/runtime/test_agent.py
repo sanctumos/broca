@@ -38,11 +38,17 @@ async def test_agent_client_send_message():
         result = await agent.process_message("test message")
 
         assert result == "test response"
-        # SDK 1.x: create(agent_id, *, input=...) — agent_id as first positional
-        mock_client.agents.messages.create.assert_called_once_with(
-            "test-agent-123",
-            input="test message",
+        # Explicit messages= (single user message) to avoid input/tool ambiguity
+        call = mock_client.agents.messages.create.call_args
+        assert call[0][0] == "test-agent-123"
+        msgs = call[1]["messages"]
+        assert len(msgs) == 1
+        m = msgs[0]
+        assert (m.get("role") or getattr(m, "role", None)) == "user"
+        content = (
+            m.get("content") if isinstance(m, dict) else getattr(m, "content", None)
         )
+        assert content == "test message"
 
 
 @pytest.mark.unit

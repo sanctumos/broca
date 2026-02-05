@@ -31,6 +31,8 @@ class MessageFormatter:
         Returns:
             Sanitized text with normalized whitespace
         """
+        if text is None:
+            return ""
         # Replace any newline or carriage return with a space
         sanitized = "".join(
             c if (ord(c) <= 0xFFFF and c not in {"\n", "\r"}) else " " for c in text

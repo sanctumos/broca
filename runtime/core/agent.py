@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
 import logging
+import uuid
 
 from common.config import get_env_var
 from common.logging import setup_logging
@@ -30,6 +31,17 @@ from common.retry import (
 )
 
 from .letta_client import get_letta_client
+
+
+def _user_message_list(text: str, sender_id: str | None = None) -> list[dict]:
+    """Single user message as Letta messages payload (SDK format: content is a string).
+    sender_id scopes the conversation per identity. otid forces a new thread so Letta
+    does not reuse a conversation with corrupt tool/tool_calls ordering."""
+    msg: dict = {"role": "user", "content": text, "otid": str(uuid.uuid4())}
+    if sender_id:
+        msg["sender_id"] = sender_id
+    return [msg]
+
 
 # Setup logging
 setup_logging()
@@ -95,8 +107,11 @@ class AgentClient:
             logger.error(f"❌ Failed to initialize Letta client: {str(e)}")
             return False
 
-    async def process_message(self, message: str) -> str | None:
-        """Process a message through the agent API with retry logic."""
+    async def process_message(
+        self, message: str, sender_id: str | None = None
+    ) -> str | None:
+        """Process a message through the agent API with retry logic.
+        sender_id: optional Letta identity ID to scope conversation per user."""
         if self.debug_mode:
             logger.debug(f"Debug mode: returning message without processing: {message}")
             return message
@@ -126,7 +141,7 @@ class AgentClient:
             response = await asyncio.to_thread(
                 client.agents.messages.create,
                 self.agent_id,
-                input=message,
+                messages=_user_message_list(message, sender_id),
             )
 
             messages = getattr(response, "messages", None)
@@ -176,8 +191,11 @@ class AgentClient:
         # Use default retry logic for other exceptions
         return is_retryable_exception(exception)
 
-    async def process_message_async(self, message: str) -> str | None:
+    async def process_message_async(
+        self, message: str, sender_id: str | None = None
+    ) -> str | None:
         """Process message using background streaming.
+        sender_id: optional Letta identity ID to scope conversation per user.
 
         Strategy:
         1. Send message with streaming=True, background=True, include_pings=True
@@ -222,32 +240,70 @@ class AgentClient:
                     event = await loop.run_in_executor(None, next, iterator)
                 except StopIteration:
                     break
+                except (RuntimeError, Exception) as e:
+                    # PEP 479 / executor: StopIteration can become RuntimeError in thread
+                    if "StopIteration" in str(e):
+                        break
+                    raise
                 yield event
 
         async def _process_with_streaming():
             client = get_letta_client()
 
             logger.debug(
-                f"Sending message to agent {self.agent_id} with streaming: {message}"
+                "Sending message to agent %s with streaming (sender_id=%s)",
+                self.agent_id,
+                f"{sender_id[:8]}..." if sender_id else "None",
             )
 
-            # Sync SDK call run in thread to avoid blocking event loop
-            stream = await asyncio.to_thread(
-                client.agents.messages.create,
-                self.agent_id,
-                input=message,
-                streaming=True,
-                background=True,
-                include_pings=True,
-            )
+            # Sync SDK call: explicit messages=, sender_id, and otid (fresh thread per request).
+            try:
+                stream = await asyncio.to_thread(
+                    lambda: client.agents.messages.create(
+                        self.agent_id,
+                        messages=_user_message_list(message, sender_id),
+                        streaming=True,
+                        background=True,
+                        include_pings=True,
+                    )
+                )
+            except (AttributeError, TypeError):
+                # SDK has create_stream instead of create(streaming=True)
+                stream = await asyncio.to_thread(
+                    lambda: client.agents.messages.create_stream(
+                        self.agent_id,
+                        messages=_user_message_list(message, sender_id),
+                        include_pings=True,
+                    )
+                )
 
             conversation_id = None
             message_id = None
             event_count = 0
+            stream_response_content = None  # assistant content from stream (some SDKs/backends don't send conversation_id)
 
             try:
                 async for event in _consume_stream(stream):
                     event_count += 1
+
+                    # Prefer assistant content from stream so we don't depend on conversation_id
+                    mt = getattr(event, "message_type", None)
+                    if mt in ("assistant_message", "assistant"):
+                        content = _extract_content(event)
+                        if content:
+                            stream_response_content = content
+                            logger.debug(
+                                "Captured assistant content from stream event #%s",
+                                event_count,
+                            )
+                        # Capture message id for fallback (docs: AssistantMessage has id: str)
+                        if not message_id and hasattr(event, "id") and event.id:
+                            message_id = event.id
+                            logger.debug(
+                                "Captured message_id from stream event #%s: %s",
+                                event_count,
+                                message_id,
+                            )
 
                     if not conversation_id:
                         if hasattr(event, "conversation_id") and event.conversation_id:
@@ -310,11 +366,17 @@ class AgentClient:
                     event_count,
                     str(stream_error),
                 )
-                if not conversation_id:
+                if not conversation_id and not stream_response_content:
                     logger.warning(
                         "No conversation_id captured from stream, cannot fetch message"
                     )
                     raise
+                if stream_response_content:
+                    return stream_response_content
+
+            # If we got assistant content from the stream, use it (SDK/backend may not send conversation_id)
+            if stream_response_content:
+                return stream_response_content
 
             if conversation_id:
                 logger.debug(
@@ -346,8 +408,29 @@ class AgentClient:
 
             if message_id:
                 logger.debug(
-                    "Attempting to fetch message by message_id: %s", message_id
+                    "Fetching message by message_id (messages.retrieve): %s", message_id
                 )
+                # Per API docs: messages.retrieve(message_id) -> get /v1/messages/{message_id}
+                try:
+                    msg = await asyncio.to_thread(
+                        client.messages.retrieve,
+                        message_id,
+                    )
+                    if msg:
+                        # API docs say retrieve returns List[Message]; take first
+                        if isinstance(msg, list | tuple) and msg:
+                            msg = msg[0]
+                        content = _extract_content(msg)
+                        if content:
+                            return content
+                except AttributeError:
+                    # SDK has no top-level messages.retrieve; try agents.messages.list
+                    pass
+                except Exception as retrieve_err:
+                    logger.debug(
+                        "messages.retrieve(%s) failed: %s", message_id, retrieve_err
+                    )
+                # Fallback: list agent messages and find by id
                 messages_response = await asyncio.to_thread(
                     client.agents.messages.list,
                     self.agent_id,
@@ -378,7 +461,7 @@ class AgentClient:
             logger.error("Stream processing timed out after %s seconds", max_wait)
             logger.info("Attempting fallback to create_async method")
             try:
-                return await self._fallback_to_async(message)
+                return await self._fallback_to_async(message, sender_id)
             except Exception as fallback_error:
                 logger.error("Fallback method also failed: %s", str(fallback_error))
                 return None
@@ -386,16 +469,19 @@ class AgentClient:
             logger.error("Error processing message with streaming: %s", str(e))
             logger.info("Attempting fallback to create_async method")
             try:
-                return await self._fallback_to_async(message)
+                return await self._fallback_to_async(message, sender_id)
             except Exception as fallback_error:
                 logger.error("Fallback method also failed: %s", str(fallback_error))
                 return None
 
-    async def _fallback_to_async(self, message: str) -> str | None:
+    async def _fallback_to_async(
+        self, message: str, sender_id: str | None = None
+    ) -> str | None:
         """Fallback method using create_async if streaming fails.
 
         Args:
             message: The message to process
+            sender_id: optional Letta identity ID to scope conversation per user
 
         Returns:
             The agent's response or None if processing failed
@@ -411,18 +497,42 @@ class AgentClient:
             run = await asyncio.to_thread(
                 client.agents.messages.create_async,
                 self.agent_id,
-                input=message,
+                messages=_user_message_list(message, sender_id),
             )
 
-            # Extract conversation_id from run object
+            # Extract conversation_id from run object (may be None in initial response)
             conversation_id = None
             if hasattr(run, "conversation_id") and run.conversation_id:
                 conversation_id = run.conversation_id
             elif hasattr(run, "conversation") and hasattr(run.conversation, "id"):
                 conversation_id = run.conversation.id
 
+            # If create_async response didn't include conversation_id, poll run until it appears
+            if not conversation_id and hasattr(run, "id") and run.id:
+                for wait_sec in (0.5, 1.0, 2.0):
+                    await asyncio.sleep(wait_sec)
+                    try:
+                        updated = await asyncio.to_thread(
+                            client.runs.retrieve,
+                            run.id,
+                        )
+                        if getattr(updated, "conversation_id", None):
+                            conversation_id = updated.conversation_id
+                            logger.debug(
+                                "Got conversation_id from runs.retrieve after %.1fs",
+                                wait_sec,
+                            )
+                            break
+                    except Exception as e:
+                        logger.debug("runs.retrieve(%s) failed: %s", run.id, e)
+                        continue
+
             if not conversation_id:
-                logger.error("Could not extract conversation_id from run object")
+                logger.error(
+                    "Could not extract conversation_id from run object (run_id=%s). "
+                    "Run may have failed before creating a conversation.",
+                    getattr(run, "id", None),
+                )
                 return None
 
             logger.debug(f"Got conversation_id from run: {conversation_id}")
