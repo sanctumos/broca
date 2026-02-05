@@ -75,8 +75,8 @@ async def test_fake_plugin_error_handling():
         await plugin.start()
         await plugin.stop()
         assert True  # No exception raised
-    except Exception:
-        raise AssertionError()  # FakePlugin should not raise exceptions
+    except Exception as e:
+        raise AssertionError() from e  # FakePlugin should not raise exceptions
 
 
 @pytest.mark.unit

@@ -60,3 +60,24 @@ module = [
     "aiohttp.*",
 ]
 ignore_missing_imports = true
+
+# Coverage (pytest-cov)
+[tool.coverage.run]
+source = ["common", "database", "runtime", "plugins", "main.py"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "plugins/cli_test/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+show_missing = true
+fail_under = 0
