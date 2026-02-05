@@ -12,6 +12,13 @@ from runtime.core.plugin import PluginManager
 from runtime.core.queue import QueueProcessor
 
 
+@pytest.fixture(autouse=True)
+def mock_letta_in_additional_core():
+    """Avoid real Letta client so QueueProcessor and LettaClient() don't hit the API."""
+    with patch("runtime.core.letta_client.Letta", MagicMock()):
+        yield
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_client_properties():

@@ -1,7 +1,7 @@
 """Unit tests for main.py functionality."""
 
 import os
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -78,6 +78,7 @@ def test_create_default_settings_file_not_exists(tmp_path, monkeypatch):
     assert settings_file.exists()
 
     import json
+
     content = json.loads(settings_file.read_text())
     assert content["debug_mode"] is False
     assert content["queue_refresh"] == 5
@@ -97,6 +98,7 @@ def test_create_default_settings_empty_file(tmp_path, monkeypatch):
 
     # Should recreate file with defaults
     import json
+
     content = json.loads(settings_file.read_text())
     assert content["debug_mode"] is False
     assert content["queue_refresh"] == 5
@@ -114,6 +116,7 @@ def test_create_default_settings_invalid_json(tmp_path, monkeypatch):
 
     # Should recreate file with defaults
     import json
+
     content = json.loads(settings_file.read_text())
     assert content["debug_mode"] is False
     assert content["queue_refresh"] == 5
@@ -128,7 +131,9 @@ def test_create_default_settings_logging(tmp_path, monkeypatch):
         main.create_default_settings()
 
         # Should log that file was created
-        mock_logger.info.assert_any_call("Settings file does not exist, creating default...")
+        mock_logger.info.assert_any_call(
+            "Settings file does not exist, creating default..."
+        )
         mock_logger.info.assert_any_call("Created default settings.json file")
 
 
@@ -143,7 +148,8 @@ def test_application_init():
         assert app.queue_processor is not None
         assert app.plugin_manager is not None
         assert app.agent is not None
-        assert app._shutdown_event is not None
+        # _shutdown_event is created in start() when the event loop is running
+        assert app._shutdown_event is None
 
 
 @pytest.mark.unit

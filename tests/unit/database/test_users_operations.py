@@ -1,5 +1,6 @@
 """Unit tests for database user operations."""
 
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -11,24 +12,21 @@ from database.operations.users import (
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_get_or_create_letta_user_new_user(temp_db):
-    """Test creating a new Letta user."""
-    # For now, just test that the function can be called without errors
-    # The actual implementation is complex and requires proper mocking of the Letta client
-    try:
+    """Test creating a new Letta user with mocked Letta client."""
+    mock_client = MagicMock()
+    mock_client.identities.create.return_value = MagicMock(id="identity-1")
+    mock_client.blocks.create.return_value = MagicMock(id="block-1")
+
+    with patch(
+        "database.operations.users.get_letta_client",
+        return_value=mock_client,
+    ):
         user = await get_or_create_letta_user(
             username="testuser",
             display_name="Test User",
             platform_user_id="telegram_123",
         )
-        # If we get here, the function executed successfully
         assert user is not None
-    except Exception as e:
-        # Expected to fail due to missing Letta client setup
-        assert (
-            "Error creating Letta user" in str(e)
-            or "Error binding parameter" in str(e)
-            or "Unauthorized" in str(e)
-        )
 
 
 @pytest.mark.unit

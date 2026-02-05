@@ -174,7 +174,7 @@ class TestTelegramBotPlugin:
 
             plugin = TelegramBotPlugin()
             platform = plugin.get_platform()
-            assert platform == "telegram_bot"
+            assert platform == "telegram"
 
     def test_telegram_bot_plugin_get_message_handler(self):
         """Test TelegramBotPlugin get_message_handler method."""

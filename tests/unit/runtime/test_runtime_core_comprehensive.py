@@ -11,6 +11,20 @@ from runtime.core.plugin import PluginManager
 from runtime.core.queue import QueueProcessor
 
 
+@pytest.fixture(autouse=True)
+def mock_letta_client_and_env():
+    """Avoid real Letta client and ensure AGENT_ID for AgentClient/QueueProcessor."""
+    mock_client = MagicMock()
+    mock_client.agents.blocks.attach.return_value = None
+    mock_client.agents.blocks.detach.return_value = None
+    with (
+        patch.dict("os.environ", {"AGENT_ID": "test_agent"}, clear=False),
+        patch("runtime.core.agent.get_letta_client", return_value=mock_client),
+        patch("runtime.core.queue.get_letta_client", return_value=mock_client),
+    ):
+        yield
+
+
 class TestRuntimeCoreComprehensive:
     """Comprehensive test cases for runtime core components."""
 
