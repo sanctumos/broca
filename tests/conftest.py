@@ -32,13 +32,13 @@ from pytest_mock import MockerFixture
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import project modules
-from database.operations.shared import initialize_database
+# Import project modules (after path setup; E402 acceptable in conftest)
+from database.operations.shared import initialize_database  # noqa: E402
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Create an instance of the default event loop for the test session."""
+    """Create a new event loop per test so async tests don't share a closed loop."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -55,7 +55,8 @@ async def temp_db() -> AsyncGenerator[str, None]:
     os.environ["TEST_DB_PATH"] = db_path
 
     # Initialize connection pool for tests (small pool for tests)
-    from database.pool import initialize_pool, get_pool
+    from database.pool import get_pool, initialize_pool
+
     pool = initialize_pool(pool_size=2, max_overflow=3)
     await pool.initialize()
 
@@ -69,11 +70,12 @@ async def temp_db() -> AsyncGenerator[str, None]:
             await get_pool().close()
         except Exception:
             pass
-        
+
         # Reset global pool
         import database.pool
+
         database.pool._pool = None
-        
+
         if os.path.exists(db_path):
             os.unlink(db_path)
         if original_db_path:

@@ -199,7 +199,9 @@ class Application:
 
         self._settings_file = "settings.json"
         self._settings_mtime = 0
-        self._shutdown_event = asyncio.Event()
+        self._shutdown_event: asyncio.Event | None = (
+            None  # Set in start() when loop is running
+        )
         self._tasks = set()
 
         # Initialize unified configuration manager
@@ -250,7 +252,8 @@ class Application:
             # Clean up PID file on signal
             if hasattr(self, "pid_manager"):
                 self.pid_manager.cleanup()
-            self._shutdown_event.set()
+            if self._shutdown_event is not None:
+                self._shutdown_event.set()
 
         # Get the running event loop
         try:
@@ -362,6 +365,7 @@ class Application:
 
     async def start(self) -> None:
         """Start all application components."""
+        self._shutdown_event = asyncio.Event()
         try:
             # Validate environment variables (only in production mode)
             settings = get_settings()

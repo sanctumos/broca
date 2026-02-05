@@ -206,7 +206,8 @@ class TestApplicationMocked:
             assert app.queue_processor is not None
             assert app._settings_file == "settings.json"
             assert app._settings_mtime == 0
-            assert app._shutdown_event is not None
+            # _shutdown_event is created in start() when the event loop is running
+            assert app._shutdown_event is None
             assert app._tasks == set()
 
     def test_application_pid_file_creation(self):

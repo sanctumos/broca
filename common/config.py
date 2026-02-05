@@ -471,7 +471,9 @@ class ConfigurationManager:
         self._callbacks: dict[str, list[Callable[[Any, Any], None]]] = {}
         self._last_mtime = 0
         self._monitoring = False
-        self._stop_event = asyncio.Event()
+        self._stop_event: asyncio.Event | None = (
+            None  # Set in start_monitoring() when loop is running
+        )
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value using dot notation.
@@ -615,6 +617,7 @@ class ConfigurationManager:
             return
 
         self._monitoring = True
+        self._stop_event = asyncio.Event()
         self._stop_event.clear()
 
         # Get initial mtime
@@ -644,7 +647,8 @@ class ConfigurationManager:
 
     def stop_monitoring(self) -> None:
         """Stop monitoring settings file for changes."""
-        self._stop_event.set()
+        if self._stop_event is not None:
+            self._stop_event.set()
         self._monitoring = False
 
     def reload(self) -> None:

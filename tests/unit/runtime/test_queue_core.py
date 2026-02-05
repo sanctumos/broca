@@ -1,10 +1,17 @@
 """Unit tests for runtime core queue functionality."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from runtime.core.queue import QueueProcessor
+
+
+@pytest.fixture(autouse=True)
+def mock_letta_client():
+    """Avoid real Letta client in QueueProcessor.__init__."""
+    with patch("runtime.core.queue.get_letta_client", return_value=MagicMock()):
+        yield
 
 
 @pytest.mark.unit
