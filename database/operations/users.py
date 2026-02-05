@@ -1,12 +1,11 @@
 """User-related database operations (get_or_create_user, platform lookup, etc)."""
 
+import asyncio
 import json
 import logging
 import uuid
 from datetime import datetime
 from typing import Any
-
-import aiosqlite
 
 from runtime.core.letta_client import get_letta_client
 
@@ -32,14 +31,14 @@ async def get_or_create_letta_user(
         first_name = name_parts[0]
         last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else None
 
-        # 1. Create Letta identity
+        # 1. Create Letta identity (SDK 1.7.x has no top-level identities; we use create_identity)
         unique_id = str(uuid.uuid4())[:8]
         identity_data = {
             "identifier_key": f"broca_user_{unique_id}",
             "name": display_name or username or f"Unknown User {platform_user_id}",
             "identity_type": "user",
         }
-        identity = client.identities.create(**identity_data)
+        identity = await client.create_identity(**identity_data)
 
         # 2. Create core block with standardized format
         block_content = []
@@ -69,7 +68,8 @@ async def get_or_create_letta_user(
                 }
             ),
         }
-        block = client.blocks.create(**block_data)
+        # Sync SDK call run in thread to avoid blocking the event loop
+        block = await asyncio.to_thread(client.blocks.create, **block_data)
 
         # 3. Create user record with Letta identity ID and block ID
         async with get_pool().connection() as db:

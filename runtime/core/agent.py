@@ -81,10 +81,10 @@ class AgentClient:
             client = get_letta_client()
             logger.debug("Retrieved Letta client instance")
 
-            # Verify agent exists
+            # Verify agent exists (sync SDK call run in thread to avoid blocking)
             logger.debug(f"Attempting to retrieve agent {self.agent_id}")
             try:
-                agent = client.agents.retrieve(self.agent_id)
+                agent = await asyncio.to_thread(client.agents.retrieve, self.agent_id)
                 logger.info(f"✅ Connected to agent {agent.id}: {agent.name}")
                 return True
             except Exception as e:
@@ -123,8 +123,9 @@ class AgentClient:
             client = get_letta_client()
 
             logger.debug(f"Sending message to agent {self.agent_id}: {message}")
-            response = client.agents.messages.create(
-                agent_id=self.agent_id,
+            response = await asyncio.to_thread(
+                client.agents.messages.create,
+                self.agent_id,
                 input=message,
             )
 
@@ -230,8 +231,10 @@ class AgentClient:
                 f"Sending message to agent {self.agent_id} with streaming: {message}"
             )
 
-            stream = client.agents.messages.create(
-                agent_id=self.agent_id,
+            # Sync SDK call run in thread to avoid blocking event loop
+            stream = await asyncio.to_thread(
+                client.agents.messages.create,
+                self.agent_id,
                 input=message,
                 streaming=True,
                 background=True,
@@ -317,8 +320,9 @@ class AgentClient:
                 logger.debug(
                     "Fetching final message from conversation %s", conversation_id
                 )
-                messages_response = client.conversations.messages.list(
-                    conversation_id=conversation_id,
+                messages_response = await asyncio.to_thread(
+                    client.conversations.messages.list,
+                    conversation_id,
                     order="desc",
                     limit=10,
                 )
@@ -344,8 +348,9 @@ class AgentClient:
                 logger.debug(
                     "Attempting to fetch message by message_id: %s", message_id
                 )
-                messages_response = client.agents.messages.list(
-                    agent_id=self.agent_id,
+                messages_response = await asyncio.to_thread(
+                    client.agents.messages.list,
+                    self.agent_id,
                     limit=10,
                 )
                 if hasattr(messages_response, "data") and messages_response.data:
@@ -402,9 +407,10 @@ class AgentClient:
         )
 
         try:
-            # Use create_async which returns a Run object immediately
-            run = client.agents.messages.create_async(
-                agent_id=self.agent_id,
+            # Use create_async which returns a Run object immediately (sync SDK in thread)
+            run = await asyncio.to_thread(
+                client.agents.messages.create_async,
+                self.agent_id,
                 input=message,
             )
 
@@ -430,8 +436,11 @@ class AgentClient:
                 await asyncio.sleep(poll_interval)
 
                 try:
-                    messages_response = client.conversations.messages.list(
-                        conversation_id=conversation_id, order="desc", limit=10
+                    messages_response = await asyncio.to_thread(
+                        client.conversations.messages.list,
+                        conversation_id,
+                        order="desc",
+                        limit=10,
                     )
 
                     if hasattr(messages_response, "data") and messages_response.data:

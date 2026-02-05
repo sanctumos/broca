@@ -372,7 +372,10 @@ class Application:
             debug_mode = settings.get("debug_mode", False)
             if not debug_mode:
                 try:
-                    validate_environment_variables(production_mode=True)
+                    validate_environment_variables(
+                        production_mode=True,
+                        plugins_config=settings.get("plugins"),
+                    )
                     logger.info("✅ Environment variables validated")
                 except ValueError as e:
                     logger.error(f"❌ Environment variable validation failed: {e}")

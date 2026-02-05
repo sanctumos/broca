@@ -1,6 +1,6 @@
 """Unit tests for database user operations."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -14,7 +14,7 @@ from database.operations.users import (
 async def test_get_or_create_letta_user_new_user(temp_db):
     """Test creating a new Letta user with mocked Letta client."""
     mock_client = MagicMock()
-    mock_client.identities.create.return_value = MagicMock(id="identity-1")
+    mock_client.create_identity = AsyncMock(return_value=MagicMock(id="identity-1"))
     mock_client.blocks.create.return_value = MagicMock(id="block-1")
 
     with patch(

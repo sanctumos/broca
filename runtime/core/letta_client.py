@@ -1,15 +1,31 @@
 """
 Letta API client implementation using the official SDK.
+
+Letta 1.x compliance (SDK 1.7.x):
+- No top-level identities: use create_identity() (POST /v1/identities/) instead.
+- Sync SDK (Letta) is used; all sync calls from async code are run via
+  asyncio.to_thread() in runtime.core.agent and runtime.core.queue.
+- Blocks: client.blocks for global blocks; client.agents.blocks for
+  agent core-memory attach/detach. Both exist in 1.x.
 """
 
 import logging
+from typing import Any
 
+import httpx
 from letta_client import Letta
 
 from common.config import get_env_var
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+class _IdentityCreateResponse:
+    """Minimal response type for identity create (SDK 1.7.x has no top-level identities)."""
+
+    def __init__(self, id: str, **kwargs: Any) -> None:
+        self.id = id
 
 
 class LettaClient:
@@ -45,11 +61,6 @@ class LettaClient:
         return self._client.blocks
 
     @property
-    def identities(self):
-        """Get the identities API client."""
-        return self._client.identities
-
-    @property
     def conversations(self):
         """Get the conversations API client."""
         return self._client.conversations
@@ -58,6 +69,33 @@ class LettaClient:
     def runs(self):
         """Get the runs API client."""
         return self._client.runs
+
+    async def create_identity(
+        self,
+        *,
+        identifier_key: str,
+        name: str,
+        identity_type: str = "user",
+    ) -> _IdentityCreateResponse:
+        """
+        Create a Letta identity via POST /v1/identities/.
+        The official SDK 1.7.x does not expose top-level identities, so we call the API directly.
+        """
+        url = f"{self.api_endpoint.rstrip('/')}/v1/identities/"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+        }
+        body = {
+            "identifier_key": identifier_key,
+            "name": name,
+            "identity_type": identity_type,
+        }
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.post(url, json=body, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+        return _IdentityCreateResponse(id=data["id"])
 
     def close(self):
         """Close the client."""

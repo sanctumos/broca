@@ -107,8 +107,9 @@ class TestAgentClientExtended:
 
             result = await agent.process_message(message)
             assert result == "Test response"
+            # SDK 1.x: create(agent_id, *, input=...)
             mock_client.agents.messages.create.assert_called_once_with(
-                agent_id="test-agent",
+                "test-agent",
                 input="Test message",
             )
 
@@ -234,15 +235,17 @@ class TestAgentClientExtended:
             result = await agent.process_message_async("Test message")
 
             assert result == "Final response"
+            # SDK 1.x: create(agent_id, *, input=..., streaming=..., ...)
             mock_client.agents.messages.create.assert_called_once_with(
-                agent_id="test-agent",
+                "test-agent",
                 input="Test message",
                 streaming=True,
                 background=True,
                 include_pings=True,
             )
+            # SDK 1.x: list(conversation_id, *, order=..., limit=...)
             mock_client.conversations.messages.list.assert_called_once_with(
-                conversation_id="conv-123", order="desc", limit=10
+                "conv-123", order="desc", limit=10
             )
 
     @patch("runtime.core.agent.get_env_var")
@@ -350,8 +353,9 @@ class TestAgentClientExtended:
             result = await agent._fallback_to_async("Test message")
 
             assert result == "Polled response"
+            # SDK 1.x: create_async(agent_id, *, input=...)
             mock_client.agents.messages.create_async.assert_called_once_with(
-                agent_id="test-agent", input="Test message"
+                "test-agent", input="Test message"
             )
 
     @patch("runtime.core.agent.get_env_var")
@@ -401,8 +405,9 @@ class TestAgentClientExtended:
             result = await agent.process_message_async("Test message")
 
             assert result == "Response from run"
+            # SDK 1.x: list(conversation_id, *, order=..., limit=...)
             mock_client.conversations.messages.list.assert_called_once_with(
-                conversation_id="conv-from-run", order="desc", limit=10
+                "conv-from-run", order="desc", limit=10
             )
 
     @patch("runtime.core.agent.get_env_var")
