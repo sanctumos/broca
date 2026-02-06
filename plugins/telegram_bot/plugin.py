@@ -174,6 +174,7 @@ class TelegramBotPlugin:
 
             # Initialize bot and dispatcher
             self.bot = Bot(token=settings.bot_token)
+            self.message_handler.bot = self.bot
             self.dp = Dispatcher()
 
             # Register command handlers
