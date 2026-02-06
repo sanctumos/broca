@@ -1,12 +1,15 @@
 """Message handler for the Telegram bot plugin."""
 
 import logging
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from common.telegram_markdown import preserve_telegram_markdown
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
 from database.operations.users import get_or_create_platform_profile
+from runtime.core.image_handling import build_message_for_agent, image_handling_enabled
 from runtime.core.message import MessageFormatter as BaseMessageFormatter
 
 logger = logging.getLogger(__name__)
@@ -30,6 +33,7 @@ class TelegramMessageHandler:
         """Initialize the message handler."""
         self.formatter = MessageFormatter()
         self.letta_client = None  # Initialize lazily
+        self.bot = None  # Set by plugin for photo download
         logger.info("Initialized MessageHandler")
 
     async def process_incoming_message(self, message) -> dict[str, Any]:
@@ -52,13 +56,39 @@ class TelegramMessageHandler:
             raw_text = getattr(message, "text", None) or getattr(
                 message, "caption", None
             )
-            message = self.formatter.sanitize_text(raw_text)
+            content = self.formatter.sanitize_text(raw_text or "")
             sender_first_name = (
                 self.formatter.sanitize_text(first_name) if first_name else "Unknown"
             )
             sender_username = (
                 self.formatter.sanitize_text(username) if username else None
             )
+
+            # If image handling is on and message has photo(s), download largest and build message with addendum
+            if image_handling_enabled() and getattr(message, "photo", None):
+                bot = getattr(self, "bot", None) or getattr(message, "bot", None)
+                if bot:
+                    try:
+                        largest = message.photo[-1]
+                        file = await bot.get_file(largest.file_id)
+                        suffix = Path(file.file_path or "photo.jpg").suffix or ".jpg"
+                        with tempfile.NamedTemporaryFile(
+                            suffix=suffix, delete=False
+                        ) as tmp:
+                            tmp_path = Path(tmp.name)
+                        await bot.download_file(
+                            file.file_path, destination=str(tmp_path)
+                        )
+                        try:
+                            content = build_message_for_agent(
+                                raw_text or "", [tmp_path]
+                            )
+                        finally:
+                            tmp_path.unlink(missing_ok=True)
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to process photo, using caption/text only: %s", e
+                        )
 
             # Get or create user profile
             profile, letta_user = await get_or_create_platform_profile(
@@ -73,7 +103,7 @@ class TelegramMessageHandler:
                 letta_user_id=letta_user.id,
                 platform_profile_id=profile.id,
                 role="user",
-                message=message,
+                message=content,
                 timestamp=timestamp.strftime("%Y-%m-%d %H:%M UTC"),
             )
 
