@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,8 @@ from dotenv import set_key
 from plugins import Event, EventType, Plugin
 
 logger = logging.getLogger(__name__)
+
+IMAGE_ATTACHMENT_PATTERN = re.compile(r"\[Image Attachment:\s*(\S+)\]", re.IGNORECASE)
 
 
 class TelegramPlugin(Plugin):
@@ -147,8 +150,13 @@ class TelegramPlugin(Plugin):
 
                 self.formatter = MessageFormatter()
 
-            # Format response for Telegram
-            formatted = self.formatter.format_response(response)
+            # Parse [Image Attachment: url] lines; send photos then remaining text
+            image_urls = IMAGE_ATTACHMENT_PATTERN.findall(response)
+            text_without_addendum = IMAGE_ATTACHMENT_PATTERN.sub("", response)
+            text_without_addendum = re.sub(
+                r"\n\s*\n", "\n", text_without_addendum
+            ).strip()
+            formatted = self.formatter.format_response(text_without_addendum)
 
             # Convert platform_user_id to integer for Telegram
             try:
@@ -164,18 +172,31 @@ class TelegramPlugin(Plugin):
                 )
                 return
 
+            # Send photos first (if any), then text
+            for url in image_urls:
+                try:
+                    await self.client.send_file(telegram_user_id, url)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to send image %s for message %s: %s",
+                        url,
+                        message_id,
+                        e,
+                    )
+
             # Send message with typing indicator and markdown support
             async with self.client.action(telegram_user_id, "typing"):
-                try:
-                    await self.client.send_message(
-                        telegram_user_id, formatted, parse_mode="markdown"
-                    )
-                except Exception as markdown_error:
-                    logger.warning(
-                        f"Markdown parsing failed, falling back to plain text: {str(markdown_error)}"
-                    )
-                    # Fallback to plain text if markdown fails
-                    await self.client.send_message(telegram_user_id, formatted)
+                if formatted:
+                    try:
+                        await self.client.send_message(
+                            telegram_user_id, formatted, parse_mode="markdown"
+                        )
+                    except Exception as markdown_error:
+                        logger.warning(
+                            "Markdown parsing failed, falling back to plain text: %s",
+                            markdown_error,
+                        )
+                        await self.client.send_message(telegram_user_id, formatted)
                 logger.info(
                     f"Response sent to user {profile.username} ({telegram_user_id})"
                 )
