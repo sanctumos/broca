@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -14,8 +13,6 @@ from plugins.telegram_bot.message_handler import (
 from plugins.telegram_bot.settings import TelegramBotSettings
 
 logger = logging.getLogger(__name__)
-
-IMAGE_ATTACHMENT_PATTERN = re.compile(r"\[Image Attachment:\s*(\S+)\]", re.IGNORECASE)
 
 
 class TelegramBotPluginWrapper(BasePluginWrapper):
@@ -190,6 +187,17 @@ class TelegramBotPlugin:
             self.dp.message.register(self._handle_message)
 
             # Start polling in the background so startup can continue (retry on transient network errors)
+            def _on_polling_done(task: asyncio.Task) -> None:
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    logger.debug("Polling task cancelled (normal on shutdown)")
+                except Exception as e:
+                    logger.exception(
+                        "Polling task exited with error: %s. Check bot token and network.",
+                        e,
+                    )
+
             async def _run_polling() -> None:
                 from aiogram.exceptions import TelegramNetworkError
 
@@ -198,7 +206,12 @@ class TelegramBotPlugin:
                 attempt = 0
                 while True:
                     try:
-                        await self.dp.start_polling(self.bot)
+                        # We close session in stop(); avoid aiogram closing it on polling exit
+                        await self.dp.start_polling(
+                            self.bot,
+                            close_bot_session=False,
+                            handle_signals=False,
+                        )
                         logger.warning(
                             "Telegram polling stopped unexpectedly (no exception). "
                             "Check bot token and Telegram API access."
@@ -234,6 +247,9 @@ class TelegramBotPlugin:
                         raise
 
             self.polling_task = asyncio.create_task(_run_polling())
+            self.polling_task.add_done_callback(_on_polling_done)
+            # Yield so the polling task gets a chance to run before we return and start other tasks
+            await asyncio.sleep(0.2)
             logger.info("Plugin started successfully (polling task running)")
         except ImportError as e:
             logger.error(f"aiogram not available: {e}")
@@ -304,31 +320,17 @@ class TelegramBotPlugin:
             )
             return
 
-        # Parse [Image Attachment: url] lines; send photos then remaining text
-        image_urls = IMAGE_ATTACHMENT_PATTERN.findall(response)
-        text_without_addendum = IMAGE_ATTACHMENT_PATTERN.sub("", response)
-        text_without_addendum = re.sub(r"\n\s*\n", "\n", text_without_addendum).strip()
-        formatted = self.response_formatter.format_response(text_without_addendum)
-
-        for url in image_urls:
-            try:
-                await self.bot.send_photo(chat_id=chat_id, photo=url)
-            except Exception as e:
-                logger.warning(
-                    "Failed to send image %s for message %s: %s", url, message_id, e
-                )
-
-        if formatted:
-            try:
-                await self.bot.send_message(
-                    chat_id=chat_id, text=formatted, parse_mode="Markdown"
-                )
-            except Exception as e:
-                logger.error(f"Error handling response for message {message_id}: {e}")
-                if "can't parse entities" in str(e).lower():
-                    await self.bot.send_message(chat_id=chat_id, text=formatted)
-                    return
-                raise
+        formatted = self.response_formatter.format_response(response)
+        try:
+            await self.bot.send_message(
+                chat_id=chat_id, text=formatted, parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Error handling response for message {message_id}: {e}")
+            if "can't parse entities" in str(e).lower():
+                await self.bot.send_message(chat_id=chat_id, text=formatted)
+                return
+            raise
 
     async def _handle_start_command(self, message) -> None:
         """Handle /start command.
