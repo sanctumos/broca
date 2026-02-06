@@ -32,6 +32,14 @@ from pytest_mock import MockerFixture
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# Load .env so integration/e2e tests see AGENT_ID and other vars
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(project_root / ".env")
+except ImportError:
+    pass
+
 # Import project modules (after path setup; E402 acceptable in conftest)
 from database.operations.shared import initialize_database  # noqa: E402
 
