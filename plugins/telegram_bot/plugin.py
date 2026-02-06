@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -13,6 +14,8 @@ from plugins.telegram_bot.message_handler import (
 from plugins.telegram_bot.settings import TelegramBotSettings
 
 logger = logging.getLogger(__name__)
+
+IMAGE_ATTACHMENT_PATTERN = re.compile(r"\[Image Attachment:\s*(\S+)\]", re.IGNORECASE)
 
 
 class TelegramBotPluginWrapper(BasePluginWrapper):
@@ -301,17 +304,31 @@ class TelegramBotPlugin:
             )
             return
 
-        formatted = self.response_formatter.format_response(response)
-        try:
-            await self.bot.send_message(
-                chat_id=chat_id, text=formatted, parse_mode="Markdown"
-            )
-        except Exception as e:
-            logger.error(f"Error handling response for message {message_id}: {e}")
-            if "can't parse entities" in str(e).lower():
-                await self.bot.send_message(chat_id=chat_id, text=formatted)
-                return
-            raise
+        # Parse [Image Attachment: url] lines; send photos then remaining text
+        image_urls = IMAGE_ATTACHMENT_PATTERN.findall(response)
+        text_without_addendum = IMAGE_ATTACHMENT_PATTERN.sub("", response)
+        text_without_addendum = re.sub(r"\n\s*\n", "\n", text_without_addendum).strip()
+        formatted = self.response_formatter.format_response(text_without_addendum)
+
+        for url in image_urls:
+            try:
+                await self.bot.send_photo(chat_id=chat_id, photo=url)
+            except Exception as e:
+                logger.warning(
+                    "Failed to send image %s for message %s: %s", url, message_id, e
+                )
+
+        if formatted:
+            try:
+                await self.bot.send_message(
+                    chat_id=chat_id, text=formatted, parse_mode="Markdown"
+                )
+            except Exception as e:
+                logger.error(f"Error handling response for message {message_id}: {e}")
+                if "can't parse entities" in str(e).lower():
+                    await self.bot.send_message(chat_id=chat_id, text=formatted)
+                    return
+                raise
 
     async def _handle_start_command(self, message) -> None:
         """Handle /start command.
