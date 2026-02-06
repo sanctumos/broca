@@ -67,7 +67,12 @@ class TelegramMessageHandler:
             # If image handling is on and message has photo(s), download largest and build message with addendum
             if image_handling_enabled() and getattr(message, "photo", None):
                 bot = getattr(self, "bot", None) or getattr(message, "bot", None)
-                if bot:
+                if not bot:
+                    logger.warning(
+                        "Image handling enabled but no bot available for photo download; "
+                        "using caption/text only."
+                    )
+                else:
                     try:
                         largest = message.photo[-1]
                         file = await bot.get_file(largest.file_id)

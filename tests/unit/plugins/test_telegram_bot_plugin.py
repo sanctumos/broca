@@ -240,10 +240,14 @@ class TestTelegramBotPlugin:
                 mock_dispatcher.return_value = mock_dispatcher_instance
 
                 await plugin.start()
+                # Let the background _run_polling task run (mock returns immediately)
+                await plugin.polling_task
 
                 mock_bot.assert_called_once_with(token="test_token")
                 mock_dispatcher_instance.start_polling.assert_called_once_with(
-                    mock_bot_instance
+                    mock_bot_instance,
+                    close_bot_session=False,
+                    handle_signals=False,
                 )
 
     @pytest.mark.asyncio
@@ -354,6 +358,9 @@ class TestTelegramBotPlugin:
             plugin.bot.session.close.assert_called_once()
 
     @pytest.mark.asyncio
+    @pytest.mark.skip(
+        reason="_handle_response reverted to 30998578 (no image addendum); re-enable when outgoing image handling is re-added"
+    )
     async def test_handle_response_sends_photo_when_image_attachment_present(self):
         """When response contains [Image Attachment: url], send_photo is called and text is stripped."""
         with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
