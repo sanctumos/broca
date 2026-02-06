@@ -46,13 +46,15 @@ Each agent instance has its own configuration in `agent-{uuid}/` directories:
 ## Environment Variables
 
 ### Base Installation Variables (.env in broca2 root)
-| Variable                | Description                        | Example Value                |
-|-------------------------|------------------------------------|------------------------------|
-| `TELEGRAM_API_ID`       | Telegram API ID                    | `123456`                     |
-| `TELEGRAM_API_HASH`     | Telegram API hash                  | `abcdef123456`               |
-| `TELEGRAM_PHONE`        | Telegram phone number              | `+1234567890`                |
-| `DEBUG_MODE`            | Enable/disable debug mode          | `false`                      |
-| `LOG_LEVEL`             | Logging level                      | `INFO`                       |
+| Variable                         | Description                                                        | Example Value                |
+|----------------------------------|--------------------------------------------------------------------|------------------------------|
+| `TELEGRAM_API_ID`                | Telegram API ID                                                    | `123456`                     |
+| `TELEGRAM_API_HASH`              | Telegram API hash                                                  | `abcdef123456`               |
+| `TELEGRAM_PHONE`                 | Telegram phone number                                              | `+1234567890`                |
+| `DEBUG_MODE`                     | Enable/disable debug mode                                          | `false`                      |
+| `LOG_LEVEL`                      | Logging level                                                      | `INFO`                       |
+| `ENABLE_IMAGE_HANDLING`          | Enable multimodal image handling (photos accepted, optional addendum) | `false`                      |
+| `ENABLE_TMPFILES_IMAGE_ADDENDUM` | When image handling is on, upload images to tmpfiles.org and append `[Image Attachment: url]` to message text | `false`                      |
 
 ### Agent Instance Variables (.env in agent-{uuid}/)
 | Variable                | Description                        | Example Value                |
@@ -293,7 +295,7 @@ def get_config_value(key: str, agent_id: str = None) -> Any:
         agent_value = get_agent_setting(key, agent_id)
         if agent_value is not None:
             return agent_value
-    
+
     # Fall back to base setting
     return get_base_setting(key)
 ```
@@ -308,4 +310,4 @@ def get_config_value(key: str, agent_id: str = None) -> Any:
 
 ---
 
-For more details, see the main README or contact the maintainers. 
+For more details, see the main README or contact the maintainers.
