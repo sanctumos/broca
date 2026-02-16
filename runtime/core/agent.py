@@ -237,6 +237,13 @@ class AgentClient:
                 return msg.text
             return None
 
+        def _safe_next_sync(it, default=None):
+            """Call next(it) and return (True, value) or (False, default). Avoids StopIteration in executor (PEP 479 / asyncio Future)."""
+            try:
+                return (True, next(it))
+            except StopIteration:
+                return (False, default)
+
         async def _consume_stream(stream):
             if hasattr(stream, "__aiter__"):
                 async for event in stream:
@@ -244,18 +251,13 @@ class AgentClient:
                 return
 
             # Fallback for sync iterables: consume in executor to avoid blocking.
+            # Do not pass next(iterator) to run_in_executor; StopIteration in worker becomes TypeError in main (PEP 479).
             loop = asyncio.get_running_loop()
             iterator = iter(stream)
             while True:
-                try:
-                    event = await loop.run_in_executor(None, next, iterator)
-                except StopIteration:
+                has_event, event = await loop.run_in_executor(None, _safe_next_sync, iterator)
+                if not has_event:
                     break
-                except (RuntimeError, Exception) as e:
-                    # PEP 479 / executor: StopIteration can become RuntimeError in thread
-                    if "StopIteration" in str(e):
-                        break
-                    raise
                 yield event
 
         async def _process_with_streaming():
