@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-03-27
+
+### Summary
+
+**Major version release: Sanctum: Broca 3.** This release finalizes all updates accumulated since v0.11.0, including full compatibility with the Letta client v1.0+ breaking changes, a new image handling pipeline, hardened streaming, and comprehensive test coverage (1080 tests passing).
+
+### Added
+- **Image handling pipeline**: End-to-end support for image attachments via `tmpfiles.org` upload with `[Image Attachment: url]` message formatting (`runtime/core/image_handling.py`, `common/tmpfiles.py`)
+- **Telegram photo ingress**: Incoming Telegram photos are downloaded, uploaded to tmpfiles, and appended to agent messages
+- **Image fallback in AgentClient**: When Letta tool calls fail on image-bearing messages, the agent automatically retries with `[Image Attachment: …]` lines stripped
+- **Streaming with long-running task support**: `process_message_async` uses `streaming=True, background=True, include_pings=True` for robust async agent interaction
+- **Circuit breaker and exponential backoff**: Production-grade retry logic for Letta API and database operations
+- **Environment flags**: `ENABLE_IMAGE_HANDLING`, `ENABLE_TMPFILES_IMAGE_ADDENDUM` for selective feature enablement
+- **Comprehensive test suite**: 1080 passing tests spanning unit, integration, and e2e layers; covers image flow, streaming, queue, plugins, CLI, and database operations
+- **Letta identity threading**: `sender_id` passed through plugins → queue → agent for correct per-sender identity scoping
+- **Database connection pooling**, concurrent message processing, unified configuration management with hot-reload
+- **SQL injection prevention**, comprehensive type annotations, standardized error handling
+- **Graceful shutdown** with async signal handlers, PID file hygiene
+- **Pydantic v2 migration** for all configuration models
+- **Ruff + Black** code style enforcement with pre-commit hooks
+
+### Changed
+- **Letta client v1.0+ compliance**: All SDK calls updated for the breaking v1.0 release; identity creation via direct HTTP where SDK gaps exist
+- **Telegram polling stabilization**: Improved retry on `TelegramNetworkError`, explicit session close on shutdown
+- **Queue processor**: Atomic dequeue, processing state tracking, stale-item requeue on startup
+- **Plugin handler contract enforcement**: `validate_handler_signature` ensures all plugins conform to `async def handler(response, profile, message_id)` at load time
+- **Configuration priority**: Agent-specific `.env` / `settings.json` override base config; hot-reload via `ConfigurationManager`
+
+### Fixed
+- **StopIteration-as-Future error** in stream consumption (Python asyncio edge case)
+- **409 attach conflict**: Prevented core-block attach from overwriting the user's message on collision
+- **asyncio objects created before event loop** (`Event`, `Queue`, `Lock` initialization timing)
+- **Empty `settings.json`** no longer causes a parse error on first run
+
+### Removed
+- Legacy test infrastructure and deprecated migration scripts
+
+---
+
 ## [0.11.0] - 2025-01-05
 
 ### Added
