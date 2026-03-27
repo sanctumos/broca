@@ -34,7 +34,7 @@ Rendered output is a **fixed pipeline** (order must not vary between runs except
 1. **Static intro block** — Versioned markdown (or template file) in repo: what SEP is, scope, that middleware routes replies, etc. No DB.
 2. **Message format** — Static section documenting how Broca formats inbound messages. Include **one or two concrete examples** taken from the real code path (e.g. `MessageFormatter.format_message` / Telegram vs generic platform label) so the agent sees the exact prefix pattern it will receive. Examples must stay in sync with code in the same release (tests can assert substrings or snapshot).
 3. **General framework** — Single **configurable text blob** from DB (markdown or plain text). Operator-defined; default can be empty or a minimal stub. Updated via CLI or MCP only.
-4. **Interaction rules (hierarchical)** — Rendered from a **Broca table**: ordered by **rank**. **By convention, higher rank implies higher privilege / closer trust** (concentric circles: inner rings = more access). The real behavioral contract lives in each row’s **description**; agent and human interpret nuance there. Each row: **rank**, **name**, **description**. Below the table (or interleaved per section), **users correlated to each row** — see data model below.
+4. **Interaction rules (hierarchical)** — Rendered from a **Broca table**: ordered by **rank**. **Higher rank = closer relationship tier** (inner concentric circle: more trust, more access, warmer default engagement). Nuance and edge cases live in each row’s **description**. Each row: **rank**, **name**, **description**. Below the table (or interleaved per section), **users correlated to each row** — see data model below. **SEP does not name or branch on platform** — if the message reached the agent through Broca, delivery is Broca-handled; platform is an implementation detail outside SEP.
 
 Optional static footer (e.g. “This block is maintained by Broca”) can be part of the template.
 
@@ -49,16 +49,16 @@ Optional static footer (e.g. “This block is maintained by Broca”) can be par
 | Column | Type | Notes |
 |--------|------|--------|
 | `id` | INTEGER PK | |
-| `rank` | INTEGER NOT NULL UNIQUE | Sort order for display; **higher rank = higher privilege by default** (concentric-trust model). Fine-grained meaning is always in **description**. |
+| `rank` | INTEGER NOT NULL UNIQUE | Sort order for display; **higher rank = closer tier** (inner circle). Fine-grained meaning is always in **description**. |
 | `name` | TEXT NOT NULL | Short label, e.g. “Business Insiders”, “Close Friends”. |
 | `description` | TEXT NOT NULL | Behavior rules for this tier (prose OK here; still **operator-authored**, not model-generated). |
 
-### User correlation (one human, multiple platforms)
+### User correlation (one human; platform out of SEP)
 
-Broca is designed for **one Letta user (one human) with multiple platform profiles** (e.g. Telegram + bridge + web). Tier is a property of the **person**, not the channel.
+Broca may attach multiple `platform_profiles` to one `letta_user`; tier is still a property of the **person**.
 
-- Attach **`sep_tier_id` on `letta_users`** (nullable FK → `sep_interaction_tier.id`).
-- Do **not** store separate tiers per `platform_profile`; all profiles for that user inherit the same engagement tier in SEP listings (profile rows can still be grouped under the user’s tier in the rendered doc).
+- **`sep_tier_id` on `letta_users`** (nullable FK → `sep_interaction_tier.id`). Not per `platform_profile`.
+- **SEP rendering lists people under tiers only** — no platform labels, no per-channel breakdown. Broca is the boundary; how the user reached Broca does not belong in SEP.
 
 Users without a tier either omit from the SEP or list under a default “Unassigned” bucket (config flag).
 
@@ -87,11 +87,12 @@ Optional junction `sep_user_tier(letta_user_id, sep_tier_id)` only if we later n
 - `SEP_BLOCK_LABEL` (default `protocols_sep`)
 - `SEP_SYNC_ON_STARTUP=true|false`
 - `SEP_INCLUDE_UNASSIGNED_USERS=true|false`
+- Default tier for new `letta_users`: **strangers** (seed tier with lowest rank); no separate env required unless we add override later (`SEP_DEFAULT_TIER_ID`).
 
 ## Testing
 
 - **Unit:** renderer output from fixture DB matches golden markdown file.
-- **Unit:** changing `sep_tier_id` on `letta_users` changes rendered interaction section only (all platforms for that user reflect the same tier).
+- **Unit:** changing `sep_tier_id` on `letta_users` changes rendered interaction section only (user moves between tiers; SEP has no platform dimension).
 - **Integration:** mock Letta PATCH; assert called when tier assignment changes.
 
 ## Non-goals (3.1)
@@ -110,14 +111,14 @@ Optional junction `sep_user_tier(letta_user_id, sep_tier_id)` only if we later n
 
 ## Resolved design choices
 
-### Rank vs privilege
+### Rank vs closeness
 
-- **Higher `rank` ⇒ higher privilege by default** (think concentric circles: closer relationships = higher rank).
-- Exact social contract is **defined in each tier’s `description`**; agent and user align on edge cases there. The static intro should state this one paragraph so deployments are consistent.
+- **Higher `rank` ⇒ closer tier** (inner concentric circle: more trust and intimacy by default, not “abstract privilege”).
+- Edge cases are **defined in each tier’s `description`**; agent and human align there. The static intro should state rank = closeness in one short paragraph.
 
-### Multi-platform users
+### Platform
 
-- **Tier lives on `letta_users`.** One human, one tier, all `platform_profiles` for that user are listed under that tier in the SEP (or shown once with “channels: …” if we add that in a later iteration).
+- **Not represented in SEP.** Tier is on `letta_users`; rendered lists are person-centric only.
 
 ### Default seed data (Athena-shaped, operator-tunable)
 
@@ -129,9 +130,6 @@ On first migration, insert three tiers so new installs resemble Athena’s broad
 | 2 | New contacts & probationary | Evaluate case-by-case; expand access as trust and relevance grow. Keep engagement measured until a relationship stabilizes. |
 | 1 | Strangers / no context | Minimal assumptions; no intimate or insider framing unless the human explicitly bridges context. Prefer clarity and safe defaults. |
 
-**Ordering:** Lowest rank = outermost circle (strangers); highest = innermost (close friends & family). New users default to **rank 2** or **1** depending on product config (`SEP_DEFAULT_TIER_ID` or similar).
+**Ordering:** Lowest rank = outermost circle (**strangers**); highest = innermost (**close friends & family**).
 
-## Open Questions (remaining)
-
-1. Default tier for newly seen `letta_user` rows: **new contacts (2)** vs **strangers (1)**?
-2. Whether to render platform labels next to each user line in the SEP (e.g. `telegram`, `otto_bridge`) for multi-channel clarity — v1 can omit or add a single line in static template.
+**Newly seen `letta_user`:** default **`sep_tier_id` = strangers tier** (rank **1** in the seed above). Operators promote users via CLI/MCP when trust grows.
