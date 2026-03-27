@@ -112,3 +112,114 @@ async def test_full_message_flow_through_app(temp_db: str):
             row = await cur.fetchone()
             assert row is not None
             assert row[0] == "completed"
+
+
+@pytest.mark.e2e
+@pytest.mark.database
+@pytest.mark.asyncio
+async def test_message_flow_with_image_addendum_in_message(temp_db: str):
+    """E2E: message containing [Image Attachment: url] is processed through app."""
+    project_root = Path(__file__).resolve().parent.parent.parent
+    fixtures_plugins_dir = str(project_root / "tests" / "fixtures")
+
+    now = datetime.utcnow().isoformat()
+    async with get_pool().connection() as db:
+        await db.execute(
+            """
+            INSERT INTO letta_users (
+                created_at, last_active, letta_identity_id, letta_block_id,
+                agent_preferences, custom_instructions, is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (now, now, "e2e-img-identity", "e2e-img-block", None, None, 1),
+        )
+        await db.commit()
+        cursor = await db.execute("SELECT last_insert_rowid()")
+        letta_user_id = (await cursor.fetchone())[0]
+        await db.execute(
+            """
+            INSERT INTO platform_profiles (
+                letta_user_id, platform, platform_user_id, username, display_name,
+                created_at, last_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                letta_user_id,
+                "telegram",
+                "e2e-img-tg",
+                "e2eimguser",
+                "E2E Image User",
+                now,
+                now,
+            ),
+        )
+        await db.commit()
+        cursor = await db.execute("SELECT last_insert_rowid()")
+        platform_profile_id = (await cursor.fetchone())[0]
+
+    message_with_addendum = (
+        "Describe this image.\n"
+        "[Image Attachment: https://tmpfiles.org/dl/99999/e2e_photo.png]"
+    )
+    message_id = await insert_message(
+        letta_user_id=letta_user_id,
+        platform_profile_id=platform_profile_id,
+        role="user",
+        message=message_with_addendum,
+    )
+    await add_to_queue(letta_user_id, message_id)
+
+    mock_client = MagicMock()
+    mock_client.agents.retrieve.return_value = MagicMock(
+        id="e2e-img-agent", name="E2E Image"
+    )
+    mock_client.agents.blocks.attach.return_value = None
+    mock_client.agents.blocks.detach.return_value = None
+
+    with (
+        patch("main.PIDManager") as mock_pid_class,
+        patch("main.create_default_settings"),
+        patch("runtime.core.letta_client.get_letta_client", return_value=mock_client),
+        patch("runtime.core.queue.get_letta_client", return_value=mock_client),
+        patch("runtime.core.agent.get_letta_client", return_value=mock_client),
+        patch("main.validate_environment_variables"),
+    ):
+        mock_pid_class.return_value.create_pid_file.return_value = None
+        mock_pid_class.return_value.cleanup.return_value = None
+
+        from main import Application
+
+        app = Application()
+        app.agent.initialize = AsyncMock(return_value=True)
+
+        real_discover = app.plugin_manager.discover_plugins
+
+        async def discover_and_await(**kwargs):
+            await real_discover(
+                plugins_dir=fixtures_plugins_dir,
+                config=kwargs.get("config") or {},
+            )
+
+        app.plugin_manager.discover_plugins = AsyncMock(side_effect=discover_and_await)
+
+        start_task = asyncio.create_task(app.start())
+        await asyncio.sleep(3.5)
+        app._shutdown_event.set()
+        await asyncio.wait_for(start_task, timeout=12.0)
+
+    async with aiosqlite.connect(temp_db) as db:
+        async with db.execute(
+            "SELECT agent_response, processed FROM messages WHERE id = ?",
+            (message_id,),
+        ) as cur:
+            row = await cur.fetchone()
+            assert row is not None
+            assert row[0] is not None
+            assert row[1] == 1
+            assert "[Image Attachment:" in row[0]
+        async with db.execute(
+            "SELECT status FROM queue WHERE message_id = ?", (message_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            assert row is not None
+            assert row[0] == "completed"

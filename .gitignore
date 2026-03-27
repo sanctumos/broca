@@ -68,7 +68,6 @@ broca2.db
 # OS
 .DS_Store
 Thumbs.db
-core
 
 # Project specific
 telegram_session_*.json

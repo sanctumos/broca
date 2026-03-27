@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
 import logging
+import re
 import uuid
 
 from common.config import get_env_var
@@ -41,6 +42,16 @@ def _user_message_list(text: str, sender_id: str | None = None) -> list[dict]:
     if sender_id:
         msg["sender_id"] = sender_id
     return [msg]
+
+
+_IMAGE_ADDENDUM_PATTERN = re.compile(
+    r"^\s*\[Image Attachment:\s*\S+\]\s*$", re.IGNORECASE | re.MULTILINE
+)
+
+
+def _strip_image_addendum(text: str) -> str:
+    """Remove [Image Attachment: ...] lines from a message."""
+    return _IMAGE_ADDENDUM_PATTERN.sub("", text).strip()
 
 
 # Setup logging
@@ -226,6 +237,13 @@ class AgentClient:
                 return msg.text
             return None
 
+        def _safe_next_sync(it, default=None):
+            """Call next(it) and return (True, value) or (False, default). Avoids StopIteration in executor (PEP 479 / asyncio Future)."""
+            try:
+                return (True, next(it))
+            except StopIteration:
+                return (False, default)
+
         async def _consume_stream(stream):
             if hasattr(stream, "__aiter__"):
                 async for event in stream:
@@ -233,18 +251,13 @@ class AgentClient:
                 return
 
             # Fallback for sync iterables: consume in executor to avoid blocking.
+            # Do not pass next(iterator) to run_in_executor; StopIteration in worker becomes TypeError in main (PEP 479).
             loop = asyncio.get_running_loop()
             iterator = iter(stream)
             while True:
-                try:
-                    event = await loop.run_in_executor(None, next, iterator)
-                except StopIteration:
+                has_event, event = await loop.run_in_executor(None, _safe_next_sync, iterator)
+                if not has_event:
                     break
-                except (RuntimeError, Exception) as e:
-                    # PEP 479 / executor: StopIteration can become RuntimeError in thread
-                    if "StopIteration" in str(e):
-                        break
-                    raise
                 yield event
 
         async def _process_with_streaming():
@@ -467,6 +480,24 @@ class AgentClient:
                 return None
         except Exception as e:
             logger.error("Error processing message with streaming: %s", str(e))
+            err_lower = str(e).lower()
+            if "[image attachment:" in message.lower() and (
+                "thought_signature" in err_lower
+                or "image-analyzer" in err_lower
+                or "invalid_argument" in err_lower
+            ):
+                logger.warning(
+                    "Image tool call failed (thought_signature). Retrying without image addendum."
+                )
+                stripped = _strip_image_addendum(message)
+                if stripped and stripped != message:
+                    try:
+                        return await self._fallback_to_async(stripped, sender_id)
+                    except Exception as fallback_error:
+                        logger.error(
+                            "Fallback without image addendum also failed: %s",
+                            str(fallback_error),
+                        )
             logger.info("Attempting fallback to create_async method")
             try:
                 return await self._fallback_to_async(message, sender_id)

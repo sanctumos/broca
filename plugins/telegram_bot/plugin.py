@@ -174,6 +174,7 @@ class TelegramBotPlugin:
 
             # Initialize bot and dispatcher
             self.bot = Bot(token=settings.bot_token)
+            self.message_handler.bot = self.bot
             self.dp = Dispatcher()
 
             # Register command handlers
@@ -186,6 +187,17 @@ class TelegramBotPlugin:
             self.dp.message.register(self._handle_message)
 
             # Start polling in the background so startup can continue (retry on transient network errors)
+            def _on_polling_done(task: asyncio.Task) -> None:
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    logger.debug("Polling task cancelled (normal on shutdown)")
+                except Exception as e:
+                    logger.exception(
+                        "Polling task exited with error: %s. Check bot token and network.",
+                        e,
+                    )
+
             async def _run_polling() -> None:
                 from aiogram.exceptions import TelegramNetworkError
 
@@ -194,7 +206,12 @@ class TelegramBotPlugin:
                 attempt = 0
                 while True:
                     try:
-                        await self.dp.start_polling(self.bot)
+                        # We close session in stop(); avoid aiogram closing it on polling exit
+                        await self.dp.start_polling(
+                            self.bot,
+                            close_bot_session=False,
+                            handle_signals=False,
+                        )
                         logger.warning(
                             "Telegram polling stopped unexpectedly (no exception). "
                             "Check bot token and Telegram API access."
@@ -230,6 +247,9 @@ class TelegramBotPlugin:
                         raise
 
             self.polling_task = asyncio.create_task(_run_polling())
+            self.polling_task.add_done_callback(_on_polling_done)
+            # Yield so the polling task gets a chance to run before we return and start other tasks
+            await asyncio.sleep(0.2)
             logger.info("Plugin started successfully (polling task running)")
         except ImportError as e:
             logger.error(f"aiogram not available: {e}")
