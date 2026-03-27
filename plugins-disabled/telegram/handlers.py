@@ -1,7 +1,9 @@
 """Telegram message handlers and event processing."""
 
 import asyncio
+import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from telethon import events
@@ -9,6 +11,7 @@ from telethon import events
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
 from database.operations.users import get_or_create_platform_profile
+from runtime.core.image_handling import build_message_for_agent, image_handling_enabled
 from runtime.core.message import MessageFormatter
 
 
@@ -174,8 +177,11 @@ class MessageHandler:
             print(f"Ignoring message from bot {sender.id} (@{sender.username})")
             return
 
-        # Sanitize user input
-        message = self.formatter.sanitize_text(event.text)
+        # Raw text (message or caption for photos)
+        raw_text = getattr(event, "text", None) or (
+            getattr(event.message, "message", None) or ""
+        )
+        content = self.formatter.sanitize_text(raw_text or "")
         sender_first_name = (
             self.formatter.sanitize_text(sender.first_name)
             if sender.first_name
@@ -185,7 +191,28 @@ class MessageHandler:
             self.formatter.sanitize_text(sender.username) if sender.username else None
         )
 
-        print(f"Sanitized message: {message[:50]}...")
+        # If image handling on and message has photo, download and build message with addendum
+        if image_handling_enabled() and getattr(event.message, "photo", None):
+            client = (
+                getattr(self.telegram_plugin, "client", None)
+                if self.telegram_plugin
+                else None
+            )
+            if client:
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".jpg", delete=False
+                    ) as tmp:
+                        tmp_path = Path(tmp.name)
+                    await event.download_media(file=str(tmp_path))
+                    try:
+                        content = build_message_for_agent(raw_text or "", [tmp_path])
+                    finally:
+                        tmp_path.unlink(missing_ok=True)
+                except Exception as e:
+                    print(f"Failed to process photo, using text only: {e}")
+
+        print(f"Sanitized message: {content[:50]}...")
 
         # Get or create Letta user and platform profile
         profile, letta_user = await get_or_create_platform_profile(
@@ -201,7 +228,7 @@ class MessageHandler:
             platform_user_id=sender.id,
             letta_user_id=letta_user.id,
             platform_profile_id=profile.id,
-            message=message,
+            message=content,
             timestamp=event.message.date,
         )
         print(f"Message added to queue in {self.message_mode} mode")

@@ -452,3 +452,54 @@ class TestTelegramMessageHandler:
                     # Verify timestamp formatting
                     call_args = mock_insert.call_args
                     assert call_args[1]["timestamp"] == "2023-12-25 15:30 UTC"
+
+    @pytest.mark.asyncio
+    async def test_process_incoming_message_photo_when_image_handling_enabled(self):
+        """When image_handling_enabled and message has photo, use build_message_for_agent."""
+        handler = TelegramMessageHandler()
+        mock_message = MagicMock()
+        mock_message.from_user.id = 123
+        mock_message.from_user.username = "testuser"
+        mock_message.from_user.first_name = "Test User"
+        mock_message.date = datetime.now()
+        mock_message.text = None
+        mock_message.caption = "Photo caption"
+        mock_message.photo = [MagicMock(file_id="f1"), MagicMock(file_id="f2")]
+
+        handler.formatter.sanitize_text.side_effect = lambda x: x if x else "Unknown"
+        mock_bot = MagicMock()
+        mock_file = MagicMock()
+        mock_file.file_path = "path/photo.jpg"
+        mock_bot.get_file = AsyncMock(return_value=mock_file)
+        mock_bot.download_file = AsyncMock()
+        handler.bot = mock_bot
+
+        mock_profile = MagicMock()
+        mock_profile.id = "profile_123"
+        mock_letta_user = MagicMock()
+        mock_letta_user.id = "letta_123"
+
+        with patch(
+            "plugins.telegram_bot.message_handler.image_handling_enabled",
+            return_value=True,
+        ), patch(
+            "plugins.telegram_bot.message_handler.build_message_for_agent",
+            return_value="Photo caption\n[Image Attachment: https://tmpfiles.org/dl/1/photo.jpg]",
+        ), patch(
+            "plugins.telegram_bot.message_handler.get_or_create_platform_profile",
+            new_callable=AsyncMock,
+        ) as mock_get_profile:
+            mock_get_profile.return_value = (mock_profile, mock_letta_user)
+            with patch(
+                "plugins.telegram_bot.message_handler.insert_message",
+                new_callable=AsyncMock,
+            ) as mock_insert:
+                mock_insert.return_value = "msg_1"
+                with patch(
+                    "plugins.telegram_bot.message_handler.add_to_queue",
+                    new_callable=AsyncMock,
+                ):
+                    await handler.process_incoming_message(mock_message)
+                    call_args = mock_insert.call_args
+                    assert "[Image Attachment:" in call_args[1]["message"]
+                    assert "Photo caption" in call_args[1]["message"]

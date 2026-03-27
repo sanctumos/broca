@@ -240,10 +240,14 @@ class TestTelegramBotPlugin:
                 mock_dispatcher.return_value = mock_dispatcher_instance
 
                 await plugin.start()
+                # Let the background _run_polling task run (mock returns immediately)
+                await plugin.polling_task
 
                 mock_bot.assert_called_once_with(token="test_token")
                 mock_dispatcher_instance.start_polling.assert_called_once_with(
-                    mock_bot_instance
+                    mock_bot_instance,
+                    close_bot_session=False,
+                    handle_signals=False,
                 )
 
     @pytest.mark.asyncio
@@ -352,3 +356,36 @@ class TestTelegramBotPlugin:
 
             # Verify bot was stopped
             plugin.bot.session.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.skip(
+        reason="_handle_response reverted to 30998578 (no image addendum); re-enable when outgoing image handling is re-added"
+    )
+    async def test_handle_response_sends_photo_when_image_attachment_present(self):
+        """When response contains [Image Attachment: url], send_photo is called and text is stripped."""
+        with patch("plugins.telegram_bot.plugin.TelegramBotSettings") as mock_settings:
+            mock_settings_instance = MagicMock()
+            mock_settings_instance.bot_token = "token"
+            mock_settings_instance.owner_id = None
+            mock_settings_instance.owner_username = None
+            mock_settings_instance.require_owner = False
+            mock_settings.return_value = mock_settings_instance
+
+            plugin = TelegramBotPlugin()
+            plugin.bot = MagicMock()
+            plugin.bot.send_photo = AsyncMock()
+            plugin.bot.send_message = AsyncMock()
+
+            profile = MagicMock()
+            profile.platform_user_id = "12345"
+
+            response = "Here is the image.\n[Image Attachment: https://tmpfiles.org/dl/1/photo.png]\nDone."
+            await plugin._handle_response(response, profile, message_id=99)
+
+            plugin.bot.send_photo.assert_called_once_with(
+                chat_id=12345, photo="https://tmpfiles.org/dl/1/photo.png"
+            )
+            # Text sent should not contain the addendum line
+            send_msg_call = plugin.bot.send_message.call_args
+            assert "[Image Attachment:" not in send_msg_call[1]["text"]
+            assert "Here is the image" in send_msg_call[1]["text"]

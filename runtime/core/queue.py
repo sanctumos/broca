@@ -91,13 +91,13 @@ class QueueProcessor:
                     agent_id=self.agent_id,
                 )
             except Exception as attach_error:
-                message = str(attach_error).lower()
+                err_msg = str(attach_error).lower()
                 if (
-                    "unique constraint" in message
-                    or "already exists" in message
-                    or "duplicate key" in message
-                    or "409" in message
-                    or "unique_agent_block" in message
+                    "unique constraint" in err_msg
+                    or "already exists" in err_msg
+                    or "duplicate key" in err_msg
+                    or "409" in err_msg
+                    or "unique_agent_block" in err_msg
                 ):
                     logger.info(
                         f"Core block {block_id[:8]} already attached; continuing"
