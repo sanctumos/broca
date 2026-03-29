@@ -11,7 +11,7 @@ Ship a **Sanctum Engagement Protocol (SEP)** that Broca **assembles deterministi
 Instead:
 
 1. **Fixed template sections** (intro + message-format examples) ship with Broca and change only with versioned releases.
-2. **General framework** is **plain configurable text** stored in the Broca database (per instance), editable via **CLI and MCP** — deployments differ; nothing here is universal or model-generated.
+2. **General framework** is **plain configurable text** stored in the Broca database (per instance), editable via **CLI** and optionally **SMCP plugin tools** — deployments differ; nothing here is universal or model-generated.
 3. **Interaction rules** are a **structured, hierarchical table** in Broca (rank, name, description). Rows **correlate to users** in the Broca DB; the SEP section that lists engagement behavior **auto-updates** when users or their tier assignments change — tight and predictable, not freewheeling.
 
 ## What We Learned From Athena (reference only)
@@ -33,7 +33,7 @@ Rendered output is a **fixed pipeline** (order must not vary between runs except
 
 1. **Static intro block** — Versioned markdown (or template file) in repo: what SEP is, scope, that middleware routes replies, etc. No DB.
 2. **Message format** — Static section documenting how Broca formats inbound messages. Include **one or two concrete examples** taken from the real code path (e.g. `MessageFormatter.format_message` / Telegram vs generic platform label) so the agent sees the exact prefix pattern it will receive. Examples must stay in sync with code in the same release (tests can assert substrings or snapshot).
-3. **General framework** — Single **configurable text blob** from DB (markdown or plain text). Operator-defined; default can be empty or a minimal stub. Updated via CLI or MCP only.
+3. **General framework** — Single **configurable text blob** from DB (markdown or plain text). Operator-defined; default can be empty or a minimal stub. Updated via CLI or SMCP plugin only.
 4. **Interaction rules (hierarchical)** — Rendered from a **Broca table**: ordered by **rank**. **Higher rank = closer relationship tier** (inner concentric circle: more trust, more access, warmer default engagement). Nuance and edge cases live in each row’s **description**. Each row: **rank**, **name**, **description**. Below the table (or interleaved per section), **users correlated to each row** — see data model below. **SEP does not name or branch on platform** — if the message reached the agent through Broca, delivery is Broca-handled; platform is an implementation detail outside SEP.
 
 Optional static footer (e.g. “This block is maintained by Broca”) can be part of the template.
@@ -72,10 +72,10 @@ Optional junction `sep_user_tier(letta_user_id, sep_tier_id)` only if we later n
 - **Output:** Markdown string for `protocols_sep` (or configured label).
 - **No** semantic diff of prose; **hash** full output and only PATCH Letta when hash changes.
 
-## CLI + MCP
+## CLI + SMCP plugins
 
 - **CLI:** subcommands or `ctool`/`sep` tool: `get-framework`, `set-framework`, `tier list|add|set|delete`, `user set-tier`, `render`, `sync` (render + Letta PATCH).
-- **MCP:** mirror the same operations for agent/automation use (aligned with outbound MCP planning in `broca-3.1-outbound-mcp-planning.md`).
+- **Agent/automation surface:** same operations exposed as **SMCP plugin tools** (not a separate MCP server inside Broca). See `broca-3.1-outbound-mcp-planning.md` for the same pattern.
 
 ## Letta API
 
@@ -107,7 +107,7 @@ Optional junction `sep_user_tier(letta_user_id, sep_tier_id)` only if we later n
 2. Seed tiers (below) + optional `general_framework_markdown` empty string.
 3. Static template + examples wired to formatter.
 4. Renderer + hash + Letta sync.
-5. CLI, then MCP.
+5. CLI, then SMCP plugin (optional companion repo under `sanctumos/smcp` plugins).
 
 ## Resolved design choices
 
@@ -122,7 +122,7 @@ Optional junction `sep_user_tier(letta_user_id, sep_tier_id)` only if we later n
 
 ### Default seed data (Athena-shaped, operator-tunable)
 
-On first migration, insert three tiers so new installs resemble Athena’s broad buckets without copying her prose verbatim. Operators edit via CLI/MCP.
+On first migration, insert three tiers so new installs resemble Athena’s broad buckets without copying her prose verbatim. Operators edit via CLI or SMCP plugin.
 
 | rank | name | description (starter text; customize in DB) |
 |------|------|---------------------------------------------|
@@ -132,4 +132,4 @@ On first migration, insert three tiers so new installs resemble Athena’s broad
 
 **Ordering:** Lowest rank = outermost circle (**strangers**); highest = innermost (**close friends & family**).
 
-**Newly seen `letta_user`:** default **`sep_tier_id` = strangers tier** (rank **1** in the seed above). Operators promote users via CLI/MCP when trust grows.
+**Newly seen `letta_user`:** default **`sep_tier_id` = strangers tier** (rank **1** in the seed above). Operators promote users via CLI or SMCP plugin when trust grows.

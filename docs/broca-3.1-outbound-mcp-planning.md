@@ -1,169 +1,106 @@
-# Broca 3.1 Planning: Outbound MCP Messaging
+# Broca 3.1 Planning: Outbound Messaging via SMCP (not a Broca MCP server)
 
-Date: 2026-03-27  
+Date: 2026-03-27 (revised)  
 Branch target: `broca-3.1`  
-Status: Draft plan approved for implementation planning
+Status: Draft — SMCP plugin surface; Broca owns logic + stable invoke contract
 
 ## Objective
 
-Add a simple MCP tool in Broca core that can send outbound messages to:
+Enable **outbound** messages to any Broca user on a chosen **platform** (loaded plugin), without a full inbound queue turn.
 
-1. any known Broca user (`letta_user_id`), and  
-2. any registered delivery channel (`platform`) backed by a loaded plugin.
+**Exposure:** MCP tools live in **Sanctum Letta MCP (SMCP)** as **plugins**, not as a dedicated MCP server inside Broca.
 
-This enables operator/agent-initiated outbound delivery without running a full inbound message flow.
+**Broca owns:** deterministic routing, DB, audit row, plugin handler invocation.
 
-## Why
+## Why SMCP instead of a full Broca MCP server
 
-Broca already has robust inbound queueing and response routing. What is missing is a direct, auditable outbound API that can target users across platforms from automation tooling.
+- SMCP already provides MCP transport (however the host runs it: stdio, SSE, etc.) and plugin discovery.
+- Avoids a **second** MCP stack, port, and lifecycle inside Broca.
+- Keeps Broca **CLI-first / scriptable**; SMCP remains the standard “agent tool” boundary for Letta-shaped runtimes.
+- One new **SMCP plugin** (or small plugin repo) can wrap Broca without forking core networking.
 
-Desired outcome:
-- one tool call,
-- explicit recipient,
-- explicit channel,
-- routed through existing plugin handlers.
+## Broca-side deliverables (3.1)
 
-## Existing Architecture Constraints
+### 1) Database
 
-- `PluginManager` already maps `platform -> async handler(response, profile, message_id)`.
-- Queue response routing already calls plugin handlers with `(response, profile, message_id)`.
-- Platform profiles are stored in `platform_profiles` and tied to `letta_user_id`.
-- Current user lookup helpers are not sufficient for `(letta_user_id, platform)` direct resolution in a single call.
-
-## Proposed v1 Scope (3.1)
-
-### Transport choice
-
-Support **both MCP stdio and MCP SSE** in 3.1, configurable at runtime.
-
-Rationale:
-- stdio is ideal for local tooling and tightly-coupled agent processes,
-- SSE is ideal for remote clients and long-lived external integrations,
-- both should share one outbound service implementation so transport does not change routing logic.
-
-Proposed config:
-- `OUTBOUND_MCP_ENABLED=true|false`
-- `OUTBOUND_MCP_TRANSPORT=stdio|sse|both` (default: `stdio`)
-- `OUTBOUND_MCP_SSE_HOST` (default: `127.0.0.1`)
-- `OUTBOUND_MCP_SSE_PORT` (default: `8765`)
-- `OUTBOUND_MCP_SSE_PATH` (default: `/mcp`)
-
-### MCP Tool
-
-Tool name: `broca_send_outbound`
-
-Arguments:
-- `letta_user_id` (int, required)
-- `platform` (str, required) - must match a loaded plugin platform
-- `message` (str, required)
-- `dry_run` (bool, optional, default `false`)
-- `idempotency_key` (str, optional, default empty/null)
-
-Return payload:
-- `success` (bool)
-- `message_id` (int | null)
-- `routed_to_platform` (str)
-- `platform_user_id` (str | null)
-- `delivery_status` (`sent` | `dry_run` | `failed`)
-- `error` (str | null)
-
-## Routing Semantics
-
-1. Validate input arguments.
-2. Resolve recipient profile by `(letta_user_id, platform)`.
-3. Resolve runtime handler via `PluginManager.get_platform_handler(platform)`.
-4. Persist outbound message row for auditability.
-5. If `dry_run=true`, return without calling handler.
-6. Otherwise call plugin handler: `await handler(message, profile, message_id)`.
-7. Return structured result.
-
-## Data/Service Additions
-
-### 1) Database operation
-
-Add helper:
 - `get_platform_profile_for_user_platform(letta_user_id: int, platform: str) -> PlatformProfile | None`
 
-Purpose:
-- deterministic recipient resolution for outbound targeting.
+### 2) Outbound service
 
-### 2) Outbound service layer
+- Module: `runtime/core/outbound.py`
+- `send_outbound_message(...)` — validate, resolve profile + handler, persist audit message, optional `dry_run`, call `PluginManager` platform handler.
 
-Add module:
-- `runtime/core/outbound.py`
+### 3) Stable invoke contract (pick one primary; document the other if deferred)
 
-Primary function:
-- `send_outbound_message(...)`
+**Preferred for v1:** **CLI** under `cli/` (e.g. `python -m cli.outbound` or extend `btool`) with JSON on stdout / exit codes, so SMCP plugin = thin subprocess wrapper (matches Broca’s existing MCP’able CLI story).
 
-Responsibilities:
-- validation,
-- profile lookup,
-- platform handler resolution,
-- outbound message persistence,
-- handler invocation,
-- structured errors/results.
+**Optional later:** minimal local HTTP or Unix socket on Broca process — only if subprocess proves too heavy for multi-tenant hosts.
 
-### 3) MCP transport entrypoints
+Broca does **not** ship its own MCP stdio/SSE server for outbound in 3.1.
 
-Add MCP entrypoints in core that expose `broca_send_outbound` and use the same outbound service:
-- stdio server entrypoint
-- SSE server entrypoint
+## SMCP-side deliverables
 
-Transport adapter behavior:
-- `stdio`: process-local command transport
-- `sse`: HTTP/SSE listener for remote MCP clients
-- `both`: run stdio + SSE concurrently (shared tool registry and service layer)
+- New plugin (name TBD, e.g. `broca_outbound` or repo `sanctumos/smcp-broca`) that registers MCP tools mirroring the CLI:
+  - `broca_send_outbound` (same arguments/semantics as below)
+- Plugin config: path to Broca instance / venv, or `BROCA_ROOT`, `BROCA_PYTHON`, etc.
+- Transport (stdio vs SSE) is **SMCP’s** concern, not Broca’s.
 
-## Safety and Guardrails
+## Tool semantics (unchanged)
 
-- Feature gate via env var (proposed: `ENABLE_OUTBOUND_MCP=true`).
-- Reject empty message payloads.
-- Enforce platform must be loaded and routable.
-- Return explicit error codes/messages:
-  - `profile_not_found`
-  - `platform_not_loaded`
-  - `handler_not_available`
-  - `validation_error`
-  - `handler_failed`
-- Optional idempotency passthrough for future dedupe/audit behavior.
+Tool name (as seen by agents via SMCP): `broca_send_outbound`
 
-## Testing Plan
+Arguments:
 
-### Unit tests
-- profile resolution success/failure
-- platform handler lookup failure
-- dry-run behavior
-- successful delivery path
-- handler exception path
+- `letta_user_id` (int, required)
+- `platform` (str, required) — must match a loaded plugin platform on that Broca instance
+- `message` (str, required)
+- `dry_run` (bool, optional, default `false`)
+- `idempotency_key` (str, optional)
 
-### Integration tests
-- mocked plugin handler receives expected args
-- outbound write is persisted and includes expected identifiers
-- transport coverage:
-  - stdio tool invoke smoke test
-  - SSE tool invoke smoke test
+Return payload (JSON):
 
-## Rollout Plan
+- `success`, `message_id`, `routed_to_platform`, `platform_user_id`, `delivery_status`, `error`
 
-1. Add DB helper + tests.
-2. Add outbound core service + tests.
-3. Add shared MCP tool registry for outbound tool.
-4. Add stdio and SSE transport wrappers + tests.
-5. Add docs/examples.
-6. Release behind feature flag, then enable per environment.
+## Routing semantics
 
-## Non-goals for 3.1 v1
+1. Validate arguments.  
+2. Resolve `(letta_user_id, platform)` → `PlatformProfile`.  
+3. `PluginManager.get_platform_handler(platform)`.  
+4. Persist outbound audit row.  
+5. If `dry_run`, skip handler.  
+6. Else `await handler(message, profile, message_id)`.  
+7. Return structured result.
 
-- Cross-instance/brokered outbound fanout.
-- Bulk sends.
-- Rich media outbound abstraction beyond existing plugin capabilities.
-- New plugin handler contract changes.
+## Safety and guardrails
 
-## Open Questions (to resolve before coding)
+- Feature gate in Broca (e.g. `ENABLE_OUTBOUND_TOOL=true`) so headless sends are opt-in.
+- Same error taxonomy: `profile_not_found`, `platform_not_loaded`, `handler_failed`, etc.
+- SMCP plugin should not embed secrets; read from env or Broca `.env` on the host.
 
-- Outbound DB role value: use `assistant` vs introduce `system_outbound`?
-- Should `idempotency_key` be stored in message metadata now or deferred?
-- Max message length policy: global cap vs per-platform cap?
-- Permission model beyond env flag (operator allowlist, scoped auth, etc.)?
-- If `OUTBOUND_MCP_TRANSPORT=both`, should SSE startup failure fail whole process or degrade to stdio-only?
+## Testing
 
+**Broca:** unit + integration tests for `outbound.py` and CLI (mock handler).
+
+**SMCP plugin:** smoke test that invokes CLI against a fixture Broca or mocked subprocess.
+
+## Rollout
+
+1. Broca: DB helper + `outbound.py` + CLI + tests + docs.  
+2. SMCP: new plugin + README + example config.  
+3. Enable per environment (`ENABLE_OUTBOUND_TOOL`, SMCP plugin install).
+
+## Non-goals (3.1)
+
+- Broca-embedded MCP server (stdio/SSE) for outbound.  
+- Cross-instance fanout, bulk send, new plugin handler signatures.
+
+## Open questions
+
+- CLI vs local socket as the **only** v1 contract (recommend CLI first).  
+- Outbound DB role: `assistant` vs `system_outbound`.  
+- `idempotency_key` persistence on message row now vs later.  
+- Max message length: global vs per-platform.
+
+## Related
+
+- SEP framework/tier editing via MCP in `broca-3.1-sep-autocreation-planning.md` can follow the **same pattern**: Broca CLI + **SMCP plugin** tools, not a Broca MCP server.
