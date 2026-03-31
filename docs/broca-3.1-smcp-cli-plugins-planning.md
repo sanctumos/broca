@@ -28,7 +28,7 @@ The repo ships **five** executable CLI modules (plus a sample `cli/settings.json
 
 ### Option A — One plugin repo (recommended for v1)
 
-**Single SMCP plugin** (e.g. `sanctumos/smcp-broca` or `smcp/plugins/broca_admin/`) registering **namespaced tools**:
+**Single SMCP plugin** shipped **in this repository** under **`smcp/broca/`** (set `MCP_PLUGINS_DIR` to **`smcp/`**). Older drafts referred to `sanctumos/smcp/plugins/…`; **Broca** owns the plugin tree now. It registers **namespaced tools**:
 
 - `broca_queue_list`, `broca_queue_flush`, `broca_queue_delete`
 - `broca_user_list`, `broca_user_get`, `broca_user_set_status`
@@ -124,7 +124,7 @@ Optionally split into two SMCP plugin entrypoints (read vs write) so hosts can e
 ## Rollout order
 
 1. Broca: `btool --json`, doc fix, optional destructive env gate.  
-2. SMCP: ship `smcp-broca` (or chosen name) with read-only tools first.  
+2. **Broca repo `smcp/broca`:** publish read-only tools first; point `MCP_PLUGINS_DIR` at `smcp/`.  
 3. Enable mutating tools on operator hosts.  
 4. Enable destructive tools only with explicit config.  
 5. Add outbound + SEP tools when those CLIs land.

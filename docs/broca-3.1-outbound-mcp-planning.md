@@ -40,7 +40,7 @@ Broca does **not** ship its own MCP stdio/SSE server for outbound in 3.1.
 
 ## SMCP-side deliverables
 
-- New plugin (name TBD, e.g. `broca_outbound` or repo `sanctumos/smcp-broca`) that registers MCP tools mirroring the CLI:
+- **Broca repo `smcp/broca`:** SMCP plugin registers tools mirroring the CLI (e.g. `send_outbound`):
   - `broca_send_outbound` (same arguments/semantics as below)
 - Plugin config: path to Broca instance / venv, or `BROCA_ROOT`, `BROCA_PYTHON`, etc.
 - Transport (stdio vs SSE) is **SMCP’s** concern, not Broca’s.
