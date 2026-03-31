@@ -44,6 +44,21 @@ Plan B succeeds only if spike tests show a **stable, documented** signal that �
 
 ## Investigation / spike tests (blocking decision)
 
+### Primary spike method: send + parallel conversation observation
+
+Long-running turns are **hard to reproduce on demand** (model latency varies, tools may finish quickly). Do **not** rely only on forcing a 30-minute job.
+
+**Recommended procedure:**
+
+1. Use a **minimal blank Letta agent** (or dev-only agent) plus normal API credentials (`LETTA_BASE_URL`, `LETTA_API_KEY`, `LETTA_SPIKE_AGENT_ID`).
+2. **Start sending** a user message to the agent (non-streaming or streaming — match what Broca uses in production for the hypothesis under test).
+3. **Simultaneously**, on another asyncio task / thread, **poll the conversation/messages endpoint** (exact path per deployed Letta version) on a short interval — e.g. **100–500 ms** — from the moment send begins until the turn is clearly finished.
+4. **Log or assert** each snapshot: look for any **in-flight** signal (partial assistant payload, `pending` / `in_progress` run state, message status other than terminal, etc.) **before** the final assistant message is present.
+
+If **any** intermediate state appears reliably, Plan B may be feasible even when the turn completes in a few seconds. If the API only ever shows **terminal** rows (no “still generating” visible from the conversation list), document that gap — Plan B may require a **run-level** or **streaming** API instead of message list alone.
+
+**Optional complement:** After establishing visibility with short turns, repeat with a **deliberately slow** prompt or tool-backed agent to confirm behavior under load; that validates timeout-retry integration but is not the only proof.
+
 ### API questions
 
 1. **In-flight detection** — Given `agent_id` + conversation / run id from the initial stream, can we list messages or runs and see **pending / incomplete** assistant output or **`in_progress`**?
@@ -56,13 +71,13 @@ Plan B succeeds only if spike tests show a **stable, documented** signal that �
 - Provision a **minimal blank Letta agent** used only for these experiments (no production traffic).  
   *Example deployment context:* Sanctum stack on the host where Letta already runs (e.g. operator-maintained agent instance); exact host and agent id stay in **env / secrets**, not in this doc.
 - **Spike tests** can live under `tests/integration/` or `tests/spike/` with `pytest.mark.integration` and env vars `LETTA_SPIKE_AGENT_ID`, `LETTA_API_KEY`, `LETTA_BASE_URL`.
-- Optional: force long runs with a **slow tool** or **long** assistant generation so local `wait_for` fires **before** Letta finishes — validates the “timeout but still building” branch.
 
 ### Test cases (concrete)
 
 | # | Case | Pass criterion |
 |---|------|----------------|
-| S1 | Send one user message; block local read until `wait_for` fires; poll Letta | We can **observe** in-flight state and later **fetch** completed assistant text without a second user message. |
+| S0 | **Parallel poll** while sending one normal message (may complete quickly) | Logs show whether conversation endpoint exposes **any in-flight** state; documents API shape for Plan B go/no-go. |
+| S1 | Send one user message; local `wait_for` timeout fires; poll Letta | We can **observe** in-flight state (if API supports it) and later **fetch** completed assistant text without a second user message. |
 | S2 | Same as S1; Letta completes **between** timeout and first poll | We detect **completed** and map to single assistant reply; no duplicate user turn. |
 | S3 | Letta fails run | We detect **terminal failure**; Broca applies existing failure path (no infinite poll). |
 | S4 | (If applicable) Restart Broca mid-poll | Stale processing recovery does **not** create a duplicate user message in Letta for the same logical item (or documents accepted limitation). |
@@ -95,7 +110,7 @@ Document spike outcomes in PR description or a short `docs/dev-notes/letta-conti
 
 | Date | Outcome | Notes |
 |------|---------|--------|
-| _TBD_ | Go / No-go | Fill after spike S1–S4 |
+| _TBD_ | Go / No-go | Fill after spike **S0**–S4 (S0 = parallel observation). |
 
 ## Milestone alignment
 
