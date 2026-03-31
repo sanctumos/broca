@@ -47,6 +47,7 @@ from .users import (
     get_letta_user_block_id,
     get_or_create_letta_user,
     get_or_create_platform_profile,
+    get_platform_profile_for_user_platform,
     get_platform_profile_id,
     get_user_details,
     update_letta_user,
@@ -62,6 +63,7 @@ __all__ = [
     "get_user_details",
     "get_all_users",
     "get_platform_profile_id",
+    "get_platform_profile_for_user_platform",
     "get_letta_user_block_id",
     "upsert_user",
     # Messages

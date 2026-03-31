@@ -6,11 +6,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from plugins.base import BasePluginWrapper
-from plugins.telegram_bot.message_handler import (
-    MessageFormatter,
-    TelegramMessageHandler,
-)
+from plugins.telegram_bot.message_handler import TelegramMessageHandler
 from plugins.telegram_bot.settings import TelegramBotSettings
+from runtime.platforms.telegram_delivery import deliver_telegram_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +31,6 @@ class TelegramBotPlugin:
         self.dp = None
         self.message_handler = None  # Initialize lazily
         self.polling_task = None
-        self.response_formatter = MessageFormatter()
         self.event_handlers: dict[str, Callable[[dict[str, Any]], Awaitable[None]]] = {}
         logger.info("Initialized TelegramBotPlugin")
 
@@ -312,24 +309,11 @@ class TelegramBotPlugin:
             return
 
         try:
-            chat_id = int(profile.platform_user_id)
-        except (TypeError, ValueError):
-            logger.error(
-                f"Invalid Telegram platform_user_id for message {message_id}: "
-                f"{profile.platform_user_id}"
-            )
-            return
-
-        formatted = self.response_formatter.format_response(response)
-        try:
-            await self.bot.send_message(
-                chat_id=chat_id, text=formatted, parse_mode="Markdown"
+            await deliver_telegram_markdown(
+                profile, response, bot=self.bot, message_id=message_id
             )
         except Exception as e:
             logger.error(f"Error handling response for message {message_id}: {e}")
-            if "can't parse entities" in str(e).lower():
-                await self.bot.send_message(chat_id=chat_id, text=formatted)
-                return
             raise
 
     async def _handle_start_command(self, message) -> None:
