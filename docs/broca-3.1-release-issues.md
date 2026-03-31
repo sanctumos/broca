@@ -2,7 +2,7 @@
 
 Date: 2026-03-28  
 Branch target: `broca-3.1`  
-Related: [outbound MCP](broca-3.1-outbound-mcp-planning.md), [SEP](broca-3.1-sep-autocreation-planning.md), [SMCP CLI plugins](broca-3.1-smcp-cli-plugins-planning.md)
+Related: [outbound MCP](broca-3.1-outbound-mcp-planning.md), [SEP](broca-3.1-sep-autocreation-planning.md), [SMCP CLI plugins](broca-3.1-smcp-cli-plugins-planning.md), [streaming timeout continuation](broca-3.1-streaming-timeout-continuation-planning.md)
 
 ## Open issue inventory (sanctumos/broca)
 
@@ -75,3 +75,4 @@ Create milestone **Broca 3.1** and attach:
 - [ ] #47 / #48 / #49 closed or spun to follow-ups  
 - [ ] Audit rollup PR merged; batch-close or comment #59–#121 as appropriate  
 - [ ] (Optional) CLI reference / #15 thin slice  
+- [ ] [Streaming timeout / Letta continuation](broca-3.1-streaming-timeout-continuation-planning.md): spike tests → Plan B or Plan A implemented  
