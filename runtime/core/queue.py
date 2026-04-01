@@ -69,27 +69,6 @@ class QueueProcessor:
         self._concurrency_semaphore = asyncio.Semaphore(self.max_concurrent)
         self._processing_tasks: set[asyncio.Task] = set()
 
-    async def _detach_core_block_idempotent(self, block_id: str) -> None:
-        """Detach user core block; treat already-gone as success (mirrors attach 409 handling)."""
-        try:
-            await asyncio.to_thread(
-                self.letta_client.agents.blocks.detach,
-                block_id,
-                agent_id=self.agent_id,
-            )
-        except Exception as e:
-            err_msg = str(e).lower()
-            if (
-                "404" in err_msg
-                or "not found" in err_msg
-                or "no block with id" in err_msg
-            ):
-                logger.info(
-                    f"Core block {block_id[:8]} already detached or not on agent; continuing"
-                )
-            else:
-                raise
-
     async def _process_with_core_block(
         self, message: str, letta_user_id: int
     ) -> tuple[str | None, str]:
@@ -138,8 +117,13 @@ class QueueProcessor:
                 )
             response = await self.message_processor(message, sender_id=identity_id)
 
+            # Detach core block (sync SDK call run in thread)
             logger.info(f"Detaching core block {block_id[:8]}... from agent")
-            await self._detach_core_block_idempotent(block_id)
+            await asyncio.to_thread(
+                self.letta_client.agents.blocks.detach,
+                block_id,
+                agent_id=self.agent_id,
+            )
 
             if not response:
                 logger.warning(
@@ -156,8 +140,12 @@ class QueueProcessor:
                 logger.info(
                     f"Cleaning up: Detaching core block {block_id[:8]}... from agent"
                 )
-                await self._detach_core_block_idempotent(block_id)
-                logger.info("Core block detach completed (or was already absent)")
+                await asyncio.to_thread(
+                    self.letta_client.agents.blocks.detach,
+                    block_id,
+                    agent_id=self.agent_id,
+                )
+                logger.info("Core block successfully detached")
             except Exception as detach_error:
                 logger.error(
                     f"Failed to detach core block after error: {str(detach_error)}"
