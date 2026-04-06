@@ -194,7 +194,7 @@ async def spike_turn(
             resp = await asyncio.to_thread(
                 client.agents.messages.list,
                 agent_id,
-                limit=20,
+                limit=50,
             )
             print(json.dumps(_serialize(resp), indent=2))
         except Exception as ex:
@@ -211,7 +211,7 @@ async def spike_turn(
             print("messages.retrieve skipped or failed:", ex)
 
 
-def _build_client() -> tuple[Letta, str]:
+def _build_client(http_timeout: float | None = None) -> tuple[Letta, str]:
     base = _env("AGENT_ENDPOINT", "LETTA_BASE_URL")
     key = _env("AGENT_API_KEY", "LETTA_API_KEY")
     agent_id = _env("AGENT_ID", "LETTA_SPIKE_AGENT_ID")
@@ -222,14 +222,40 @@ def _build_client() -> tuple[Letta, str]:
             file=sys.stderr,
         )
         raise SystemExit(2)
+    if http_timeout is None:
+        http_timeout = float(_env("SPIKE_HTTP_TIMEOUT_SEC", default="600") or "600")
     try:
-        return Letta(base_url=base, token=key, timeout=120.0), agent_id
+        return Letta(base_url=base, token=key, timeout=http_timeout), agent_id
     except TypeError:
-        return Letta(base_url=base, api_key=key, max_retries=0), agent_id
+        try:
+            return Letta(
+                base_url=base, api_key=key, max_retries=0, timeout=http_timeout
+            ), agent_id
+        except TypeError:
+            return Letta(base_url=base, api_key=key, max_retries=0), agent_id
+
+
+async def _poll_agent_messages(
+    client: Letta, agent_id: str, label: str, limit: int = 50
+) -> None:
+    print(f"\n--- agents.messages.list ({label}, limit={limit}) ---\n")
+    try:
+        resp = await asyncio.to_thread(
+            client.agents.messages.list,
+            agent_id,
+            limit=limit,
+        )
+        print(json.dumps(_serialize(resp), indent=2))
+    except Exception as ex:
+        print("agents.messages.list failed:", ex)
 
 
 async def _async_main(args: argparse.Namespace) -> None:
-    client, agent_id = _build_client()
+    client, agent_id = _build_client(
+        http_timeout=args.http_timeout
+        if args.http_timeout is not None
+        else None
+    )
     timeout_sec = float(
         args.timeout
         if args.timeout is not None
@@ -239,6 +265,14 @@ async def _async_main(args: argparse.Namespace) -> None:
 
     if args.message:
         await spike_turn(client, agent_id, args.message, sender_id, timeout_sec)
+        for i in range(max(0, args.follow_up_polls)):
+            await asyncio.sleep(max(1.0, args.follow_up_interval))
+            await _poll_agent_messages(
+                client,
+                agent_id,
+                f"follow-up {i + 1}/{args.follow_up_polls} (+{args.follow_up_interval}s)",
+                limit=args.follow_up_limit,
+            )
         return
 
     print(
@@ -271,6 +305,30 @@ def main() -> None:
         "--message",
         default=None,
         help="Single shot: send this message and exit (still uses short timeout)",
+    )
+    p.add_argument(
+        "--http-timeout",
+        type=float,
+        default=None,
+        help="Letta SDK HTTP timeout seconds (default env SPIKE_HTTP_TIMEOUT_SEC or 600)",
+    )
+    p.add_argument(
+        "--follow-up-polls",
+        type=int,
+        default=0,
+        help="After first poll, sleep --follow-up-interval and list agent messages again, N times",
+    )
+    p.add_argument(
+        "--follow-up-interval",
+        type=float,
+        default=25.0,
+        help="Seconds between follow-up agents.messages.list polls (default 25)",
+    )
+    p.add_argument(
+        "--follow-up-limit",
+        type=int,
+        default=50,
+        help="Message limit for follow-up list calls (default 50)",
     )
     args = p.parse_args()
     asyncio.run(_async_main(args))
