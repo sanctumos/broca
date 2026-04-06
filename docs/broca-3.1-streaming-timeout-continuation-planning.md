@@ -24,7 +24,7 @@ Operators need Broca to treat **local stream read timeout** as **“stop reading
 
 Interactive spike: `scripts/letta_stream_timeout_conversation_poll_spike.py`.
 
-Findings on live Sanctum Letta (e.g. `sanctum.zero1.network:8443`, Ada-class agent):
+Findings on live Sanctum Letta (production deployment; Ada-class agent):
 
 1. **`conversation_id` may stay `null` on stream events** even while the run is healthy.
 2. **`agents.messages.list`** still shows **actionable progress**: `reasoning_message`, `tool_call_message`, `tool_return_message`, each with **`run_id`** (and user rows with **`otid`**).
