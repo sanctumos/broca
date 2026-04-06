@@ -1,133 +1,173 @@
 # Broca 3.1 Planning: Streaming Timeout, Requeue, and Letta Continuation
 
-Date: 2026-03-28 (expanded)  
-Date: 2026-03-31 — **conversation poll on timeout** (operator pattern + spike script)  
-Branch target: `broca-3.1`  
-Status: Draft — product intent + behavioral detail; API feasibility TBD via tests
+| Field | Value |
+|--------|--------|
+| **Status** | **Adopted — canonical implementation plan** (engineering design locked; code to follow on `broca-3.1`) |
+| **Branch target** | `broca-3.1` |
+| **Last updated** | 2026-04-06 |
+
+**Changelog (high level):** 2026-03-28 expanded problem/goals; 2026-03-31 conversation-first-on-timeout + spike script; 2026-04-06 DNS/long-task spike validated `agents.messages.list` + `run_id` / `otid` correlation — **Plan B go**; this document now **is** the build spec.
+
+---
 
 ## Problem statement
 
-When **`asyncio.wait_for`** (or equivalent) **times out** while Broca is driving a **streaming / long-running** Letta turn, the queue path **atomically dequeues** the item and may **requeue** or **re-send** what is effectively the **same user message**.
+When **`asyncio.wait_for`** (or equivalent) **times out** while Broca is driving a **streaming / long-running** Letta turn, Broca today falls through to **`_fallback_to_async`**, which calls **`agents.messages.create_async`** with the **same user text again**.
 
-On the Letta side, a **new** user message can **interrupt** work already in progress or cause the agent to **restart** a multi-step task instead of **continuing** the prior run.
+On the Letta side that is a **second user turn** while the first run may still be executing (reasoning, tools, partial assistant). The agent can **restart** work, **interleave**, or behave inconsistently.
 
-Operators need Broca to **avoid duplicate “fresh” user turns** when the failure mode is timeout/retry, not new user intent.
+Operators need Broca to treat **local stream read timeout** as **“stop reading SSE, not abandon the turn”** and to **observe the same run** via HTTP until there is a **terminal assistant message** or **terminal failure**, without duplicating the user payload.
 
-## Goal (minor 3.1 improvement)
+---
 
-Choose behavior via **spike tests**, then implement **one** of:
+## Spike outcomes (why this plan)
 
-- **Plan B (preferred):** If we can observe that Letta (and the underlying model run) is **still constructing** the assistant response, **stay on the same Broca queue item** and treat it as **the same logical message** — **do not** complete the item as failed, **do not** enqueue a duplicate user turn, and **do not** present a second copy of the inbound text to the agent. Extend local wait via **poll / follow-up read** on Letta’s APIs until the turn **completes**, **fails terminally**, or hits a **separate** operator-configurable cap.
+Interactive spike: `scripts/letta_stream_timeout_conversation_poll_spike.py`.
 
-### Conversation endpoint first (not “backoff and resend”)
+Findings on live Sanctum Letta (e.g. `sanctum.zero1.network:8443`, Ada-class agent):
 
-**Product note (Mark, 2026-03-31):** Models such as **DeepSeek** often “think” for a long time; a fixed local streaming timeout can fire **while the run is still healthy**. The wrong move is to treat that only as **retry/backoff** against the same user turn (or to give up) before **looking at what Letta already knows**.
+1. **`conversation_id` may stay `null` on stream events** even while the run is healthy.
+2. **`agents.messages.list`** still shows **actionable progress**: `reasoning_message`, `tool_call_message`, `tool_return_message`, each with **`run_id`** (and user rows with **`otid`**).
+3. **Polling that list on an interval** after a **forced local stream timeout** shows the run **advancing** without sending a second user message.
 
-**Preferred order on timeout:**
+**Implication:** Implementation must **not** depend on `conversation_id` alone. **`run_id` + `otid`** correlation is the portable spine; `conversations.messages.list` remains the fast path when `conversation_id` exists.
 
-1. **If we have a `conversation_id`** (from any stream event so far): immediately call the **conversation messages** API — same path Broca already uses after a normal stream close (`client.conversations.messages.list`, see `runtime/core/agent.py`). Log or inspect **partial assistant content**, message status, ordering, and any **in-flight** signals the API exposes (exact fields TBD per Letta version).
-2. **If we have a `run` id** but no conversation id yet: consider **`runs.retrieve`** (or equivalent) in the same timeout branch before declaring failure.
-3. **Only after** those reads fail to show progress (or hit a **continuation cap**) do we apply **backoff**, **Plan A** continuation framing, or operator-visible failure — not before.
+---
 
-This mirrors **operational habit** in the Sanctum stack: when **Otto** messages **Ada** or **Athena** through Broca and the human-visible path is slow, we **poll another surface** (e.g. outbox / queue) for partial progress instead of assuming silence means “nothing happened.” On the Letta side, the **conversation listing** is the analogous “what’s actually there?” probe.
+## Canonical plan (adopted) — `AgentClient` / queue behavior
 
-**Spike tooling:** `scripts/letta_stream_timeout_conversation_poll_spike.py` — small REPL against a chosen agent (`AGENT_ID` = Ada, Athena, or any dev agent). Uses a **deliberately short** `SPIKE_STREAM_TIMEOUT_SEC` to force `asyncio.TimeoutError`, then **dumps** `conversations.messages.list` (and recent event summaries) so we can **see how in-progress turns appear** before Broca encodes that logic in `QueueProcessor` / `AgentClient`.
-- **Plan A (fallback):** If Plan B is **not** supported or is **unreliable**, keep dequeue/requeue semantics but **annotate** the retried payload so the agent knows it is a **continuation**, e.g.  
+### A. One stable `otid` per Broca turn
+
+- Generate **`otid` once** at the start of `process_message_async` (or equivalent single entrypoint for a queue item).
+- Pass it into **`_user_message_list`** so the same value is sent to Letta and **logged** (debug).
+- After any timeout or stream error, use this **`otid`** to find the **`user_message`** row in **`agents.messages.list`** and read its **`run_id`** if the stream did not already capture `run_id`.
+
+### B. Hoisted stream state (survives `wait_for` cancellation)
+
+`asyncio.wait_for` **cancels** the inner coroutine; **locals** inside `_process_with_streaming` are unreliable after cancel.
+
+- Allocate a **mutable dict** in the outer scope, e.g. `stream_state = {"run_id": None, "conversation_id": None, "message_id": None, "last_assistant_content": None}`, updated **on every stream event** inside the consumer loop.
+- Extend extraction to capture **`run_id`** from `event.run.id` (and any SDK-shaped equivalents on tool/reasoning events), mirroring existing `conversation_id` extraction.
+
+### C. Continuation phase — **before** `_fallback_to_async` on timeout
+
+On **`asyncio.TimeoutError`** from the outer wait (and optionally on stream read errors **if** `stream_state` already shows a `run_id`):
+
+1. **Resolve `run_id`:** `stream_state["run_id"]`, else scan **`agents.messages.list`** (sufficient `limit`, e.g. 80–100) for a **`user_message`** whose **`otid`** matches this turn, then use that row’s **`run_id`**.
+2. **If `conversation_id` is known:** call **`conversations.messages.list`** as today; prefer assistant content for the active turn when unambiguous.
+3. **Poll loop** (bounded wall time — see env below):
+   - **`runs.retrieve(run_id)`** when it exposes terminal status useful for stopping.
+   - **`agents.messages.list`**, filter rows with **`run_id` == ours**, newest first; detect a new **`assistant_message`** / **`assistant`** with extractable content → **success** (reuse `_extract_content`).
+   - Sleep **backoff interval** between polls (e.g. 2–5 s).
+4. **Stop** on success, Letta-reported terminal failure, or **max continuation wall**.
+
+### D. Deprecate default “timeout → duplicate user message”
+
+- **Do not** call **`_fallback_to_async`** (second `create_async` with same text) when:
+  - `stream_state` has **`run_id`**, or
+  - a **`user_message`** with this turn’s **`otid`** appears in **`agents.messages.list`** (run admitted).
+- **Only** when there is **no** evidence the first turn was admitted (no matching `otid`, no `run_id`, `runs` empty / 404 as appropriate) may Broca fall back to **`create_async`**, **Plan A** annotated resend, or hard failure — product decision per env flag.
+
+### E. Optional: split stream-read budget vs total turn budget
+
+- **`BROCA_STREAM_READ_MAX_SEC`** (optional): stop **reading** the SSE iterator and enter **continuation poll** early (models that “think” long before emitting much).
+- **`LONG_TASK_MAX_WAIT`** (existing): cap **end-to-end** wall time for stream read + continuation **together**, or define **`BROCA_LETTA_CONTINUATION_POLL_MAX_SEC`** as additional cap after stream phase — pick one scheme and document in `docs/configuration.md`.
+
+Minimum viable: keep **one** outer `LONG_TASK_MAX_WAIT` but **restructure** so continuation counts inside it (no second user send in the middle).
+
+### F. Queue layer (`runtime/core/queue.py`)
+
+- The queue’s **`asyncio.wait_for`** around message processing must be **≥** the agent client’s **total** budget (stream + continuation), or the worker will be killed mid-poll.
+- Derive queue timeout from the same env knobs or document **ordering**: queue timeout must dominate.
+
+### G. Tests
+
+- **Unit:** continuation helper with mocked `agents.messages.list` / `runs.retrieve` returning progressive rows (reasoning → tool → assistant).
+- **Integration / spike parity:** short stream read + multi-step tool prompt; assert **no second `create_async`** and **single** `assistant_message` for the `otid`.
+
+### H. Configuration (names — finalize in implementation PR)
+
+| Variable | Intent |
+|----------|--------|
+| `LONG_TASK_MAX_WAIT` | Existing outer cap (align queue + agent). |
+| `BROCA_LETTA_CONTINUATION_INTERVAL_SEC` | Sleep between continuation polls. |
+| `BROCA_LETTA_CONTINUATION_POLL_MAX_SEC` | Max wall time for continuation-only phase (if split from stream). |
+| `BROCA_STREAM_READ_MAX_SEC` | Optional: stop SSE read early, then continue polling. |
+| `BROCA_ALLOW_CREATE_ASYNC_ON_TIMEOUT` | Default **false** when `run_id` or `otid` match exists; escape hatch for broken Letta behavior. |
+
+---
+
+## Plan A (fallback — only if Plan B cannot complete)
+
+If continuation polling **cannot** produce an assistant message and **`runs.retrieve` / message history** show terminal failure (or cap exceeded):
+
+- Keep dequeue/requeue semantics if product requires, but **annotate** retried payload so the agent knows it is a **continuation**, e.g.  
   `[Broca: retry 2/5 — continue the prior task; do not restart from scratch.] `  
   plus the original text — or equivalent structured prefix agreed in tests.
 
-If the retried body is **identical** to the previous attempt, the agent should treat it as **continuation of the same task**, not a new assignment.
+Plan A is **best-effort**; prefer **not** to hit it when `run_id` correlation works.
 
-## Plan B — intended semantics (“meat on the bone”)
+---
 
-When local streaming **times out** but Letta still shows an **in-flight** assistant response or run:
+## Conversation-first ordering (operator analogy)
 
-1. **Same queue row** — Keep processing **this** `queue_item` (and its `message_id`). Do not transition to “failed → `requeue_failed_item`” solely because the **local** `wait_for` fired.
-2. **Same user message** — Do **not** call `agents.messages.create` again with the same user content. The agent already has the user turn; Broca is waiting for the **outstanding** assistant completion.
-3. **Poll / attach** — Use Letta’s HTTP/SDK surface (**prioritize `conversations.messages.list`** once `conversation_id` is known; then messages/runs as needed — **exact fields TBD by spike**) to read status until:
-   - assistant message is **complete** → then run the normal **response routing** path with the fetched text, mark queue **completed**, etc.; or
-   - run enters a **terminal error** → then apply existing **retry / backoff** (may still feed **Plan A** annotation if we choose to resend).
-4. **Concurrency** — Still respect **single-flight** semaphore semantics: this item stays “the one” holding the slot until it truly finishes or is abandoned per policy.
-5. **Startup / crash** — Distinguish “Broca died mid-poll” from “Letta still running”: `requeue_stale_processing_items` (or successor) may need a flag or timestamp so we don’t **double-submit** after restart; details in implementation once spike clarifies Letta’s idempotency.
+On timeout, **poll Letta HTTP surfaces before** treating the turn as failed or resending user text:
 
-Plan B succeeds only if spike tests show a **stable, documented** signal that “response still being built.”
+1. **`conversations.messages.list`** if `conversation_id` known.
+2. **`runs.retrieve(run_id)`** + **`agents.messages.list`** filtered by `run_id`.
+3. **Resolve `run_id` via `otid`** on the user message if stream never yielded ids.
 
-## Non-goals
+This mirrors **polling Broca outbox / queue** when Ada or Athena are slow: check **what the system already has** before assuming **nothing is running**.
 
-- Redesigning the entire queue state machine in 3.1 beyond continuation + stale-item clarity.
-- Guaranteeing Letta will always obey Plan A hints without model cooperation (Plan A is best-effort framing).
+**Spike tooling:** `scripts/letta_stream_timeout_conversation_poll_spike.py` — REPL or `-m`; `--follow-up-polls` for repeated `agents.messages.list` snapshots.
 
-## Investigation / spike tests (blocking decision)
+---
 
-### Primary spike method: send + parallel conversation observation
+## Non-goals (unchanged)
 
-Long-running turns are **hard to reproduce on demand** (model latency varies, tools may finish quickly). Do **not** rely only on forcing a 30-minute job.
+- Full queue state-machine redesign beyond continuation + stale-item clarity.
+- Proof that models always obey Plan A hints.
 
-**Recommended procedure:**
+---
 
-1. Use a **minimal blank Letta agent** (or dev-only agent) plus normal API credentials (`LETTA_BASE_URL`, `LETTA_API_KEY`, `LETTA_SPIKE_AGENT_ID`).
-2. **Start sending** a user message to the agent (non-streaming or streaming — match what Broca uses in production for the hypothesis under test).
-3. **Simultaneously**, on another asyncio task / thread, **poll the conversation/messages endpoint** (exact path per deployed Letta version) on a short interval — e.g. **100–500 ms** — from the moment send begins until the turn is clearly finished.
-4. **Log or assert** each snapshot: look for any **in-flight** signal (partial assistant payload, `pending` / `in_progress` run state, message status other than terminal, etc.) **before** the final assistant message is present.
+## Legacy investigation notes
 
-If **any** intermediate state appears reliably, Plan B may be feasible even when the turn completes in a few seconds. If the API only ever shows **terminal** rows (no “still generating” visible from the conversation list), document that gap — Plan B may require a **run-level** or **streaming** API instead of message list alone.
-
-**Optional complement:** After establishing visibility with short turns, repeat with a **deliberately slow** prompt or tool-backed agent to confirm behavior under load; that validates timeout-retry integration but is not the only proof.
-
-### API questions
-
-1. **In-flight detection** — Given `agent_id` + conversation / run id from the initial stream, can we list messages or runs and see **pending / incomplete** assistant output or **`in_progress`**?
-2. **Race window** — Right after local timeout, does one GET distinguish “still streaming” vs “failed silently” vs “completed between polls”?
-3. **Correlation** — If we **never** resend the user message, can we still attach the **final** assistant text to the **same** Broca `message_id` and `queue_item`?
-4. **Double-submit on restart** — After Broca restart, can we reconcile “queue said processing” with Letta’s truth without sending a duplicate user message?
-
-### Test environment (recommended)
-
-- Provision a **minimal blank Letta agent** used only for these experiments (no production traffic).  
-  *Example deployment context:* Sanctum stack on the host where Letta already runs (e.g. operator-maintained agent instance); exact host and agent id stay in **env / secrets**, not in this doc.
-- **Spike tests** can live under `tests/integration/` or `tests/spike/` with `pytest.mark.integration` and env vars `LETTA_SPIKE_AGENT_ID`, `LETTA_API_KEY`, `LETTA_BASE_URL`.
-- **Interactive spike:** `scripts/letta_stream_timeout_conversation_poll_spike.py` (REPL or `-m '…'`) uses the same credentials as Broca (`AGENT_ENDPOINT`, `AGENT_API_KEY`, `AGENT_ID`) and a short `SPIKE_STREAM_TIMEOUT_SEC` to **force** timeout, then prints **`conversations.messages.list`** snapshots for inspection.
-
-### Test cases (concrete)
+Parallel stream + poll experiments (S0–S4) informed design; **DNS / long-tool spike (2026-04-06)** satisfied **go** for Plan B on current Letta deployment.
 
 | # | Case | Pass criterion |
 |---|------|----------------|
-| S0 | **Parallel poll** while sending one normal message (may complete quickly) | Logs show whether conversation endpoint exposes **any in-flight** state; documents API shape for Plan B go/no-go. |
-| S1 | Send one user message; local `wait_for` timeout fires; poll Letta | We can **observe** in-flight state (if API supports it) and later **fetch** completed assistant text without a second user message. |
-| S2 | Same as S1; Letta completes **between** timeout and first poll | We detect **completed** and map to single assistant reply; no duplicate user turn. |
-| S3 | Letta fails run | We detect **terminal failure**; Broca applies existing failure path (no infinite poll). |
-| S4 | (If applicable) Restart Broca mid-poll | Stale processing recovery does **not** create a duplicate user message in Letta for the same logical item (or documents accepted limitation). |
+| S0 | Parallel poll while sending | Expose in-flight shape in API. |
+| S1 | Timeout then poll | Observe in-flight; later assistant without second user message. |
+| S2 | Complete between timeout and poll | Single assistant reply. |
+| S3 | Letta fails run | Terminal failure path; no infinite poll. |
+| S4 | Restart mid-poll | No duplicate user message for same logical item (or document limitation). |
 
-Document spike outcomes in PR description or a short `docs/dev-notes/letta-continuation-spike.md` if needed.
-
-## Implementation steps (after spike)
-
-1. Record **Go / No-go** for Plan B at the bottom of this doc (date + signer).
-2. If **Plan B go:**
-   - Add **continuation poll loop** (with backoff + max wall time) in the timeout branch of `QueueProcessor` / `AgentClient`.
-   - Ensure queue status transitions: **processing → completed** only after verified assistant text or terminal error.
-   - Wire config: e.g. `BROCA_STREAM_LOCAL_TIMEOUT_SEC`, `BROCA_LETTA_CONTINUATION_POLL_MAX_SEC`, `BROCA_LETTA_CONTINUATION_INTERVAL_SEC`.
-3. If **Plan B no-go:** implement Plan A — retry counter on queue item or message metadata, continuation prefix, cap max retries.
-4. Operator docs: behavior under timeout; what agents see for Plan A.
-
-## Related code (reference)
-
-- `runtime/core/queue.py` — `asyncio.wait_for` around `_process_with_core_block`, `requeue_failed_item`, `requeue_stale_processing_items`.
-- `runtime/core/agent.py` — streaming consumption, run/message/conversation ids.
-
-## Open questions
-
-- Exact Letta **v1** endpoints / fields for “still generating.”
-- Where to persist **retry index** for Plan A (queue row vs message metadata JSON).
-- Plan A prefix: **English-only** vs configurable template.
-- Interaction with **circuit breaker** and **image addendum retry** (avoid double annotation).
+---
 
 ## Plan B decision record
 
 | Date | Outcome | Notes |
 |------|---------|--------|
-| _TBD_ | Go / No-go | Fill after spike **S0**–S4 (S0 = parallel observation). |
+| **2026-04-06** | **Go** | DNS / multi-tool Ada run under forced local stream timeout; **`agents.messages.list`** showed monotonic progress by **`run_id`**; **`otid`** correlates user turn. Implement continuation phase in `runtime/core/agent.py` + align `queue.py` timeouts. |
+
+---
+
+## Related code (implementation targets)
+
+- `runtime/core/agent.py` — `process_message_async`, `_process_with_streaming`, `_fallback_to_async`; add **`_continuation_poll_after_stream_timeout`** (name TBD) and hoisted **`stream_state`** + per-turn **`otid`**.
+- `runtime/core/queue.py` — `asyncio.wait_for` timeout vs `LONG_TASK_MAX_WAIT` / continuation caps.
+
+---
+
+## Open questions (smaller)
+
+- Exact **Letta v1** field stability for `run_id` on all message types (monitor across upgrades).
+- Where to persist **Plan A retry index** (queue row vs metadata JSON).
+- Plan A prefix: **English-only** vs configurable template.
+- Interaction with **circuit breaker** and **image addendum retry** (avoid double annotation).
+
+---
 
 ## Milestone alignment
 
-Track alongside [release issues](broca-3.1-release-issues.md); may warrant its own GitHub issue once Plan B/A is chosen.
+Track alongside [release issues](broca-3.1-release-issues.md); implementation PR should reference this doc and close or update any dedicated GitHub issue for streaming continuation.
