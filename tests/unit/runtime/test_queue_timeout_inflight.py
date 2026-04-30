@@ -342,8 +342,10 @@ class TestQueueEchoMode:
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestQueueMessageProcessTimeoutFloor:
-    async def test_timeout_floor_uses_max_300(self, live_queue_deps: None) -> None:
-        """``timeout_seconds = max(300, MESSAGE_PROCESS_TIMEOUT)``."""
+    async def test_timeout_floor_covers_long_task_plus_buffer(
+        self, live_queue_deps: None
+    ) -> None:
+        """``timeout_seconds = max(LONG_TASK_MAX_WAIT + BUFFER, MESSAGE_PROCESS_TIMEOUT)``."""
 
         timeouts: list[float] = []
 
@@ -363,6 +365,10 @@ class TestQueueMessageProcessTimeoutFloor:
         ):
             if key == "MESSAGE_PROCESS_TIMEOUT":
                 return "60"
+            if key == "LONG_TASK_MAX_WAIT":
+                return "600"
+            if key == "MESSAGE_PROCESS_TIMEOUT_BUFFER":
+                return "180"
             if key == "AGENT_ID":
                 return "agent-x"
             return default
@@ -381,12 +387,12 @@ class TestQueueMessageProcessTimeoutFloor:
                         new_callable=AsyncMock,
                     ):
                         await p._process_single_message(_queue_item())
-        assert timeouts == [300]
+        assert timeouts == [780]
 
     async def test_timeout_uses_config_when_above_floor(
         self, live_queue_deps: None
     ) -> None:
-        """``max(300, MESSAGE_PROCESS_TIMEOUT)`` must honor large configured values."""
+        """Configured ``MESSAGE_PROCESS_TIMEOUT`` above floor must win."""
         timeouts: list[int | float | None] = []
 
         async def record_wait_for(coro, timeout=None):  # noqa: ARG002
@@ -405,6 +411,10 @@ class TestQueueMessageProcessTimeoutFloor:
         ):
             if key == "MESSAGE_PROCESS_TIMEOUT":
                 return "900"
+            if key == "LONG_TASK_MAX_WAIT":
+                return "600"
+            if key == "MESSAGE_PROCESS_TIMEOUT_BUFFER":
+                return "180"
             if key == "AGENT_ID":
                 return "agent-x"
             return default
