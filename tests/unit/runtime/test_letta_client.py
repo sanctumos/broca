@@ -27,12 +27,11 @@ def test_letta_client_initialization():
         client = LettaClient()
 
         assert client is not None
-        # Verify Letta was called with api_key (v1.0+ API) not token
-        mock_letta_class.assert_called_once_with(
-            base_url="http://test.endpoint",
-            api_key="test-api-key",
-            max_retries=0,
-        )
+        mock_letta_class.assert_called_once()
+        kwargs = mock_letta_class.call_args.kwargs
+        assert kwargs.get("base_url") == "http://test.endpoint"
+        # SDK 1.7+ prefers token= + timeout=; older constructors use api_key= + max_retries=.
+        assert kwargs.get("token") == "test-api-key" or kwargs.get("api_key") == "test-api-key"
 
 
 @pytest.mark.unit
