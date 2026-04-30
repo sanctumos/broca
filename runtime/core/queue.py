@@ -234,10 +234,25 @@ class QueueProcessor:
                 response = formatted_message  # Use formatted message with metadata
                 status = "completed"
             else:
-                # Process with agent (guarded by timeout)
-                logger.info(f"Processing message in {self.message_mode.upper()} mode")
-                timeout_seconds = max(
-                    300, int(get_env_var("MESSAGE_PROCESS_TIMEOUT", default="300"))
+                # Outer timeout must cover Letta's own wait (LONG_TASK_MAX_WAIT, default 600s)
+                # plus attach/detach/network. MESSAGE_PROCESS_TIMEOUT_BUFFER adds headroom
+                # (default 180s). If the outer timeout fires first, asyncio cancels the turn
+                # while Letta may still be running upstream.
+                long_task_max = int(get_env_var("LONG_TASK_MAX_WAIT", default="600"))
+                outer_buffer = int(
+                    get_env_var("MESSAGE_PROCESS_TIMEOUT_BUFFER", default="180")
+                )
+                floor = long_task_max + outer_buffer
+                configured = int(
+                    get_env_var(
+                        "MESSAGE_PROCESS_TIMEOUT",
+                        default=str(floor),
+                    )
+                )
+                timeout_seconds = max(floor, configured)
+                logger.info(
+                    f"Processing message in {self.message_mode.upper()} mode "
+                    f"(queue timeout {timeout_seconds}s; LONG_TASK_MAX_WAIT={long_task_max}s)"
                 )
                 try:
                     response, status = await asyncio.wait_for(

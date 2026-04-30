@@ -116,6 +116,13 @@ class LettaClient:
 _letta_client: LettaClient | None = None
 
 
+def reset_letta_client() -> LettaClient:
+    """Recreate and return a fresh Letta client singleton (e.g. after credential rotation)."""
+    global _letta_client
+    _letta_client = LettaClient()
+    return _letta_client
+
+
 def get_letta_client() -> LettaClient:
     """Get the Letta client singleton instance."""
     global _letta_client
