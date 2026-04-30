@@ -168,11 +168,14 @@ class TestMessageBuffer:
             "task": None,
         }
 
-        with patch(
-            "plugins.telegram.handlers.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.telegram.handlers.add_to_queue", new_callable=AsyncMock
-        ) as mock_add_queue:
+        with (
+            patch(
+                "plugins.telegram.handlers.insert_message", new_callable=AsyncMock
+            ) as mock_insert,
+            patch(
+                "plugins.telegram.handlers.add_to_queue", new_callable=AsyncMock
+            ) as mock_add_queue,
+        ):
             mock_insert.return_value = 999
 
             await buffer._flush_buffer(buffer_key)
@@ -264,12 +267,15 @@ class TestMessageHandler:
         mock_sender.bot = False
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
-        ) as mock_add_message:
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(
+                handler.buffer, "add_message", new_callable=AsyncMock
+            ) as mock_add_message,
+        ):
             mock_profile = MagicMock()
             mock_profile.id = 456
             mock_letta_user = MagicMock()
@@ -352,12 +358,15 @@ class TestMessageHandler:
         mock_sender.bot = True
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
-        ) as mock_add_message:
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(
+                handler.buffer, "add_message", new_callable=AsyncMock
+            ) as mock_add_message,
+        ):
             mock_profile = MagicMock()
             mock_profile.id = 456
             mock_letta_user = MagicMock()
@@ -385,11 +394,12 @@ class TestMessageHandler:
         mock_sender.bot = False
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(handler.buffer, "add_message", new_callable=AsyncMock),
         ):
             mock_profile = MagicMock()
             mock_profile.id = 456
@@ -423,11 +433,12 @@ class TestMessageHandler:
         mock_sender.bot = False
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(handler.buffer, "add_message", new_callable=AsyncMock),
         ):
             mock_profile = MagicMock()
             mock_profile.id = 456
@@ -461,12 +472,15 @@ class TestMessageHandler:
         mock_sender.bot = True  # Bot but no plugin to check
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
-        ) as mock_add_message:
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(
+                handler.buffer, "add_message", new_callable=AsyncMock
+            ) as mock_add_message,
+        ):
             mock_profile = MagicMock()
             mock_profile.id = 456
             mock_letta_user = MagicMock()

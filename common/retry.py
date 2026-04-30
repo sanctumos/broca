@@ -257,8 +257,6 @@ def is_rate_limit_exception(exception: Exception) -> bool:
     )
 
 
-
-
 def get_retry_config_for_exception(exception: Exception) -> RetryConfig:
     """Get appropriate retry config based on exception type.
 
@@ -276,7 +274,6 @@ def get_retry_config_for_exception(exception: Exception) -> RetryConfig:
             max_delay=300.0,
             jitter=True,
         )
-
 
     # Default retry config
     return RetryConfig(

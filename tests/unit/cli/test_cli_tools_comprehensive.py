@@ -212,7 +212,7 @@ class TestCLIToolsComprehensive:
         """Test btool add_bot with exception."""
         with patch("cli.btool.load_ignore_list") as mock_load:
             mock_load.side_effect = Exception("File error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.btool import add_bot
 
                 add_bot("test_bot")
@@ -221,7 +221,7 @@ class TestCLIToolsComprehensive:
         """Test btool remove_bot with exception."""
         with patch("cli.btool.load_ignore_list") as mock_load:
             mock_load.side_effect = Exception("File error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.btool import remove_bot
 
                 remove_bot("test_bot")
@@ -230,7 +230,7 @@ class TestCLIToolsComprehensive:
         """Test btool list_bots with exception."""
         with patch("cli.btool.load_ignore_list") as mock_load:
             mock_load.side_effect = Exception("File error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.btool import list_bots
 
                 list_bots()
@@ -239,7 +239,7 @@ class TestCLIToolsComprehensive:
         """Test qtool list_queue with exception."""
         with patch("cli.qtool.asyncio.run") as mock_run:
             mock_run.side_effect = Exception("Async error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.qtool import list_queue
 
                 list_queue()
@@ -248,7 +248,7 @@ class TestCLIToolsComprehensive:
         """Test qtool flush_queue with exception."""
         with patch("cli.qtool.asyncio.run") as mock_run:
             mock_run.side_effect = Exception("Async error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.qtool import flush_queue
 
                 flush_queue()
@@ -288,7 +288,7 @@ class TestCLIToolsComprehensive:
         """Test utool update_user_status with exception."""
         with patch("cli.utool.asyncio.run") as mock_run:
             mock_run.side_effect = Exception("Async error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.utool import update_user_status
 
                 update_user_status(1, "active")
@@ -297,7 +297,7 @@ class TestCLIToolsComprehensive:
         """Test ctool list_conversations with exception."""
         with patch("cli.ctool.asyncio.run") as mock_run:
             mock_run.side_effect = Exception("Async error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.ctool import list_conversations
 
                 list_conversations()
@@ -317,7 +317,7 @@ class TestCLIToolsComprehensive:
         """Test settings load_settings with exception."""
         with patch("cli.settings.json.load") as mock_load:
             mock_load.side_effect = Exception("JSON error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.settings import load_settings
 
                 load_settings()
@@ -326,7 +326,7 @@ class TestCLIToolsComprehensive:
         """Test settings save_settings with exception."""
         with patch("cli.settings.json.dump") as mock_dump:
             mock_dump.side_effect = Exception("JSON error")
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017
                 from cli.settings import save_settings
 
                 save_settings({})

@@ -31,9 +31,10 @@ class TestUtoolFunctions:
         args = MagicMock()
         args.json = True
 
-        with patch(
-            "cli.utool.get_all_users", new_callable=AsyncMock
-        ) as mock_get, patch("cli.utool.print_json") as mock_print_json:
+        with (
+            patch("cli.utool.get_all_users", new_callable=AsyncMock) as mock_get,
+            patch("cli.utool.print_json") as mock_print_json,
+        ):
             mock_get.return_value = mock_users
             await list_users(args)
 
@@ -50,9 +51,10 @@ class TestUtoolFunctions:
         args = MagicMock()
         args.json = False
 
-        with patch(
-            "cli.utool.get_all_users", new_callable=AsyncMock
-        ) as mock_get, patch("cli.utool.print_users") as mock_print_table:
+        with (
+            patch("cli.utool.get_all_users", new_callable=AsyncMock) as mock_get,
+            patch("cli.utool.print_users") as mock_print_table,
+        ):
             mock_get.return_value = mock_users
             await list_users(args)
 
@@ -67,9 +69,10 @@ class TestUtoolFunctions:
         args.id = "123"
         args.json = False
 
-        with patch(
-            "cli.utool.get_user_details", new_callable=AsyncMock
-        ) as mock_get, patch("cli.utool.print_users") as mock_print_users:
+        with (
+            patch("cli.utool.get_user_details", new_callable=AsyncMock) as mock_get,
+            patch("cli.utool.print_users") as mock_print_users,
+        ):
             mock_get.return_value = mock_user_details
             await get_user(args)
 
@@ -83,11 +86,11 @@ class TestUtoolFunctions:
         args = MagicMock()
         args.id = "123"
 
-        with patch(
-            "cli.utool.get_user_details", new_callable=AsyncMock
-        ) as mock_get, patch("builtins.print") as mock_print, patch(
-            "sys.exit"
-        ) as mock_exit:
+        with (
+            patch("cli.utool.get_user_details", new_callable=AsyncMock) as mock_get,
+            patch("builtins.print") as mock_print,
+            patch("sys.exit") as mock_exit,
+        ):
             mock_get.return_value = None
             await get_user(args)
 
@@ -106,9 +109,10 @@ class TestUtoolFunctions:
         args.id = "123"
         args.json = True
 
-        with patch(
-            "cli.utool.get_user_details", new_callable=AsyncMock
-        ) as mock_get, patch("cli.utool.print_json") as mock_print_json:
+        with (
+            patch("cli.utool.get_user_details", new_callable=AsyncMock) as mock_get,
+            patch("cli.utool.print_json") as mock_print_json,
+        ):
             mock_get.return_value = mock_user_details
             await get_user(args)
 
@@ -124,9 +128,10 @@ class TestUtoolFunctions:
         args.id = "123"
         args.status = "active"
 
-        with patch(
-            "cli.utool.update_letta_user", new_callable=AsyncMock
-        ) as mock_update, patch("builtins.print") as mock_print:
+        with (
+            patch("cli.utool.update_letta_user", new_callable=AsyncMock) as mock_update,
+            patch("builtins.print") as mock_print,
+        ):
             mock_update.return_value = mock_user
             await update_user_status(args)
 
@@ -142,9 +147,10 @@ class TestUtoolFunctions:
         args.id = "123"
         args.status = "inactive"
 
-        with patch(
-            "cli.utool.update_letta_user", new_callable=AsyncMock
-        ) as mock_update, patch("builtins.print") as mock_print:
+        with (
+            patch("cli.utool.update_letta_user", new_callable=AsyncMock) as mock_update,
+            patch("builtins.print") as mock_print,
+        ):
             mock_update.return_value = mock_user
             await update_user_status(args)
 
@@ -158,11 +164,11 @@ class TestUtoolFunctions:
         args.id = "123"
         args.status = "active"
 
-        with patch(
-            "cli.utool.update_letta_user", new_callable=AsyncMock
-        ) as mock_update, patch("builtins.print") as mock_print, patch(
-            "sys.exit"
-        ) as mock_exit:
+        with (
+            patch("cli.utool.update_letta_user", new_callable=AsyncMock) as mock_update,
+            patch("builtins.print") as mock_print,
+            patch("sys.exit") as mock_exit,
+        ):
             mock_update.return_value = None
             await update_user_status(args)
 
@@ -203,25 +209,31 @@ class TestUtoolFunctions:
 
     def test_main_list_command(self):
         """Test main function with list command."""
-        with patch("sys.argv", ["utool", "list"]), patch(
-            "cli.utool.list_users", new_callable=AsyncMock
-        ), patch("asyncio.run") as mock_run:
+        with (
+            patch("sys.argv", ["utool", "list"]),
+            patch("cli.utool.list_users", new_callable=AsyncMock),
+            patch("asyncio.run") as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
 
     def test_main_get_command(self):
         """Test main function with get command."""
-        with patch("sys.argv", ["utool", "get", "123"]), patch(
-            "cli.utool.get_user", new_callable=AsyncMock
-        ), patch("asyncio.run") as mock_run:
+        with (
+            patch("sys.argv", ["utool", "get", "123"]),
+            patch("cli.utool.get_user", new_callable=AsyncMock),
+            patch("asyncio.run") as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
 
     def test_main_update_command(self):
         """Test main function with update command."""
-        with patch("sys.argv", ["utool", "update", "123", "active"]), patch(
-            "cli.utool.update_user_status", new_callable=AsyncMock
-        ), patch("asyncio.run") as mock_run:
+        with (
+            patch("sys.argv", ["utool", "update", "123", "active"]),
+            patch("cli.utool.update_user_status", new_callable=AsyncMock),
+            patch("asyncio.run") as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
 

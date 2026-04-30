@@ -71,7 +71,15 @@ async def seeded_queue_item(temp_db: str):  # noqa: ARG001
                 created_at, last_active
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (letta_user_id, "telegram", "tg-integ", "integuser", "Integ User", now, now),
+            (
+                letta_user_id,
+                "telegram",
+                "tg-integ",
+                "integuser",
+                "Integ User",
+                now,
+                now,
+            ),
         )
         await db.commit()
         cursor = await db.execute("SELECT last_insert_rowid()")
@@ -114,7 +122,9 @@ async def test_outer_wait_for_timeout_persists_failed_without_attempt_increment(
         _discard_unawaited_coroutine(coro)
         raise TimeoutError()
 
-    async def never_called(_m: str, sender_id: str | None = None) -> str:  # pragma: no cover
+    async def never_called(
+        _m: str, sender_id: str | None = None
+    ) -> str:  # pragma: no cover
         raise AssertionError("processor must not run")
 
     mock_client = MagicMock()

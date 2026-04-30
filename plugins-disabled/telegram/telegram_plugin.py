@@ -308,7 +308,9 @@ class TelegramPlugin(Plugin):
                     if self.is_bot_ignored(
                         event.sender_id, getattr(event.sender, "username", None)
                     ):
-                        logger.info(f"🔍 DEBUG: Skipping ignored bot: {event.sender_id}")
+                        logger.info(
+                            f"🔍 DEBUG: Skipping ignored bot: {event.sender_id}"
+                        )
                         return
 
                     # Skip messages from self

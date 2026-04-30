@@ -1,6 +1,5 @@
 """Unit tests for database message operations."""
 
-
 from datetime import datetime
 
 import pytest

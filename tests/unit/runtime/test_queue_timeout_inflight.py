@@ -155,9 +155,7 @@ class TestQueueOuterTimeoutNoRequeue:
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestQueueAgentTurnTimeoutInFlightNoRequeue:
-    async def test_inflight_timeout_inner_handler(
-        self, live_queue_deps: None
-    ) -> None:
+    async def test_inflight_timeout_inner_handler(self, live_queue_deps: None) -> None:
         """``AgentTurnTimeoutInFlight`` from awaited core block → failed, no requeue."""
 
         async def passthrough_wait_for(coro, timeout=None):  # noqa: ARG002
@@ -317,7 +315,9 @@ class TestQueueEchoMode:
         async def forbidden_wait_for(_c, timeout=None):  # noqa: ANN001, ARG002
             raise AssertionError("echo mode must not wrap agent in wait_for")
 
-        with patch("runtime.core.queue.asyncio.wait_for", side_effect=forbidden_wait_for):
+        with patch(
+            "runtime.core.queue.asyncio.wait_for", side_effect=forbidden_wait_for
+        ):
             with patch(
                 "runtime.core.queue.requeue_failed_item", new_callable=AsyncMock
             ) as rq:

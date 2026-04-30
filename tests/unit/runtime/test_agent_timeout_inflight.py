@@ -95,12 +95,10 @@ class TestProcessMessageAsyncStreamTimeoutAndFallback:
 class TestProcessMessageAsyncDebugModeIgnoresStreamTimeout:
     async def test_debug_mode_returns_input_without_stream(self) -> None:
         with patch("runtime.core.agent.get_env_var") as ge:
-            ge.side_effect = (
-                lambda key, default=None, required=False, cast_type=None: {
-                    "DEBUG_MODE": True,
-                    "AGENT_ID": None,
-                }.get(key, default)
-            )
+            ge.side_effect = lambda key, default=None, required=False, cast_type=None: {
+                "DEBUG_MODE": True,
+                "AGENT_ID": None,
+            }.get(key, default)
             agent = AgentClient()
             out = await agent.process_message_async("no network")
             assert out == "no network"
@@ -118,13 +116,11 @@ class TestProcessMessageAsyncNonTimeoutErrorsStillReturnNone:
             raise ValueError("stream corrupt")
 
         with patch("runtime.core.agent.get_env_var") as ge:
-            ge.side_effect = (
-                lambda key, default=None, required=False, cast_type=None: {
-                    "DEBUG_MODE": False,
-                    "AGENT_ID": "test-agent",
-                    "LONG_TASK_MAX_WAIT": "600",
-                }.get(key, default)
-            )
+            ge.side_effect = lambda key, default=None, required=False, cast_type=None: {
+                "DEBUG_MODE": False,
+                "AGENT_ID": "test-agent",
+                "LONG_TASK_MAX_WAIT": "600",
+            }.get(key, default)
             with patch("runtime.core.agent.get_letta_client") as mock_get_client:
                 mock_client = MagicMock()
                 mock_get_client.return_value = mock_client
@@ -153,11 +149,14 @@ class TestProcessMessageAsyncNoTimeoutPathUnchanged:
             ev.conversation_id = None
             yield ev
 
-        with patch("runtime.core.agent.get_env_var", side_effect=lambda k, d=None, **kw: {
-            "DEBUG_MODE": False,
-            "AGENT_ID": "test-agent",
-            "LONG_TASK_MAX_WAIT": "600",
-        }.get(k, d)):
+        with patch(
+            "runtime.core.agent.get_env_var",
+            side_effect=lambda k, d=None, **kw: {
+                "DEBUG_MODE": False,
+                "AGENT_ID": "test-agent",
+                "LONG_TASK_MAX_WAIT": "600",
+            }.get(k, d),
+        ):
             with patch("runtime.core.agent.get_letta_client") as mock_get_client:
                 mock_client = MagicMock()
                 mock_get_client.return_value = mock_client

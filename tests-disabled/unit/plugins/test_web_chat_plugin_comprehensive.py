@@ -100,14 +100,16 @@ class TestWebChatPlugin:
         mock_message_handler = AsyncMock()
         mock_api_client.test_connection.return_value = True
 
-        with patch(
-            "plugins.web_chat.plugin.WebChatAPIClient", return_value=mock_api_client
-        ), patch(
-            "plugins.web_chat.plugin.WebChatMessageHandler",
-            return_value=mock_message_handler,
-        ), patch(
-            "asyncio.create_task"
-        ) as mock_create_task:
+        with (
+            patch(
+                "plugins.web_chat.plugin.WebChatAPIClient", return_value=mock_api_client
+            ),
+            patch(
+                "plugins.web_chat.plugin.WebChatMessageHandler",
+                return_value=mock_message_handler,
+            ),
+            patch("asyncio.create_task") as mock_create_task,
+        ):
             mock_task = AsyncMock()
             mock_create_task.return_value = mock_task
 

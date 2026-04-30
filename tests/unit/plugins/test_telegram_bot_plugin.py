@@ -71,9 +71,10 @@ class TestTelegramBotPlugin:
 
         # Test fallback to validate_settings when apply_settings doesn't exist
         # Remove apply_settings to test fallback behavior
-        with patch.object(wrapper._plugin, "apply_settings", None), patch.object(
-            wrapper._plugin, "validate_settings"
-        ) as mock_validate:
+        with (
+            patch.object(wrapper._plugin, "apply_settings", None),
+            patch.object(wrapper._plugin, "validate_settings") as mock_validate,
+        ):
             wrapper.apply_settings(test_settings)
             mock_validate.assert_called_once_with(test_settings)
 
@@ -229,9 +230,10 @@ class TestTelegramBotPlugin:
 
             plugin = TelegramBotPlugin()
 
-            with patch("aiogram.Bot") as mock_bot, patch(
-                "aiogram.Dispatcher"
-            ) as mock_dispatcher:
+            with (
+                patch("aiogram.Bot") as mock_bot,
+                patch("aiogram.Dispatcher") as mock_dispatcher,
+            ):
                 mock_bot_instance = MagicMock()
                 mock_bot.return_value = mock_bot_instance
 

@@ -66,9 +66,11 @@ def test_get_env_var_empty_string():
 @pytest.mark.unit
 def test_get_settings_caching():
     """Test get_settings caching behavior."""
-    with patch("common.config.os.path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data='{"debug_mode": false}')
-    ), patch("common.config.json.loads", return_value={"debug_mode": False}):
+    with (
+        patch("common.config.os.path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data='{"debug_mode": false}')),
+        patch("common.config.json.loads", return_value={"debug_mode": False}),
+    ):
         # First call
         settings1 = get_settings()
         # Second call should return cached instance
@@ -80,9 +82,11 @@ def test_get_settings_caching():
 @pytest.mark.unit
 def test_get_settings_multiple_calls():
     """Test get_settings with multiple calls."""
-    with patch("common.config.os.path.exists", return_value=True), patch(
-        "builtins.open", mock_open(read_data='{"debug_mode": false}')
-    ), patch("common.config.json.loads", return_value={"debug_mode": False}):
+    with (
+        patch("common.config.os.path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data='{"debug_mode": false}')),
+        patch("common.config.json.loads", return_value={"debug_mode": False}),
+    ):
         settings1 = get_settings()
         settings2 = get_settings()
         settings3 = get_settings()

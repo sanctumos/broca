@@ -1,6 +1,5 @@
 """Unit tests for runtime core message functionality."""
 
-
 import pytest
 
 from runtime.core.message import Message, MessageFormatter, MessageHandler

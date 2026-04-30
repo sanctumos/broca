@@ -1,6 +1,5 @@
 """Unit tests for database queue operations."""
 
-
 from datetime import datetime
 
 import pytest

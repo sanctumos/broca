@@ -451,8 +451,8 @@ class TestMessageHandler:
 
         # Mock the formatter
         handler.formatter = MagicMock()
-        handler.formatter.sanitize_text.side_effect = (
-            lambda x: f"sanitized_{x}" if x else "Unknown"
+        handler.formatter.sanitize_text.side_effect = lambda x: (
+            f"sanitized_{x}" if x else "Unknown"
         )
 
         # Mock get_or_create_platform_profile

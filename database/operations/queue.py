@@ -4,8 +4,6 @@ import logging
 from datetime import datetime
 from typing import Any
 
-import aiosqlite
-
 from common.retry import RetryConfig, exponential_backoff, is_retryable_exception
 
 from ..models import QueueItem
@@ -46,14 +44,12 @@ async def add_to_queue(letta_user_id: int, message_id: int) -> None:
 async def get_pending_queue_item() -> QueueItem | None:
     """Get the next pending item from the queue."""
     async with get_pool().connection() as db:
-        async with db.execute(
-            """
+        async with db.execute("""
             SELECT * FROM queue
             WHERE status = 'pending'
             ORDER BY timestamp ASC
             LIMIT 1
-        """
-        ) as cursor:
+        """) as cursor:
             row = await cursor.fetchone()
             if row:
                 return QueueItem(
@@ -82,14 +78,12 @@ async def atomic_dequeue_item() -> QueueItem | None:
 
         try:
             # Find the next pending item
-            async with db.execute(
-                """
+            async with db.execute("""
                 SELECT * FROM queue
                 WHERE status = 'pending'
                 ORDER BY timestamp ASC
                 LIMIT 1
-            """
-            ) as cursor:
+            """) as cursor:
                 row = await cursor.fetchone()
 
                 if not row:
@@ -249,13 +243,11 @@ async def requeue_stale_processing_items(max_age_seconds: int = 300) -> int:
     cutoff = datetime.utcnow().timestamp() - max_age_seconds
 
     async with get_pool().connection() as db:
-        async with db.execute(
-            """
+        async with db.execute("""
             SELECT id, timestamp
             FROM queue
             WHERE status = 'processing'
-            """
-        ) as cursor:
+            """) as cursor:
             rows = await cursor.fetchall()
 
         stale_ids = []
@@ -288,8 +280,7 @@ async def requeue_stale_processing_items(max_age_seconds: int = 300) -> int:
 async def get_all_queue_items() -> list[dict[str, Any]]:
     """Get all queue items with their details."""
     async with get_pool().connection() as db:
-        async with db.execute(
-            """
+        async with db.execute("""
             SELECT
                 q.id, q.letta_user_id, q.message_id, q.status,
                 q.timestamp, q.attempts,
@@ -300,8 +291,7 @@ async def get_all_queue_items() -> list[dict[str, Any]]:
             LEFT JOIN messages m ON q.message_id = m.id
             WHERE q.status IN ('pending', 'processing', 'failed')
             ORDER BY q.timestamp DESC
-        """
-        ) as cursor:
+        """) as cursor:
             rows = await cursor.fetchall()
             return [
                 {
@@ -327,14 +317,12 @@ async def get_queue_statistics() -> dict[str, int]:
         Dictionary with counts for each status
     """
     async with get_pool().connection() as db:
-        async with db.execute(
-            """
+        async with db.execute("""
             SELECT status, COUNT(*) as count
             FROM queue
             WHERE status IN ('pending', 'processing', 'failed', 'completed', 'flushed')
             GROUP BY status
-        """
-        ) as cursor:
+        """) as cursor:
             rows = await cursor.fetchall()
             stats = {row[0]: row[1] for row in rows}
 
@@ -351,13 +339,11 @@ async def flush_all_queue_items(current_mode: str) -> bool:
     """Flush all queue items for the current mode."""
     async with get_pool().connection() as db:
         try:
-            await db.execute(
-                """
+            await db.execute("""
                 UPDATE queue
                 SET status = 'flushed'
                 WHERE status = 'pending'
-            """
-            )
+            """)
             await db.commit()
             return True
         except Exception as e:

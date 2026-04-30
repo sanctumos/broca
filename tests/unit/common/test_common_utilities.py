@@ -30,12 +30,16 @@ def test_get_env_var_default():
 @pytest.mark.unit
 def test_get_settings():
     """Test get_settings function."""
-    with patch("common.config.os.path.exists", return_value=True), patch(
-        "builtins.open",
-        mock_open(read_data='{"debug_mode": false, "queue_refresh": 5}'),
-    ), patch(
-        "common.config.json.loads",
-        return_value={"debug_mode": False, "queue_refresh": 5},
+    with (
+        patch("common.config.os.path.exists", return_value=True),
+        patch(
+            "builtins.open",
+            mock_open(read_data='{"debug_mode": false, "queue_refresh": 5}'),
+        ),
+        patch(
+            "common.config.json.loads",
+            return_value={"debug_mode": False, "queue_refresh": 5},
+        ),
     ):
         settings = get_settings()
         assert settings is not None

@@ -30,9 +30,10 @@ class TestTelegramPluginComprehensive:
         """Test _get_ignore_list_path returns correct path."""
         plugin = TelegramPlugin()
 
-        with patch("os.path.dirname") as mock_dirname, patch(
-            "os.path.join"
-        ) as mock_join:
+        with (
+            patch("os.path.dirname") as mock_dirname,
+            patch("os.path.join") as mock_join,
+        ):
             mock_dirname.side_effect = [
                 "/path/to/plugins/telegram",
                 "/path/to/plugins",
@@ -51,9 +52,11 @@ class TestTelegramPluginComprehensive:
         """Test _load_ignore_list when file doesn't exist."""
         plugin = TelegramPlugin()
 
-        with patch.object(plugin, "_get_ignore_list_path") as mock_path, patch(
-            "pathlib.Path.exists", return_value=False
-        ), patch("plugins.telegram.telegram_plugin.logger") as mock_logger:
+        with (
+            patch.object(plugin, "_get_ignore_list_path") as mock_path,
+            patch("pathlib.Path.exists", return_value=False),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             mock_path.return_value = Path("test.json")
 
             plugin._load_ignore_list()
@@ -67,11 +70,12 @@ class TestTelegramPluginComprehensive:
 
         test_data = {"bot1": {"username": "testbot", "reason": "spam"}}
 
-        with patch.object(plugin, "_get_ignore_list_path") as mock_path, patch(
-            "pathlib.Path.exists", return_value=True
-        ), patch("builtins.open", mock_open(read_data=json.dumps(test_data))), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "_get_ignore_list_path") as mock_path,
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(test_data))),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             mock_path.return_value = Path("test.json")
 
             plugin._load_ignore_list()
@@ -85,11 +89,12 @@ class TestTelegramPluginComprehensive:
         """Test _load_ignore_list handles JSON decode error."""
         plugin = TelegramPlugin()
 
-        with patch.object(plugin, "_get_ignore_list_path") as mock_path, patch(
-            "pathlib.Path.exists", return_value=True
-        ), patch("builtins.open", mock_open(read_data="invalid json")), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "_get_ignore_list_path") as mock_path,
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data="invalid json")),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             mock_path.return_value = Path("test.json")
 
             plugin._load_ignore_list()
@@ -103,9 +108,10 @@ class TestTelegramPluginComprehensive:
         """Test reload_ignore_list calls _load_ignore_list."""
         plugin = TelegramPlugin()
 
-        with patch.object(plugin, "_load_ignore_list") as mock_load, patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "_load_ignore_list") as mock_load,
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             plugin.reload_ignore_list()
 
             mock_load.assert_called_once()
@@ -116,9 +122,10 @@ class TestTelegramPluginComprehensive:
         plugin = TelegramPlugin()
         plugin.ignored_bots = {"123": {"username": "testbot", "reason": "spam"}}
 
-        with patch.object(plugin, "reload_ignore_list"), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "reload_ignore_list"),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             result = plugin.is_bot_ignored("123", "testbot")
 
             assert result is True
@@ -129,9 +136,10 @@ class TestTelegramPluginComprehensive:
         plugin = TelegramPlugin()
         plugin.ignored_bots = {"456": {"username": "testbot", "reason": "spam"}}
 
-        with patch.object(plugin, "reload_ignore_list"), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "reload_ignore_list"),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             result = plugin.is_bot_ignored("789", "testbot")
 
             assert result is True
@@ -144,9 +152,10 @@ class TestTelegramPluginComprehensive:
         plugin = TelegramPlugin()
         plugin.ignored_bots = {"456": {"username": "testbot", "reason": "spam"}}
 
-        with patch.object(plugin, "reload_ignore_list"), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "reload_ignore_list"),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             result = plugin.is_bot_ignored("789", "@testbot")
 
             assert result is True
@@ -159,9 +168,10 @@ class TestTelegramPluginComprehensive:
         plugin = TelegramPlugin()
         plugin.ignored_bots = {"456": {"username": "TestBot", "reason": "spam"}}
 
-        with patch.object(plugin, "reload_ignore_list"), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "reload_ignore_list"),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             result = plugin.is_bot_ignored("789", "testbot")
 
             assert result is True
@@ -174,9 +184,10 @@ class TestTelegramPluginComprehensive:
         plugin = TelegramPlugin()
         plugin.ignored_bots = {"456": {"username": "otherbot", "reason": "spam"}}
 
-        with patch.object(plugin, "reload_ignore_list"), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "reload_ignore_list"),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             result = plugin.is_bot_ignored("789", "testbot")
 
             assert result is False
@@ -187,9 +198,10 @@ class TestTelegramPluginComprehensive:
         plugin = TelegramPlugin()
         plugin.ignored_bots = {"456": {"username": "otherbot", "reason": "spam"}}
 
-        with patch.object(plugin, "reload_ignore_list"), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "reload_ignore_list"),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             result = plugin.is_bot_ignored("789")
 
             assert result is False
@@ -253,11 +265,13 @@ class TestTelegramPluginComprehensive:
         mock_profile.platform_user_id = "invalid"
         mock_profile.username = "testuser"
 
-        with patch(
-            "database.operations.messages.update_message_status", new_callable=AsyncMock
-        ) as mock_update, patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch(
+                "database.operations.messages.update_message_status",
+                new_callable=AsyncMock,
+            ) as mock_update,
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             await plugin._handle_response("Test response", mock_profile, 1)
 
             mock_logger.error.assert_called_with(
@@ -290,9 +304,13 @@ class TestTelegramPluginComprehensive:
         )
         plugin.client = mock_client
 
-        with patch(
-            "database.operations.messages.update_message_status", new_callable=AsyncMock
-        ), patch("plugins.telegram.telegram_plugin.logger") as mock_logger:
+        with (
+            patch(
+                "database.operations.messages.update_message_status",
+                new_callable=AsyncMock,
+            ),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             await plugin._handle_response("Test response", mock_profile, 1)
 
             assert mock_client.send_message.call_count == 2
@@ -317,11 +335,13 @@ class TestTelegramPluginComprehensive:
         mock_client.action.side_effect = Exception("Connection error")
         plugin.client = mock_client
 
-        with patch(
-            "database.operations.messages.update_message_status", new_callable=AsyncMock
-        ) as mock_update, patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch(
+                "database.operations.messages.update_message_status",
+                new_callable=AsyncMock,
+            ) as mock_update,
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             with pytest.raises(Exception, match="Connection error"):
                 await plugin._handle_response("Test response", mock_profile, 1)
 
@@ -353,11 +373,10 @@ class TestTelegramPluginComprehensive:
         """Test get_settings handles exceptions."""
         plugin = TelegramPlugin()
 
-        with patch(
-            "plugins.telegram.settings.TelegramSettings"
-        ) as mock_settings_class, patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch("plugins.telegram.settings.TelegramSettings") as mock_settings_class,
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             mock_settings_class.from_env.side_effect = Exception("Settings error")
 
             result = plugin.get_settings()
@@ -438,9 +457,10 @@ class TestTelegramPluginComprehensive:
         """Test start returns early when no settings."""
         plugin = TelegramPlugin()
 
-        with patch.object(plugin, "get_settings", return_value=None), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "get_settings", return_value=None),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             await plugin.start()
 
             mock_logger.warning.assert_called_with(
@@ -458,15 +478,15 @@ class TestTelegramPluginComprehensive:
         mock_settings.api_hash = "abc"
         plugin.settings = mock_settings
 
-        with patch.object(
-            plugin, "get_settings", return_value={"api_id": "123"}
-        ), patch(
-            "telethon.TelegramClient", side_effect=ImportError("telethon not available")
-        ), patch(
-            "telethon.sessions.StringSession"
-        ), patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch.object(plugin, "get_settings", return_value={"api_id": "123"}),
+            patch(
+                "telethon.TelegramClient",
+                side_effect=ImportError("telethon not available"),
+            ),
+            patch("telethon.sessions.StringSession"),
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             with pytest.raises(ImportError, match="telethon not available"):
                 await plugin.start()
 
@@ -547,9 +567,10 @@ class TestTelegramPluginComprehensive:
         mock_settings = MagicMock()
         plugin.settings = mock_settings
 
-        with patch("plugins.telegram.settings.MessageMode") as mock_mode_class, patch(
-            "plugins.telegram.telegram_plugin.logger"
-        ) as mock_logger:
+        with (
+            patch("plugins.telegram.settings.MessageMode") as mock_mode_class,
+            patch("plugins.telegram.telegram_plugin.logger") as mock_logger,
+        ):
             mock_mode_instance = MagicMock()
             mock_mode_instance.name = "ECHO"
             mock_mode_class.return_value = mock_mode_instance

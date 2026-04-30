@@ -31,9 +31,10 @@ class TestQtoolFunctions:
         args = MagicMock()
         args.json = True
 
-        with patch(
-            "cli.qtool.get_all_queue_items", new_callable=AsyncMock
-        ) as mock_get, patch("cli.qtool.print_json") as mock_print_json:
+        with (
+            patch("cli.qtool.get_all_queue_items", new_callable=AsyncMock) as mock_get,
+            patch("cli.qtool.print_json") as mock_print_json,
+        ):
             mock_get.return_value = mock_items
             await list_queue(args)
 
@@ -50,9 +51,10 @@ class TestQtoolFunctions:
         args = MagicMock()
         args.json = False
 
-        with patch(
-            "cli.qtool.get_all_queue_items", new_callable=AsyncMock
-        ) as mock_get, patch("cli.qtool.print_queue_items") as mock_print_table:
+        with (
+            patch("cli.qtool.get_all_queue_items", new_callable=AsyncMock) as mock_get,
+            patch("cli.qtool.print_queue_items") as mock_print_table,
+        ):
             mock_get.return_value = mock_items
             await list_queue(args)
 
@@ -65,9 +67,12 @@ class TestQtoolFunctions:
         args.all = True
         args.id = None
 
-        with patch(
-            "cli.qtool.flush_all_queue_items", new_callable=AsyncMock
-        ) as mock_flush, patch("builtins.print") as mock_print:
+        with (
+            patch(
+                "cli.qtool.flush_all_queue_items", new_callable=AsyncMock
+            ) as mock_flush,
+            patch("builtins.print") as mock_print,
+        ):
             mock_flush.return_value = True
             await flush_queue(args)
 
@@ -81,11 +86,13 @@ class TestQtoolFunctions:
         args.all = True
         args.id = None
 
-        with patch(
-            "cli.qtool.flush_all_queue_items", new_callable=AsyncMock
-        ) as mock_flush, patch("builtins.print") as mock_print, patch(
-            "sys.exit"
-        ) as mock_exit:
+        with (
+            patch(
+                "cli.qtool.flush_all_queue_items", new_callable=AsyncMock
+            ) as mock_flush,
+            patch("builtins.print") as mock_print,
+            patch("sys.exit") as mock_exit,
+        ):
             mock_flush.return_value = False
             await flush_queue(args)
 
@@ -102,9 +109,10 @@ class TestQtoolFunctions:
         args.all = False
         args.id = "123"
 
-        with patch(
-            "cli.qtool.delete_queue_item", new_callable=AsyncMock
-        ) as mock_delete, patch("builtins.print") as mock_print:
+        with (
+            patch("cli.qtool.delete_queue_item", new_callable=AsyncMock) as mock_delete,
+            patch("builtins.print") as mock_print,
+        ):
             mock_delete.return_value = True
             await flush_queue(args)
 
@@ -118,11 +126,11 @@ class TestQtoolFunctions:
         args.all = False
         args.id = "123"
 
-        with patch(
-            "cli.qtool.delete_queue_item", new_callable=AsyncMock
-        ) as mock_delete, patch("builtins.print") as mock_print, patch(
-            "sys.exit"
-        ) as mock_exit:
+        with (
+            patch("cli.qtool.delete_queue_item", new_callable=AsyncMock) as mock_delete,
+            patch("builtins.print") as mock_print,
+            patch("sys.exit") as mock_exit,
+        ):
             mock_delete.return_value = False
             await flush_queue(args)
 
@@ -141,13 +149,11 @@ class TestQtoolFunctions:
         args.all = True
         args.id = None
 
-        with patch(
-            "cli.qtool.get_all_queue_items", new_callable=AsyncMock
-        ) as mock_get, patch(
-            "cli.qtool.delete_queue_item", new_callable=AsyncMock
-        ) as mock_delete, patch(
-            "builtins.print"
-        ) as mock_print:
+        with (
+            patch("cli.qtool.get_all_queue_items", new_callable=AsyncMock) as mock_get,
+            patch("cli.qtool.delete_queue_item", new_callable=AsyncMock) as mock_delete,
+            patch("builtins.print") as mock_print,
+        ):
             mock_get.return_value = mock_items
             mock_delete.return_value = True
 
@@ -165,15 +171,12 @@ class TestQtoolFunctions:
         args.all = True
         args.id = None
 
-        with patch(
-            "cli.qtool.get_all_queue_items", new_callable=AsyncMock
-        ) as mock_get, patch(
-            "cli.qtool.delete_queue_item", new_callable=AsyncMock
-        ) as mock_delete, patch(
-            "builtins.print"
-        ) as mock_print, patch(
-            "sys.exit"
-        ) as mock_exit:
+        with (
+            patch("cli.qtool.get_all_queue_items", new_callable=AsyncMock) as mock_get,
+            patch("cli.qtool.delete_queue_item", new_callable=AsyncMock) as mock_delete,
+            patch("builtins.print") as mock_print,
+            patch("sys.exit") as mock_exit,
+        ):
             mock_get.return_value = mock_items
             mock_delete.side_effect = [True, False]  # First succeeds, second fails
 
@@ -191,9 +194,10 @@ class TestQtoolFunctions:
         args.all = False
         args.id = "123"
 
-        with patch(
-            "cli.qtool.delete_queue_item", new_callable=AsyncMock
-        ) as mock_delete, patch("builtins.print") as mock_print:
+        with (
+            patch("cli.qtool.delete_queue_item", new_callable=AsyncMock) as mock_delete,
+            patch("builtins.print") as mock_print,
+        ):
             mock_delete.return_value = True
             await delete_queue(args)
 
@@ -207,11 +211,11 @@ class TestQtoolFunctions:
         args.all = False
         args.id = "123"
 
-        with patch(
-            "cli.qtool.delete_queue_item", new_callable=AsyncMock
-        ) as mock_delete, patch("builtins.print") as mock_print, patch(
-            "sys.exit"
-        ) as mock_exit:
+        with (
+            patch("cli.qtool.delete_queue_item", new_callable=AsyncMock) as mock_delete,
+            patch("builtins.print") as mock_print,
+            patch("sys.exit") as mock_exit,
+        ):
             mock_delete.return_value = False
             await delete_queue(args)
 
@@ -267,25 +271,31 @@ class TestQtoolFunctions:
 
     def test_main_list_command(self):
         """Test main function with list command."""
-        with patch("sys.argv", ["qtool", "list"]), patch(
-            "cli.qtool.list_queue", new_callable=AsyncMock
-        ), patch("asyncio.run") as mock_run:
+        with (
+            patch("sys.argv", ["qtool", "list"]),
+            patch("cli.qtool.list_queue", new_callable=AsyncMock),
+            patch("asyncio.run") as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
 
     def test_main_flush_command(self):
         """Test main function with flush command."""
-        with patch("sys.argv", ["qtool", "flush", "--all"]), patch(
-            "cli.qtool.flush_queue", new_callable=AsyncMock
-        ), patch("asyncio.run") as mock_run:
+        with (
+            patch("sys.argv", ["qtool", "flush", "--all"]),
+            patch("cli.qtool.flush_queue", new_callable=AsyncMock),
+            patch("asyncio.run") as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
 
     def test_main_delete_command(self):
         """Test main function with delete command."""
-        with patch("sys.argv", ["qtool", "delete", "--all"]), patch(
-            "cli.qtool.delete_queue", new_callable=AsyncMock
-        ), patch("asyncio.run") as mock_run:
+        with (
+            patch("sys.argv", ["qtool", "delete", "--all"]),
+            patch("cli.qtool.delete_queue", new_callable=AsyncMock),
+            patch("asyncio.run") as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
 

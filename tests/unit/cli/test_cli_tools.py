@@ -68,7 +68,7 @@ def test_btool_commands():
         with patch("cli.btool.list_bots"):
             try:
                 btool_main()
-            except:
+            except Exception:
                 pass
 
 
@@ -79,7 +79,7 @@ def test_qtool_commands():
         with patch("cli.qtool.print_queue_items"):
             try:
                 qtool_main()
-            except:
+            except (Exception, SystemExit):
                 pass
 
 
@@ -90,7 +90,7 @@ def test_utool_commands():
         with patch("cli.utool.list_users"):
             try:
                 utool_main()
-            except:
+            except Exception:
                 pass
 
 
@@ -101,7 +101,7 @@ def test_ctool_commands():
         with patch("cli.ctool.list_conversations"):
             try:
                 ctool_main()
-            except:
+            except Exception:
                 pass
 
 
@@ -112,5 +112,5 @@ def test_settings_commands():
         with patch("cli.settings.get_settings"):
             try:
                 settings_main()
-            except:
+            except (Exception, SystemExit):
                 pass

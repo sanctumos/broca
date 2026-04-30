@@ -84,9 +84,12 @@ async def test_queue_echo_mode_processes_item_and_updates_db(
     async def noop_processor(msg: str) -> str:
         return msg
 
-    with patch.dict(
-        "os.environ", {"AGENT_ID": "integration-queueflow-echo"}, clear=False
-    ), patch("runtime.core.queue.get_letta_client", return_value=mock_client):
+    with (
+        patch.dict(
+            "os.environ", {"AGENT_ID": "integration-queueflow-echo"}, clear=False
+        ),
+        patch("runtime.core.queue.get_letta_client", return_value=mock_client),
+    ):
         processor = QueueProcessor(
             message_processor=noop_processor,
             message_mode="echo",
@@ -131,9 +134,12 @@ async def test_queue_processor_start_stops_gracefully(seeded_queue_item):
     async def noop_processor(msg: str) -> str:
         return msg
 
-    with patch.dict(
-        "os.environ", {"AGENT_ID": "integration-queueflow-startstop"}, clear=False
-    ), patch("runtime.core.queue.get_letta_client", return_value=mock_client):
+    with (
+        patch.dict(
+            "os.environ", {"AGENT_ID": "integration-queueflow-startstop"}, clear=False
+        ),
+        patch("runtime.core.queue.get_letta_client", return_value=mock_client),
+    ):
         processor = QueueProcessor(
             message_processor=noop_processor,
             message_mode="echo",
@@ -215,11 +221,14 @@ async def test_queue_flow_with_message_containing_image_addendum(temp_db: str):
     async def echo_processor(msg: str) -> str:
         return msg
 
-    with patch("runtime.core.queue.get_letta_client", return_value=mock_client), patch(
-        "runtime.core.queue.get_env_var",
-        side_effect=lambda n, **kw: "test-agent-id"
-        if n == "AGENT_ID"
-        else kw.get("default"),
+    with (
+        patch("runtime.core.queue.get_letta_client", return_value=mock_client),
+        patch(
+            "runtime.core.queue.get_env_var",
+            side_effect=lambda n, **kw: (
+                "test-agent-id" if n == "AGENT_ID" else kw.get("default")
+            ),
+        ),
     ):
         processor = QueueProcessor(
             message_processor=echo_processor,

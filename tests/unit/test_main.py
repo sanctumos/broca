@@ -11,11 +11,13 @@ import main
 @pytest.mark.unit
 def test_main_function():
     """Test main function."""
-    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
-        "main.Application"
-    ) as mock_app_class, patch("asyncio.run") as mock_run, patch("main.logger"), patch(
-        "sys.exit"
-    ) as mock_exit:
+    with (
+        patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}),
+        patch("main.Application") as mock_app_class,
+        patch("asyncio.run") as mock_run,
+        patch("main.logger"),
+        patch("sys.exit") as mock_exit,
+    ):
         mock_app = MagicMock()
         mock_app_class.return_value = mock_app
 
@@ -32,22 +34,22 @@ def test_main_function():
 @pytest.mark.unit
 def test_main_function_exception():
     """Test main function exception handling."""
-    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
-        "main.Application"
-    ) as mock_app_class, patch(
-        "asyncio.run", side_effect=Exception("Test error")
-    ), patch(
-        "main.logger"
-    ) as mock_logger, patch(
-        "sys.exit"
-    ) as mock_exit:
+    with (
+        patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}),
+        patch("main.Application") as mock_app_class,
+        patch("asyncio.run", side_effect=Exception("Test error")),
+        patch("main.logger") as mock_logger,
+        patch("sys.exit") as mock_exit,
+    ):
         mock_app = MagicMock()
         mock_app_class.return_value = mock_app
 
         main.main()
 
         # The exception is caught in the finally block during cleanup
-        mock_logger.error.assert_called_with("❌ Error during final cleanup: Test error")
+        mock_logger.error.assert_called_with(
+            "❌ Error during final cleanup: Test error"
+        )
         mock_exit.assert_called_with(0)
 
 
@@ -140,9 +142,12 @@ def test_create_default_settings_logging(tmp_path, monkeypatch):
 @pytest.mark.unit
 def test_application_init():
     """Test Application class initialization."""
-    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
-        "main.QueueProcessor"
-    ), patch("main.PluginManager"), patch("main.AgentClient"):
+    with (
+        patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}),
+        patch("main.QueueProcessor"),
+        patch("main.PluginManager"),
+        patch("main.AgentClient"),
+    ):
         app = main.Application()
 
         assert app.queue_processor is not None
@@ -156,9 +161,10 @@ def test_application_init():
 @pytest.mark.asyncio
 async def test_application_start():
     """Test Application start method."""
-    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
-        "main.Application"
-    ) as mock_app_class:
+    with (
+        patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}),
+        patch("main.Application") as mock_app_class,
+    ):
         mock_app = MagicMock()
         mock_app.start = AsyncMock()
         mock_app_class.return_value = mock_app
@@ -173,9 +179,10 @@ async def test_application_start():
 @pytest.mark.asyncio
 async def test_application_stop():
     """Test Application stop method."""
-    with patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}), patch(
-        "main.Application"
-    ) as mock_app_class:
+    with (
+        patch.dict(os.environ, {"AGENT_ID": "test-agent-123"}),
+        patch("main.Application") as mock_app_class,
+    ):
         mock_app = MagicMock()
         mock_app.stop = AsyncMock()
         mock_app_class.return_value = mock_app

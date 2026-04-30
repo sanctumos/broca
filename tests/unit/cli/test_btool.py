@@ -33,9 +33,11 @@ class TestBtoolFunctions:
             "bot2": {"id": "456", "username": "testbot2"},
         }
 
-        with patch("cli.btool.get_ignore_list_path") as mock_path, patch(
-            "builtins.open", mock_open(read_data=json.dumps(mock_data))
-        ), patch("pathlib.Path.exists", return_value=True):
+        with (
+            patch("cli.btool.get_ignore_list_path") as mock_path,
+            patch("builtins.open", mock_open(read_data=json.dumps(mock_data))),
+            patch("pathlib.Path.exists", return_value=True),
+        ):
             mock_path.return_value = Path("test.json")
             result = load_ignore_list()
 
@@ -43,8 +45,9 @@ class TestBtoolFunctions:
 
     def test_load_ignore_list_file_not_exists(self):
         """Test loading ignore list when file doesn't exist."""
-        with patch("cli.btool.get_ignore_list_path") as mock_path, patch(
-            "pathlib.Path.exists", return_value=False
+        with (
+            patch("cli.btool.get_ignore_list_path") as mock_path,
+            patch("pathlib.Path.exists", return_value=False),
         ):
             mock_path.return_value = Path("test.json")
             result = load_ignore_list()
@@ -53,11 +56,12 @@ class TestBtoolFunctions:
 
     def test_load_ignore_list_json_decode_error(self):
         """Test loading ignore list with JSON decode error."""
-        with patch("cli.btool.get_ignore_list_path") as mock_path, patch(
-            "builtins.open", mock_open(read_data="invalid json")
-        ), patch("pathlib.Path.exists", return_value=True), patch(
-            "cli.btool.logger"
-        ) as mock_logger:
+        with (
+            patch("cli.btool.get_ignore_list_path") as mock_path,
+            patch("builtins.open", mock_open(read_data="invalid json")),
+            patch("pathlib.Path.exists", return_value=True),
+            patch("cli.btool.logger") as mock_logger,
+        ):
             mock_path.return_value = Path("test.json")
             result = load_ignore_list()
 
@@ -73,9 +77,10 @@ class TestBtoolFunctions:
             "bot2": {"id": "456", "username": "testbot2"},
         }
 
-        with patch("cli.btool.get_ignore_list_path") as mock_path, patch(
-            "builtins.open", mock_open()
-        ) as mock_file:
+        with (
+            patch("cli.btool.get_ignore_list_path") as mock_path,
+            patch("builtins.open", mock_open()) as mock_file,
+        ):
             mock_path.return_value = Path("test.json")
             save_ignore_list(mock_data)
 
@@ -89,9 +94,10 @@ class TestBtoolFunctions:
         """Test adding new bot to ignore list."""
         existing_data = {"bot1": {"id": "123", "username": "testbot1"}}
 
-        with patch("cli.btool.load_ignore_list", return_value=existing_data), patch(
-            "cli.btool.save_ignore_list"
-        ) as mock_save:
+        with (
+            patch("cli.btool.load_ignore_list", return_value=existing_data),
+            patch("cli.btool.save_ignore_list") as mock_save,
+        ):
             add_bot("testbot2", "456")
 
         expected_data = {
@@ -104,9 +110,10 @@ class TestBtoolFunctions:
         """Test adding existing bot to ignore list."""
         existing_data = {"123": {"username": "bot1"}}
 
-        with patch("cli.btool.load_ignore_list", return_value=existing_data), patch(
-            "cli.btool.save_ignore_list"
-        ) as mock_save:
+        with (
+            patch("cli.btool.load_ignore_list", return_value=existing_data),
+            patch("cli.btool.save_ignore_list") as mock_save,
+        ):
             add_bot("bot1", "456")
 
             expected_data = {"456": {"username": "bot1"}}
@@ -119,9 +126,10 @@ class TestBtoolFunctions:
             "bot2": {"id": "456", "username": "testbot2"},
         }
 
-        with patch("cli.btool.load_ignore_list", return_value=existing_data), patch(
-            "cli.btool.save_ignore_list"
-        ) as mock_save:
+        with (
+            patch("cli.btool.load_ignore_list", return_value=existing_data),
+            patch("cli.btool.save_ignore_list") as mock_save,
+        ):
             remove_bot("bot1")
 
             expected_data = {"bot2": {"id": "456", "username": "testbot2"}}
@@ -131,9 +139,10 @@ class TestBtoolFunctions:
         """Test removing non-existent bot from ignore list."""
         existing_data = {"bot1": {"id": "123", "username": "testbot1"}}
 
-        with patch("cli.btool.load_ignore_list", return_value=existing_data), patch(
-            "cli.btool.save_ignore_list"
-        ) as mock_save:
+        with (
+            patch("cli.btool.load_ignore_list", return_value=existing_data),
+            patch("cli.btool.save_ignore_list") as mock_save,
+        ):
             remove_bot("bot2")
 
             # Should not save anything since bot2 doesn't exist
@@ -146,9 +155,10 @@ class TestBtoolFunctions:
             "bot2": {"id": "456", "username": "testbot2"},
         }
 
-        with patch("cli.btool.load_ignore_list", return_value=mock_data), patch(
-            "builtins.print"
-        ) as mock_print:
+        with (
+            patch("cli.btool.load_ignore_list", return_value=mock_data),
+            patch("builtins.print") as mock_print,
+        ):
             list_bots()
 
             # Should print each bot
@@ -156,9 +166,10 @@ class TestBtoolFunctions:
 
     def test_list_bots_empty(self):
         """Test listing bots when list is empty."""
-        with patch("cli.btool.load_ignore_list", return_value={}), patch(
-            "builtins.print"
-        ) as mock_print:
+        with (
+            patch("cli.btool.load_ignore_list", return_value={}),
+            patch("builtins.print") as mock_print,
+        ):
             list_bots()
 
             # Should print "No ignored bots"
@@ -166,24 +177,27 @@ class TestBtoolFunctions:
 
     def test_main_add_command(self):
         """Test main function with add command."""
-        with patch("cli.btool.add_bot") as mock_add, patch(
-            "sys.argv", ["btool.py", "add", "testbot", "--id", "123"]
+        with (
+            patch("cli.btool.add_bot") as mock_add,
+            patch("sys.argv", ["btool.py", "add", "testbot", "--id", "123"]),
         ):
             main()
             mock_add.assert_called_once_with("testbot", "123")
 
     def test_main_remove_command(self):
         """Test main function with remove command."""
-        with patch("cli.btool.remove_bot") as mock_remove, patch(
-            "sys.argv", ["btool.py", "remove", "testbot"]
+        with (
+            patch("cli.btool.remove_bot") as mock_remove,
+            patch("sys.argv", ["btool.py", "remove", "testbot"]),
         ):
             main()
             mock_remove.assert_called_once_with("testbot")
 
     def test_main_list_command(self):
         """Test main function with list command."""
-        with patch("cli.btool.list_bots") as mock_list, patch(
-            "sys.argv", ["btool.py", "list"]
+        with (
+            patch("cli.btool.list_bots") as mock_list,
+            patch("sys.argv", ["btool.py", "list"]),
         ):
             main()
             mock_list.assert_called_once()
