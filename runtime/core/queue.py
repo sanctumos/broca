@@ -247,18 +247,34 @@ class QueueProcessor:
                         ),
                         timeout=timeout_seconds,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error(
                         f"Message processing timed out after {timeout_seconds}s"
                     )
-                    await update_queue_status(queue_item.id, "failed")
+                    try:
+                        await update_queue_status(queue_item.id, "failed")
+                    except Exception as upd_exc:
+                        logger.error(
+                            "Failed to persist queue status=failed after outer timeout "
+                            "(item %s): %s — not requeuing Letta turn anyway.",
+                            queue_item.id,
+                            upd_exc,
+                        )
                     logger.warning(
                         "MESSAGE_PROCESS_TIMEOUT elapsed while agent work may still run "
                         "upstream; marking failed without requeue."
                     )
                     return
                 except AgentTurnTimeoutInFlight as exc:
-                    await update_queue_status(queue_item.id, "failed")
+                    try:
+                        await update_queue_status(queue_item.id, "failed")
+                    except Exception as upd_exc:
+                        logger.error(
+                            "Failed to persist queue status=failed after in-flight timeout "
+                            "(item %s): %s — not requeuing Letta turn anyway.",
+                            queue_item.id,
+                            upd_exc,
+                        )
                     logger.warning(
                         "Agent turn timed out in flight (%s); marking failed without requeue.",
                         exc,
@@ -288,6 +304,25 @@ class QueueProcessor:
                 await requeue_failed_item(queue_item.id)
                 logger.warning(
                     "No response received from agent - Message processing failed"
+                )
+
+        except AgentTurnTimeoutInFlight as exc:
+            # Belt-and-suspenders: should normally be caught around wait_for; if it
+            # escapes from an unexpected await, never treat as a generic retryable error.
+            logger.warning(
+                "AgentTurnTimeoutInFlight on queue item %s outside inner handler: %s; "
+                "marking failed without requeue.",
+                queue_item.id,
+                exc,
+            )
+            try:
+                await update_queue_status(queue_item.id, "failed")
+            except Exception as upd_exc:
+                logger.error(
+                    "Failed to persist queue status=failed (item %s): %s — "
+                    "not requeuing Letta turn anyway.",
+                    queue_item.id,
+                    upd_exc,
                 )
 
         except Exception as e:
