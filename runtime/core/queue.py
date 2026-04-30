@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from common.config import get_env_var
+from common.exceptions import AgentTurnTimeoutInFlight
 from database.operations.messages import (
     get_message_platform_profile,
     get_message_text,
@@ -133,6 +134,23 @@ class QueueProcessor:
 
             return response, "completed"
 
+        except AgentTurnTimeoutInFlight:
+            try:
+                logger.info(
+                    f"Cleaning up: Detaching core block {block_id[:8]}... from agent"
+                )
+                await asyncio.to_thread(
+                    self.letta_client.agents.blocks.detach,
+                    block_id,
+                    agent_id=self.agent_id,
+                )
+                logger.info("Core block successfully detached")
+            except Exception as detach_error:
+                logger.error(
+                    f"Failed to detach core block after in-flight timeout: {str(detach_error)}"
+                )
+            raise
+
         except Exception as e:
             logger.error(f"Error during message processing: {str(e)}")
             # Try to detach core block even if there was an error
@@ -233,7 +251,19 @@ class QueueProcessor:
                     logger.error(
                         f"Message processing timed out after {timeout_seconds}s"
                     )
-                    response, status = None, "failed"
+                    await update_queue_status(queue_item.id, "failed")
+                    logger.warning(
+                        "MESSAGE_PROCESS_TIMEOUT elapsed while agent work may still run "
+                        "upstream; marking failed without requeue."
+                    )
+                    return
+                except AgentTurnTimeoutInFlight as exc:
+                    await update_queue_status(queue_item.id, "failed")
+                    logger.warning(
+                        "Agent turn timed out in flight (%s); marking failed without requeue.",
+                        exc,
+                    )
+                    return
 
             if response:
                 # Update message and queue status

@@ -23,6 +23,7 @@ import re
 import uuid
 
 from common.config import get_env_var
+from common.exceptions import AgentTurnTimeoutInFlight
 from common.logging import setup_logging
 from common.retry import (
     CircuitBreaker,
@@ -474,10 +475,17 @@ class AgentClient:
             logger.error("Stream processing timed out after %s seconds", max_wait)
             logger.info("Attempting fallback to create_async method")
             try:
-                return await self._fallback_to_async(message, sender_id)
+                fb = await self._fallback_to_async(message, sender_id)
             except Exception as fallback_error:
                 logger.error("Fallback method also failed: %s", str(fallback_error))
-                return None
+                fb = None
+            # None only: empty string is a completed "no text" turn → let queue requeue.
+            if fb is not None:
+                return fb
+            raise AgentTurnTimeoutInFlight(
+                f"Letta stream exceeded LONG_TASK_MAX_WAIT={max_wait}s and fallback "
+                "did not return a response (inference/tools may still be in flight)"
+            )
         except Exception as e:
             logger.error("Error processing message with streaming: %s", str(e))
             err_lower = str(e).lower()

@@ -170,6 +170,21 @@ class ValidationError(BrocaError):
         super().__init__(message, context, recoverable)
 
 
+class AgentTurnTimeoutInFlight(BrocaError):
+    """Raised when a Letta/agent turn hit a wall-clock wait limit while upstream work may still run.
+
+    The queue must not requeue in this case: doing so would POST the same user turn again
+    and duplicate inference. Prefer ``failed`` (or operator follow-up) instead.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        context: dict[str, Any] | None = None,
+    ):
+        super().__init__(message, context, recoverable=False)
+
+
 class NetworkError(BrocaError):
     """Exception raised for network/API errors.
     

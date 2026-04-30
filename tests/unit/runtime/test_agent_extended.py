@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from common.exceptions import AgentTurnTimeoutInFlight
 from runtime.core.agent import AgentClient
 
 
@@ -272,11 +273,16 @@ class TestAgentClientExtended:
 
             def mock_stream_generator():
                 mock_event = MagicMock()
+                # Avoid MagicMock truthiness / equality surprises on message_type, id, content.
+                mock_event.message_type = "user_message"
+                mock_event.id = None
+                mock_event.content = None
                 mock_event.conversation_id = None
                 mock_event.conversation = None
                 mock_event.run = None
                 mock_event.data = None
                 mock_event.messages = None
+                mock_event.message_id = None
                 yield mock_event
 
             mock_client.agents.messages.create.return_value = mock_stream_generator()
@@ -319,6 +325,39 @@ class TestAgentClientExtended:
                 result = await agent.process_message_async("Test message")
 
                 assert result == "Fallback response"
+
+    @patch("runtime.core.agent.get_env_var")
+    @pytest.mark.asyncio
+    async def test_agent_client_process_message_async_timeout_no_requeue_when_fallback_empty(
+        self, mock_get_env_var
+    ):
+        """Stream wall-clock timeout with empty fallback raises AgentTurnTimeoutInFlight."""
+        mock_get_env_var.side_effect = (
+            lambda key, default=None, required=False, cast_type=None: {
+                "DEBUG_MODE": False,
+                "AGENT_ID": "test-agent",
+                "LONG_TASK_MAX_WAIT": "1",
+            }.get(key, default)
+        )
+
+        with patch("runtime.core.agent.get_letta_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_get_client.return_value = mock_client
+
+            def slow_stream():
+                while True:
+                    time.sleep(2)
+                    yield MagicMock()
+
+            mock_client.agents.messages.create.return_value = slow_stream()
+
+            with patch.object(
+                AgentClient, "_fallback_to_async", new_callable=AsyncMock
+            ) as mock_fallback:
+                mock_fallback.return_value = None
+                agent = AgentClient()
+                with pytest.raises(AgentTurnTimeoutInFlight):
+                    await agent.process_message_async("Test message")
 
     @patch("runtime.core.agent.get_env_var")
     @pytest.mark.asyncio
