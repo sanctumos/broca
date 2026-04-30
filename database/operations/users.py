@@ -311,8 +311,7 @@ async def get_all_users() -> list[dict[str, Any]]:
         List[Dict[str, Any]]: List of user records with associated profile data.
     """
     async with get_pool().connection() as db:
-        async with db.execute(
-            """
+        async with db.execute("""
             SELECT
                 lu.id, lu.created_at, lu.last_active, lu.letta_identity_id,
                 lu.agent_preferences, lu.custom_instructions,
@@ -320,8 +319,7 @@ async def get_all_users() -> list[dict[str, Any]]:
                 pp.username, pp.display_name, pp.platform
             FROM letta_users lu
             LEFT JOIN platform_profiles pp ON lu.id = pp.letta_user_id
-        """
-        ) as cursor:
+        """) as cursor:
             rows = await cursor.fetchall()
             return [
                 {

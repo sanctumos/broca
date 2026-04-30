@@ -9,7 +9,6 @@ This module contains unit tests for:
 - settings.py (Settings management)
 """
 
-
 import pytest
 import pytest_asyncio
 

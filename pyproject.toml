@@ -13,6 +13,7 @@ extend-exclude = '''
     | build
     | dist
     | __pycache__
+    | settings\.json
 )/
 '''
 

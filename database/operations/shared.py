@@ -65,13 +65,14 @@ logger = logging.getLogger(__name__)
 async def initialize_database():
     """Safely initialize the database by creating tables if they don't exist.
     This function will never drop or modify existing data.
-    
+
     Note: Uses direct connection (not pool) since this is called during initialization
     before the pool is ready.
     """
     try:
         # Use direct connection for initialization (pool may not be ready yet)
         import aiosqlite
+
         async with aiosqlite.connect(get_db_path()) as db:
             # Enable foreign keys
             await db.execute("PRAGMA foreign_keys = ON")
@@ -123,13 +124,11 @@ async def get_dashboard_stats() -> dict:
             stats["message_count"] = (await cursor.fetchone())[0]
 
         # Get queue stats
-        async with db.execute(
-            """
+        async with db.execute("""
             SELECT status, COUNT(*)
             FROM queue
             GROUP BY status
-        """
-        ) as cursor:
+        """) as cursor:
             queue_stats = await cursor.fetchall()
             stats["queue_stats"] = {row[0]: row[1] for row in queue_stats}
 

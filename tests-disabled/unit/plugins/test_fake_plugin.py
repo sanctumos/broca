@@ -1,6 +1,5 @@
 """Unit tests for fake plugin."""
 
-
 import pytest
 
 from plugins.fake_plugin.plugin import FakePlugin

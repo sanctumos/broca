@@ -45,17 +45,23 @@ class TestWebChatMessageHandler:
         mock_platform_profile = Mock()
         mock_platform_profile.id = 2
 
-        with patch(
-            "plugins.web_chat.message_handler.get_or_create_letta_user",
-            new_callable=AsyncMock,
-        ) as mock_get_user, patch(
-            "plugins.web_chat.message_handler.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch(
-            "plugins.web_chat.message_handler.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
-        ) as mock_add_queue:
+        with (
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_letta_user",
+                new_callable=AsyncMock,
+            ) as mock_get_user,
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch(
+                "plugins.web_chat.message_handler.insert_message",
+                new_callable=AsyncMock,
+            ) as mock_insert,
+            patch(
+                "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+            ) as mock_add_queue,
+        ):
             mock_get_user.return_value = mock_letta_user
             mock_get_profile.return_value = (mock_platform_profile, mock_letta_user)
             mock_insert.return_value = 123
@@ -128,16 +134,22 @@ class TestWebChatMessageHandler:
         mock_platform_profile = Mock()
         mock_platform_profile.id = 2
 
-        with patch(
-            "plugins.web_chat.message_handler.get_or_create_letta_user",
-            new_callable=AsyncMock,
-        ) as mock_get_user, patch(
-            "plugins.web_chat.message_handler.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch(
-            "plugins.web_chat.message_handler.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_letta_user",
+                new_callable=AsyncMock,
+            ) as mock_get_user,
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch(
+                "plugins.web_chat.message_handler.insert_message",
+                new_callable=AsyncMock,
+            ) as mock_insert,
+            patch(
+                "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+            ),
         ):
             mock_get_user.return_value = mock_letta_user
             mock_get_profile.return_value = (mock_platform_profile, mock_letta_user)
@@ -164,16 +176,22 @@ class TestWebChatMessageHandler:
         mock_platform_profile = Mock()
         mock_platform_profile.id = 2
 
-        with patch(
-            "plugins.web_chat.message_handler.get_or_create_letta_user",
-            new_callable=AsyncMock,
-        ) as mock_get_user, patch(
-            "plugins.web_chat.message_handler.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch(
-            "plugins.web_chat.message_handler.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_letta_user",
+                new_callable=AsyncMock,
+            ) as mock_get_user,
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch(
+                "plugins.web_chat.message_handler.insert_message",
+                new_callable=AsyncMock,
+            ) as mock_insert,
+            patch(
+                "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+            ),
         ):
             mock_get_user.return_value = mock_letta_user
             mock_get_profile.return_value = (mock_platform_profile, mock_letta_user)
@@ -201,16 +219,22 @@ class TestWebChatMessageHandler:
         mock_platform_profile = Mock()
         mock_platform_profile.id = 2
 
-        with patch(
-            "plugins.web_chat.message_handler.get_or_create_letta_user",
-            new_callable=AsyncMock,
-        ) as mock_get_user, patch(
-            "plugins.web_chat.message_handler.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch(
-            "plugins.web_chat.message_handler.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_letta_user",
+                new_callable=AsyncMock,
+            ) as mock_get_user,
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch(
+                "plugins.web_chat.message_handler.insert_message",
+                new_callable=AsyncMock,
+            ) as mock_insert,
+            patch(
+                "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+            ),
         ):
             mock_get_user.return_value = mock_letta_user
             mock_get_profile.return_value = (mock_platform_profile, mock_letta_user)
@@ -439,16 +463,22 @@ class TestWebChatMessageHandler:
         mock_platform_profile = Mock()
         mock_platform_profile.id = 2
 
-        with patch(
-            "plugins.web_chat.message_handler.get_or_create_letta_user",
-            new_callable=AsyncMock,
-        ) as mock_get_user, patch(
-            "plugins.web_chat.message_handler.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch(
-            "plugins.web_chat.message_handler.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_letta_user",
+                new_callable=AsyncMock,
+            ) as mock_get_user,
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch(
+                "plugins.web_chat.message_handler.insert_message",
+                new_callable=AsyncMock,
+            ) as mock_insert,
+            patch(
+                "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+            ),
         ):
             mock_get_user.return_value = mock_letta_user
             mock_get_profile.return_value = (mock_platform_profile, mock_letta_user)
@@ -479,16 +509,22 @@ class TestWebChatMessageHandler:
         mock_platform_profile = Mock()
         mock_platform_profile.id = 2
 
-        with patch(
-            "plugins.web_chat.message_handler.get_or_create_letta_user",
-            new_callable=AsyncMock,
-        ) as mock_get_user, patch(
-            "plugins.web_chat.message_handler.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch(
-            "plugins.web_chat.message_handler.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_letta_user",
+                new_callable=AsyncMock,
+            ) as mock_get_user,
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch(
+                "plugins.web_chat.message_handler.insert_message",
+                new_callable=AsyncMock,
+            ) as mock_insert,
+            patch(
+                "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+            ),
         ):
             mock_get_user.return_value = mock_letta_user
             mock_get_profile.return_value = (mock_platform_profile, mock_letta_user)
@@ -519,16 +555,22 @@ class TestWebChatMessageHandler:
         mock_platform_profile = Mock()
         mock_platform_profile.id = 2
 
-        with patch(
-            "plugins.web_chat.message_handler.get_or_create_letta_user",
-            new_callable=AsyncMock,
-        ) as mock_get_user, patch(
-            "plugins.web_chat.message_handler.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch(
-            "plugins.web_chat.message_handler.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_letta_user",
+                new_callable=AsyncMock,
+            ) as mock_get_user,
+            patch(
+                "plugins.web_chat.message_handler.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch(
+                "plugins.web_chat.message_handler.insert_message",
+                new_callable=AsyncMock,
+            ) as mock_insert,
+            patch(
+                "plugins.web_chat.message_handler.add_to_queue", new_callable=AsyncMock
+            ),
         ):
             mock_get_user.return_value = mock_letta_user
             mock_get_profile.return_value = (mock_platform_profile, mock_letta_user)

@@ -32,9 +32,11 @@ class TestSettingsFunctions:
             "message_mode": "test",
         }
 
-        with patch("cli.settings.SETTINGS_PATH") as mock_path, patch(
-            "pathlib.Path.exists", return_value=True
-        ), patch("builtins.open", mock_open(read_data=json.dumps(mock_settings))):
+        with (
+            patch("cli.settings.SETTINGS_PATH") as mock_path,
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(mock_settings))),
+        ):
             mock_path.return_value = Path("test.json")
             result = load_settings()
 
@@ -69,9 +71,10 @@ class TestSettingsFunctions:
         mock_path = MagicMock()
         mock_path.return_value = Path("test.json")
 
-        with patch("cli.settings.SETTINGS_PATH", mock_path), patch(
-            "builtins.open", mock_open()
-        ) as mock_file:
+        with (
+            patch("cli.settings.SETTINGS_PATH", mock_path),
+            patch("builtins.open", mock_open()) as mock_file,
+        ):
             save_settings(mock_settings)
 
             mock_file.assert_called_once_with(mock_path, "w")
@@ -106,9 +109,10 @@ class TestSettingsFunctions:
         args = MagicMock()
         args.json = False
 
-        with patch("cli.settings.load_settings", return_value=mock_settings), patch(
-            "cli.settings.print_output"
-        ) as mock_print:
+        with (
+            patch("cli.settings.load_settings", return_value=mock_settings),
+            patch("cli.settings.print_output") as mock_print,
+        ):
             get_settings(args)
 
             mock_print.assert_called_once_with(mock_settings, False)
@@ -126,11 +130,12 @@ class TestSettingsFunctions:
         args.mode = "test"
         args.json = False
 
-        with patch("cli.settings.load_settings", return_value=mock_settings), patch(
-            "cli.settings.save_settings"
-        ), patch("cli.settings.print_output"), patch(
-            "sys.exit"
-        ) as mock_exit:
+        with (
+            patch("cli.settings.load_settings", return_value=mock_settings),
+            patch("cli.settings.save_settings"),
+            patch("cli.settings.print_output"),
+            patch("sys.exit") as mock_exit,
+        ):
             set_message_mode(args)
 
             # Should exit with code 1 for invalid mode
@@ -149,9 +154,11 @@ class TestSettingsFunctions:
         args.enable = True
         args.json = False
 
-        with patch("cli.settings.load_settings", return_value=mock_settings), patch(
-            "cli.settings.save_settings"
-        ) as mock_save, patch("cli.settings.print_output") as mock_print:
+        with (
+            patch("cli.settings.load_settings", return_value=mock_settings),
+            patch("cli.settings.save_settings") as mock_save,
+            patch("cli.settings.print_output") as mock_print,
+        ):
             set_debug_mode(args)
 
             expected_settings = {
@@ -176,9 +183,11 @@ class TestSettingsFunctions:
         args.enable = False
         args.json = False
 
-        with patch("cli.settings.load_settings", return_value=mock_settings), patch(
-            "cli.settings.save_settings"
-        ) as mock_save, patch("cli.settings.print_output") as mock_print:
+        with (
+            patch("cli.settings.load_settings", return_value=mock_settings),
+            patch("cli.settings.save_settings") as mock_save,
+            patch("cli.settings.print_output") as mock_print,
+        ):
             set_debug_mode(args)
 
             expected_settings = {
@@ -203,9 +212,11 @@ class TestSettingsFunctions:
         args.seconds = 10
         args.json = False
 
-        with patch("cli.settings.load_settings", return_value=mock_settings), patch(
-            "cli.settings.save_settings"
-        ) as mock_save, patch("cli.settings.print_output") as mock_print:
+        with (
+            patch("cli.settings.load_settings", return_value=mock_settings),
+            patch("cli.settings.save_settings") as mock_save,
+            patch("cli.settings.print_output") as mock_print,
+        ):
             set_queue_refresh(args)
 
             expected_settings = {
@@ -230,9 +241,11 @@ class TestSettingsFunctions:
         args.retries = 5
         args.json = False
 
-        with patch("cli.settings.load_settings", return_value=mock_settings), patch(
-            "cli.settings.save_settings"
-        ) as mock_save, patch("cli.settings.print_output") as mock_print:
+        with (
+            patch("cli.settings.load_settings", return_value=mock_settings),
+            patch("cli.settings.save_settings") as mock_save,
+            patch("cli.settings.print_output") as mock_print,
+        ):
             set_max_retries(args)
 
             expected_settings = {
@@ -249,9 +262,10 @@ class TestSettingsFunctions:
         args = MagicMock()
         args.json = False
 
-        with patch("cli.settings.load_settings") as mock_load, patch(
-            "cli.settings.print_output"
-        ) as mock_print:
+        with (
+            patch("cli.settings.load_settings") as mock_load,
+            patch("cli.settings.print_output") as mock_print,
+        ):
             mock_load.return_value = {"test": "value"}
             reload_settings(args)
 
@@ -264,57 +278,64 @@ class TestSettingsFunctions:
 
     def test_main_get_command(self):
         """Test main function with get command."""
-        with patch("cli.settings.get_settings") as mock_get, patch(
-            "sys.argv", ["settings.py", "get"]
+        with (
+            patch("cli.settings.get_settings") as mock_get,
+            patch("sys.argv", ["settings.py", "get"]),
         ):
             main()
             mock_get.assert_called_once()
 
     def test_main_set_message_mode_command(self):
         """Test main function with set message-mode command."""
-        with patch("cli.settings.set_message_mode") as mock_set, patch(
-            "sys.argv", ["settings.py", "mode", "live"]
+        with (
+            patch("cli.settings.set_message_mode") as mock_set,
+            patch("sys.argv", ["settings.py", "mode", "live"]),
         ):
             main()
             mock_set.assert_called_once()
 
     def test_main_set_debug_mode_command(self):
         """Test main function with set debug-mode command."""
-        with patch("cli.settings.set_debug_mode") as mock_set, patch(
-            "sys.argv", ["settings.py", "debug", "--enable"]
+        with (
+            patch("cli.settings.set_debug_mode") as mock_set,
+            patch("sys.argv", ["settings.py", "debug", "--enable"]),
         ):
             main()
             mock_set.assert_called_once()
 
     def test_main_set_queue_refresh_command(self):
         """Test main function with set queue-refresh command."""
-        with patch("cli.settings.set_queue_refresh") as mock_set, patch(
-            "sys.argv", ["settings.py", "refresh", "10"]
+        with (
+            patch("cli.settings.set_queue_refresh") as mock_set,
+            patch("sys.argv", ["settings.py", "refresh", "10"]),
         ):
             main()
             mock_set.assert_called_once()
 
     def test_main_set_max_retries_command(self):
         """Test main function with set max-retries command."""
-        with patch("cli.settings.set_max_retries") as mock_set, patch(
-            "sys.argv", ["settings.py", "retries", "5"]
+        with (
+            patch("cli.settings.set_max_retries") as mock_set,
+            patch("sys.argv", ["settings.py", "retries", "5"]),
         ):
             main()
             mock_set.assert_called_once()
 
     def test_main_reload_command(self):
         """Test main function with reload command."""
-        with patch("cli.settings.reload_settings") as mock_reload, patch(
-            "sys.argv", ["settings.py", "reload"]
+        with (
+            patch("cli.settings.reload_settings") as mock_reload,
+            patch("sys.argv", ["settings.py", "reload"]),
         ):
             main()
             mock_reload.assert_called_once()
 
     def test_main_invalid_command(self):
         """Test main function with invalid command."""
-        with patch("sys.argv", ["settings.py", "invalid"]), patch(
-            "sys.exit"
-        ) as mock_exit:
+        with (
+            patch("sys.argv", ["settings.py", "invalid"]),
+            patch("sys.exit") as mock_exit,
+        ):
             main()
             mock_exit.assert_called_with(
                 2

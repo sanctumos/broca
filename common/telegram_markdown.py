@@ -36,4 +36,3 @@ def preserve_telegram_markdown(text: str) -> str:
     text = re.sub(r"^>\s*(.*?)$", r"*Quote:* \1", text, flags=re.MULTILINE)
 
     return text.strip()
-

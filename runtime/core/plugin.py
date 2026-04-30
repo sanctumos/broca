@@ -33,32 +33,32 @@ logger = logging.getLogger(__name__)
 
 def validate_handler_signature(handler: Callable) -> bool:
     """Validate that handler has correct signature for message routing.
-    
+
     Expected signature: async def handler(response: str, profile: Any, message_id: int) -> None
-    
+
     Args:
         handler: The handler function to validate
-        
+
     Returns:
         True if handler has valid signature, False otherwise
     """
     if not callable(handler):
         return False
-    
+
     # Check if async
     if not inspect.iscoroutinefunction(handler):
         return False
-    
+
     # Get signature
     try:
         sig = inspect.signature(handler)
         params = list(sig.parameters.values())
-        
+
         # Should have at least 3 parameters (response, profile, message_id)
         # Note: self is not included for bound methods, but we check the actual callable
         if len(params) < 3:
             return False
-        
+
         # First param should be response (str)
         # Second param should be profile (Any)
         # Third param should be message_id (int)
@@ -76,7 +76,9 @@ class PluginManager:
         """Initialize the plugin manager."""
         self._plugins: dict[str, Plugin] = {}
         self._event_handlers: dict[EventType, list[Callable[[Event], None]]] = {}
-        self._platform_handlers: dict[str, Callable[[str, Any, int], Awaitable[None]]] = {}
+        self._platform_handlers: dict[
+            str, Callable[[str, Any, int], Awaitable[None]]
+        ] = {}
         self._running = False
 
     async def load_plugin(self, plugin_path: str) -> None:
@@ -92,8 +94,7 @@ class PluginManager:
             # Convert path to unique module name using package path
             # e.g., "plugins/telegram_bot/plugin.py" -> "plugins.telegram_bot.plugin"
             plugin_path_obj = Path(plugin_path).resolve()
-            plugin_dir = plugin_path_obj.parent
-            
+
             # Get relative path from project root (assuming plugins/ is in root)
             # Find plugins directory in path
             parts = plugin_path_obj.parts
@@ -102,12 +103,14 @@ class PluginManager:
                 # Get everything after plugins/
                 module_parts = parts[plugins_idx:]
                 # Remove .py extension from last part
-                module_parts = list(module_parts[:-1]) + [module_parts[-1].replace(".py", "")]
+                module_parts = list(module_parts[:-1]) + [
+                    module_parts[-1].replace(".py", "")
+                ]
                 module_name = ".".join(module_parts)
             except ValueError:
                 # Fallback to old method if plugins/ not in path
                 module_name = plugin_path_obj.stem
-            
+
             spec = importlib.util.spec_from_file_location(module_name, plugin_path)
             if spec is None:
                 raise PluginError(f"Could not load plugin from {plugin_path}")
@@ -139,7 +142,11 @@ class PluginManager:
                             # This enforces the handler contract: async handler(response: str, profile: Any, message_id: int) -> None
                             if not validate_handler_signature(handler):
                                 try:
-                                    sig = inspect.signature(handler) if callable(handler) else "not callable"
+                                    sig = (
+                                        inspect.signature(handler)
+                                        if callable(handler)
+                                        else "not callable"
+                                    )
                                 except (ValueError, TypeError):
                                     sig = "unable to inspect"
                                 raise PluginError(

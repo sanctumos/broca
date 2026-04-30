@@ -9,12 +9,12 @@ from typing import Any
 
 class BrocaError(Exception):
     """Base exception for all Broca errors.
-    
+
     This exception provides:
     - Structured error messages
     - Context information for debugging
     - Recoverability flag for retry logic
-    
+
     Args:
         message: Human-readable error message
         context: Optional dictionary with additional context
@@ -22,10 +22,13 @@ class BrocaError(Exception):
     """
 
     def __init__(
-        self, message: str, context: dict[str, Any] | None = None, recoverable: bool = False
+        self,
+        message: str,
+        context: dict[str, Any] | None = None,
+        recoverable: bool = False,
     ):
         """Initialize the exception.
-        
+
         Args:
             message: Human-readable error message
             context: Optional dictionary with additional context information
@@ -46,7 +49,7 @@ class BrocaError(Exception):
 
 class PluginError(BrocaError):
     """Exception raised for plugin-related errors.
-    
+
     This exception is used when:
     - Plugin loading fails
     - Plugin initialization fails
@@ -62,7 +65,7 @@ class PluginError(BrocaError):
         recoverable: bool = False,
     ):
         """Initialize plugin error.
-        
+
         Args:
             message: Error message
             plugin_name: Name of the plugin that caused the error
@@ -77,7 +80,7 @@ class PluginError(BrocaError):
 
 class ConfigurationError(BrocaError):
     """Exception raised for configuration errors.
-    
+
     This exception is used when:
     - Configuration files are invalid
     - Required configuration is missing
@@ -92,7 +95,7 @@ class ConfigurationError(BrocaError):
         recoverable: bool = True,
     ):
         """Initialize configuration error.
-        
+
         Args:
             message: Error message
             config_key: Configuration key that caused the error
@@ -107,7 +110,7 @@ class ConfigurationError(BrocaError):
 
 class DatabaseError(BrocaError):
     """Exception raised for database operation errors.
-    
+
     This exception is used when:
     - Database connections fail
     - SQL queries fail
@@ -123,7 +126,7 @@ class DatabaseError(BrocaError):
         recoverable: bool = True,
     ):
         """Initialize database error.
-        
+
         Args:
             message: Error message
             operation: Database operation that failed
@@ -138,7 +141,7 @@ class DatabaseError(BrocaError):
 
 class ValidationError(BrocaError):
     """Exception raised for validation errors.
-    
+
     This exception is used when:
     - Input validation fails
     - Data validation fails
@@ -154,7 +157,7 @@ class ValidationError(BrocaError):
         recoverable: bool = False,
     ):
         """Initialize validation error.
-        
+
         Args:
             message: Error message
             field: Field that failed validation
@@ -187,7 +190,7 @@ class AgentTurnTimeoutInFlight(BrocaError):
 
 class NetworkError(BrocaError):
     """Exception raised for network/API errors.
-    
+
     This exception is used when:
     - API requests fail
     - Network connections fail
@@ -204,7 +207,7 @@ class NetworkError(BrocaError):
         recoverable: bool = True,
     ):
         """Initialize network error.
-        
+
         Args:
             message: Error message
             url: URL that caused the error

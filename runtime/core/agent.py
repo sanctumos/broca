@@ -256,7 +256,9 @@ class AgentClient:
             loop = asyncio.get_running_loop()
             iterator = iter(stream)
             while True:
-                has_event, event = await loop.run_in_executor(None, _safe_next_sync, iterator)
+                has_event, event = await loop.run_in_executor(
+                    None, _safe_next_sync, iterator
+                )
                 if not has_event:
                     break
                 yield event
@@ -471,7 +473,7 @@ class AgentClient:
                 ),
                 timeout=max_wait,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Stream processing timed out after %s seconds", max_wait)
             logger.info("Attempting fallback to create_async method")
             try:
@@ -485,7 +487,7 @@ class AgentClient:
             raise AgentTurnTimeoutInFlight(
                 f"Letta stream exceeded LONG_TASK_MAX_WAIT={max_wait}s and fallback "
                 "did not return a response (inference/tools may still be in flight)"
-            )
+            ) from None
         except Exception as e:
             logger.error("Error processing message with streaming: %s", str(e))
             err_lower = str(e).lower()

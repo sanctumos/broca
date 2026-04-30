@@ -23,9 +23,10 @@ async def test_agent_client_initialization():
 @pytest.mark.asyncio
 async def test_agent_client_send_message():
     """Test AgentClient process_message method."""
-    with patch.dict(
-        os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
-    ), patch("runtime.core.agent.get_letta_client") as mock_get_client:
+    with (
+        patch.dict(os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}),
+        patch("runtime.core.agent.get_letta_client") as mock_get_client,
+    ):
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.messages = [
@@ -55,11 +56,11 @@ async def test_agent_client_send_message():
 @pytest.mark.asyncio
 async def test_agent_client_send_message_error():
     """Test AgentClient process_message with error response."""
-    with patch.dict(
-        os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
-    ), patch("runtime.core.agent.get_letta_client") as mock_get_client, patch(
-        "runtime.core.agent.is_retryable_exception"
-    ) as mock_retryable:
+    with (
+        patch.dict(os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}),
+        patch("runtime.core.agent.get_letta_client") as mock_get_client,
+        patch("runtime.core.agent.is_retryable_exception") as mock_retryable,
+    ):
         mock_client = MagicMock()
         mock_client.agents.messages.create.side_effect = Exception("API Error")
         mock_get_client.return_value = mock_client
@@ -77,9 +78,10 @@ async def test_agent_client_send_message_error():
 @pytest.mark.asyncio
 async def test_agent_client_get_status():
     """Test AgentClient initialize method."""
-    with patch.dict(
-        os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
-    ), patch("runtime.core.agent.get_letta_client") as mock_get_client:
+    with (
+        patch.dict(os.environ, {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}),
+        patch("runtime.core.agent.get_letta_client") as mock_get_client,
+    ):
         mock_client = MagicMock()
         mock_agent = MagicMock()
         mock_agent.id = "test-agent-123"

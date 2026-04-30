@@ -373,8 +373,8 @@ class TestTelegramMessageHandler:
 
         # Mock formatter
         handler.formatter = MagicMock()
-        handler.formatter.sanitize_text.side_effect = (
-            lambda x: f"sanitized_{x}" if x else "Unknown"
+        handler.formatter.sanitize_text.side_effect = lambda x: (
+            f"sanitized_{x}" if x else "Unknown"
         )
 
         # Mock database operations
@@ -479,16 +479,20 @@ class TestTelegramMessageHandler:
         mock_letta_user = MagicMock()
         mock_letta_user.id = "letta_123"
 
-        with patch(
-            "plugins.telegram_bot.message_handler.image_handling_enabled",
-            return_value=True,
-        ), patch(
-            "plugins.telegram_bot.message_handler.build_message_for_agent",
-            return_value="Photo caption\n[Image Attachment: https://tmpfiles.org/dl/1/photo.jpg]",
-        ), patch(
-            "plugins.telegram_bot.message_handler.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile:
+        with (
+            patch(
+                "plugins.telegram_bot.message_handler.image_handling_enabled",
+                return_value=True,
+            ),
+            patch(
+                "plugins.telegram_bot.message_handler.build_message_for_agent",
+                return_value="Photo caption\n[Image Attachment: https://tmpfiles.org/dl/1/photo.jpg]",
+            ),
+            patch(
+                "plugins.telegram_bot.message_handler.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+        ):
             mock_get_profile.return_value = (mock_profile, mock_letta_user)
             with patch(
                 "plugins.telegram_bot.message_handler.insert_message",

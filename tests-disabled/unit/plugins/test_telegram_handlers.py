@@ -162,11 +162,14 @@ class TestMessageBuffer:
             "task": None,
         }
 
-        with patch(
-            "plugins.telegram.handlers.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "plugins.telegram.handlers.add_to_queue", new_callable=AsyncMock
-        ) as mock_add_queue:
+        with (
+            patch(
+                "plugins.telegram.handlers.insert_message", new_callable=AsyncMock
+            ) as mock_insert,
+            patch(
+                "plugins.telegram.handlers.add_to_queue", new_callable=AsyncMock
+            ) as mock_add_queue,
+        ):
             mock_insert.return_value = 999
 
             await buffer._flush_buffer(buffer_key)
@@ -194,11 +197,14 @@ class TestMessageBuffer:
         # Add empty buffer
         buffer.buffers[buffer_key] = {"messages": [], "task": None}
 
-        with patch(
-            "database.operations.messages.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "database.operations.queue.add_to_queue", new_callable=AsyncMock
-        ) as mock_add_queue:
+        with (
+            patch(
+                "database.operations.messages.insert_message", new_callable=AsyncMock
+            ) as mock_insert,
+            patch(
+                "database.operations.queue.add_to_queue", new_callable=AsyncMock
+            ) as mock_add_queue,
+        ):
             await buffer._flush_buffer(buffer_key)
 
             # Should not call database functions
@@ -211,11 +217,14 @@ class TestMessageBuffer:
         buffer = MessageBuffer()
         buffer_key = (123, 456, 789)
 
-        with patch(
-            "database.operations.messages.insert_message", new_callable=AsyncMock
-        ) as mock_insert, patch(
-            "database.operations.queue.add_to_queue", new_callable=AsyncMock
-        ) as mock_add_queue:
+        with (
+            patch(
+                "database.operations.messages.insert_message", new_callable=AsyncMock
+            ) as mock_insert,
+            patch(
+                "database.operations.queue.add_to_queue", new_callable=AsyncMock
+            ) as mock_add_queue,
+        ):
             await buffer._flush_buffer(buffer_key)
 
             # Should not call database functions
@@ -275,12 +284,15 @@ class TestMessageHandler:
 
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
-        ) as mock_add_message:
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(
+                handler.buffer, "add_message", new_callable=AsyncMock
+            ) as mock_add_message,
+        ):
             # Mock profile and user
             mock_profile = MagicMock()
             mock_profile.id = 456
@@ -310,12 +322,15 @@ class TestMessageHandler:
         mock_event = MagicMock()
         mock_event.is_private = False
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
-        ) as mock_add_message:
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(
+                handler.buffer, "add_message", new_callable=AsyncMock
+            ) as mock_add_message,
+        ):
             await handler.handle_private_message(mock_event)
 
             # Should not process non-private messages
@@ -344,12 +359,15 @@ class TestMessageHandler:
 
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
-        ) as mock_add_message:
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(
+                handler.buffer, "add_message", new_callable=AsyncMock
+            ) as mock_add_message,
+        ):
             await handler.handle_private_message(mock_event)
 
             # Should not process ignored bot messages
@@ -378,12 +396,15 @@ class TestMessageHandler:
 
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
-        ) as mock_add_message:
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(
+                handler.buffer, "add_message", new_callable=AsyncMock
+            ) as mock_add_message,
+        ):
             # Mock profile and user
             mock_profile = MagicMock()
             mock_profile.id = 456
@@ -417,11 +438,12 @@ class TestMessageHandler:
 
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(handler.buffer, "add_message", new_callable=AsyncMock),
         ):
             # Mock profile and user
             mock_profile = MagicMock()
@@ -460,11 +482,12 @@ class TestMessageHandler:
 
         mock_event.get_sender = AsyncMock(return_value=mock_sender)
 
-        with patch(
-            "plugins.telegram.handlers.get_or_create_platform_profile",
-            new_callable=AsyncMock,
-        ) as mock_get_profile, patch.object(
-            handler.buffer, "add_message", new_callable=AsyncMock
+        with (
+            patch(
+                "plugins.telegram.handlers.get_or_create_platform_profile",
+                new_callable=AsyncMock,
+            ) as mock_get_profile,
+            patch.object(handler.buffer, "add_message", new_callable=AsyncMock),
         ):
             # Mock profile and user
             mock_profile = MagicMock()

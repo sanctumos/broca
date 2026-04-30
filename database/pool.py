@@ -59,9 +59,9 @@ class ConnectionPool:
         """
         self.pool_size = pool_size
         self.max_overflow = max_overflow
-        self._pool: asyncio.Queue[
-            aiosqlite.Connection
-        ] | None = None  # Created in event loop
+        self._pool: asyncio.Queue[aiosqlite.Connection] | None = (
+            None  # Created in event loop
+        )
         self._created = 0
         self._lock: asyncio.Lock | None = None  # Created in event loop
         self._closed = False
@@ -119,7 +119,7 @@ class ConnectionPool:
                     # Wait for connection to become available (with timeout to prevent hanging)
                     try:
                         conn = await asyncio.wait_for(self._pool.get(), timeout=30.0)
-                    except asyncio.TimeoutError as e:
+                    except TimeoutError as e:
                         raise RuntimeError(
                             "Timeout waiting for database connection. "
                             "All connections are in use."

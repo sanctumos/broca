@@ -39,9 +39,10 @@ class TestCtoolFunctions:
         args = MagicMock()
         args.json = True
 
-        with patch(
-            "cli.ctool.get_message_history", new_callable=AsyncMock
-        ) as mock_get, patch("cli.ctool.print_json") as mock_print_json:
+        with (
+            patch("cli.ctool.get_message_history", new_callable=AsyncMock) as mock_get,
+            patch("cli.ctool.print_json") as mock_print_json,
+        ):
             mock_get.return_value = mock_conversations
             await list_conversations(args)
 
@@ -62,9 +63,10 @@ class TestCtoolFunctions:
         args = MagicMock()
         args.json = False
 
-        with patch(
-            "cli.ctool.get_message_history", new_callable=AsyncMock
-        ) as mock_get, patch("cli.ctool.print_conversations") as mock_print_table:
+        with (
+            patch("cli.ctool.get_message_history", new_callable=AsyncMock) as mock_get,
+            patch("cli.ctool.print_conversations") as mock_print_table,
+        ):
             mock_get.return_value = mock_conversations
             await list_conversations(args)
 
@@ -100,9 +102,10 @@ class TestCtoolFunctions:
         args.limit = 10
         args.json = False
 
-        with patch(
-            "cli.ctool.get_message_history", new_callable=AsyncMock
-        ) as mock_get, patch("cli.ctool.print_conversations") as mock_print_table:
+        with (
+            patch("cli.ctool.get_message_history", new_callable=AsyncMock) as mock_get,
+            patch("cli.ctool.print_conversations") as mock_print_table,
+        ):
             mock_get.return_value = mock_conversations
             await get_conversation(args)
 
@@ -152,9 +155,10 @@ class TestCtoolFunctions:
         args.limit = 2
         args.json = False
 
-        with patch(
-            "cli.ctool.get_message_history", new_callable=AsyncMock
-        ) as mock_get, patch("cli.ctool.print_conversations") as mock_print_table:
+        with (
+            patch("cli.ctool.get_message_history", new_callable=AsyncMock) as mock_get,
+            patch("cli.ctool.print_conversations") as mock_print_table,
+        ):
             mock_get.return_value = mock_conversations
             await get_conversation(args)
 
@@ -180,9 +184,10 @@ class TestCtoolFunctions:
         args.limit = 10
         args.json = False
 
-        with patch(
-            "cli.ctool.get_message_history", new_callable=AsyncMock
-        ) as mock_get, patch("cli.ctool.print_conversations") as mock_print_table:
+        with (
+            patch("cli.ctool.get_message_history", new_callable=AsyncMock) as mock_get,
+            patch("cli.ctool.print_conversations") as mock_print_table,
+        ):
             mock_get.return_value = mock_conversations
             await get_conversation(args)
 
@@ -206,9 +211,10 @@ class TestCtoolFunctions:
         args.limit = 10
         args.json = True
 
-        with patch(
-            "cli.ctool.get_message_history", new_callable=AsyncMock
-        ) as mock_get, patch("cli.ctool.print_json") as mock_print_json:
+        with (
+            patch("cli.ctool.get_message_history", new_callable=AsyncMock) as mock_get,
+            patch("cli.ctool.print_json") as mock_print_json,
+        ):
             mock_get.return_value = mock_conversations
             await get_conversation(args)
 
@@ -256,17 +262,21 @@ class TestCtoolFunctions:
 
     def test_main_list_command(self):
         """Test main function with list command."""
-        with patch("sys.argv", ["ctool", "list"]), patch(
-            "cli.ctool.list_conversations", new_callable=AsyncMock
-        ), patch("asyncio.run") as mock_run:
+        with (
+            patch("sys.argv", ["ctool", "list"]),
+            patch("cli.ctool.list_conversations", new_callable=AsyncMock),
+            patch("asyncio.run") as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
 
     def test_main_get_command(self):
         """Test main function with get command."""
-        with patch("sys.argv", ["ctool", "get", "1", "123", "--limit", "10"]), patch(
-            "cli.ctool.get_conversation", new_callable=AsyncMock
-        ), patch("asyncio.run") as mock_run:
+        with (
+            patch("sys.argv", ["ctool", "get", "1", "123", "--limit", "10"]),
+            patch("cli.ctool.get_conversation", new_callable=AsyncMock),
+            patch("asyncio.run") as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
 

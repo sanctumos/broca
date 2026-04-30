@@ -3,8 +3,6 @@
 from datetime import datetime
 from typing import Any
 
-import aiosqlite
-
 from ..models import PlatformProfile
 from ..pool import get_pool
 
@@ -76,8 +74,7 @@ async def get_message_history() -> list[dict]:
         List[dict]: List of message records with associated user and status information.
     """
     async with get_pool().connection() as db:
-        async with db.execute(
-            """
+        async with db.execute("""
             SELECT
                 m.id, m.letta_user_id, m.platform_profile_id, m.role,
                 m.message, m.agent_response, m.timestamp,
@@ -94,8 +91,7 @@ async def get_message_history() -> list[dict]:
             )
             ORDER BY m.timestamp DESC
             LIMIT 100
-        """
-        ) as cursor:
+        """) as cursor:
             rows = await cursor.fetchall()
             return [
                 {
@@ -207,5 +203,3 @@ async def update_message_status(
             (processed, response, message_id),
         )
         await db.commit()
-
-

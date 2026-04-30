@@ -159,9 +159,9 @@ class WebChatMessageHandler:
             # Create outgoing message object
             outgoing_message = Message(
                 content=response_text,
-                user_id=str(original_message.user_id)
-                if original_message.user_id
-                else None,
+                user_id=(
+                    str(original_message.user_id) if original_message.user_id else None
+                ),
                 username=original_message.username,
                 platform=self.platform_name,
                 timestamp=datetime.utcnow(),

@@ -38,7 +38,6 @@ def main() -> int:
 
 async def _async_main() -> int:
     import database.pool as pool_mod
-
     from database.operations.messages import insert_message
     from database.operations.queue import add_to_queue, atomic_dequeue_item
     from database.operations.shared import initialize_database

@@ -12,10 +12,10 @@ from plugins import Event, EventType, Plugin
 
 class BasePluginWrapper(Plugin):
     """Base class for plugin wrappers that delegate to underlying plugin implementations.
-    
+
     This class eliminates duplication in wrapper classes like TelegramPluginWrapper
     and TelegramBotPluginWrapper by providing a common implementation.
-    
+
     Usage:
         class MyPluginWrapper(BasePluginWrapper):
             def __init__(self):
@@ -24,7 +24,7 @@ class BasePluginWrapper(Plugin):
 
     def __init__(self, plugin_instance: Any):
         """Initialize wrapper with plugin instance.
-        
+
         Args:
             plugin_instance: The underlying plugin implementation
         """
@@ -48,10 +48,10 @@ class BasePluginWrapper(Plugin):
 
     def apply_settings(self, settings: dict[str, Any]) -> None:
         """Apply settings to the plugin.
-        
+
         Args:
             settings: Settings dictionary to apply
-            
+
         Raises:
             ValueError: If settings are invalid (propagated from plugin)
         """
@@ -69,10 +69,10 @@ class BasePluginWrapper(Plugin):
 
     def validate_settings(self, settings: dict[str, Any]) -> bool:
         """Validate plugin settings.
-        
+
         Args:
             settings: Settings dictionary to validate
-            
+
         Returns:
             True if settings are valid, False otherwise
         """
@@ -92,7 +92,7 @@ class BasePluginWrapper(Plugin):
         self, event_type: EventType, handler: Callable[[Event], None]
     ) -> None:
         """Register an event handler.
-        
+
         Args:
             event_type: Type of event to handle
             handler: Function to call when event occurs
@@ -102,7 +102,7 @@ class BasePluginWrapper(Plugin):
 
     def emit_event(self, event: Event) -> None:
         """Emit an event.
-        
+
         Args:
             event: Event to emit
         """
@@ -112,14 +112,14 @@ class BasePluginWrapper(Plugin):
 
 class SettingsMixin:
     """Mixin for plugins that handle settings.
-    
+
     Provides common settings handling functionality that can be mixed into
     plugin classes to reduce duplication.
     """
 
     def get_settings_dict(self) -> dict[str, Any] | None:
         """Get settings as a dictionary.
-        
+
         Returns:
             Settings dictionary or None if no settings
         """
@@ -132,10 +132,10 @@ class SettingsMixin:
 
     def apply_settings_safe(self, settings: dict[str, Any]) -> None:
         """Apply settings with error handling.
-        
+
         Args:
             settings: Settings dictionary to apply
-            
+
         Raises:
             ValueError: If settings are invalid
         """

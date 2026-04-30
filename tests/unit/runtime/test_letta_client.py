@@ -14,9 +14,10 @@ def test_letta_client_initialization():
 
     runtime.core.letta_client._letta_client = None
 
-    with patch("runtime.core.letta_client.get_env_var") as mock_env, patch(
-        "runtime.core.letta_client.Letta"
-    ) as mock_letta_class:
+    with (
+        patch("runtime.core.letta_client.get_env_var") as mock_env,
+        patch("runtime.core.letta_client.Letta") as mock_letta_class,
+    ):
         mock_env.side_effect = lambda key, **kwargs: {
             "AGENT_ENDPOINT": "http://test.endpoint",
             "AGENT_API_KEY": "test-api-key",
@@ -31,7 +32,10 @@ def test_letta_client_initialization():
         kwargs = mock_letta_class.call_args.kwargs
         assert kwargs.get("base_url") == "http://test.endpoint"
         # SDK 1.7+ prefers token= + timeout=; older constructors use api_key= + max_retries=.
-        assert kwargs.get("token") == "test-api-key" or kwargs.get("api_key") == "test-api-key"
+        assert (
+            kwargs.get("token") == "test-api-key"
+            or kwargs.get("api_key") == "test-api-key"
+        )
 
 
 @pytest.mark.unit
@@ -60,9 +64,10 @@ def test_letta_client_properties():
 
     runtime.core.letta_client._letta_client = None
 
-    with patch("runtime.core.letta_client.get_env_var") as mock_env, patch(
-        "runtime.core.letta_client.Letta"
-    ) as mock_letta_class:
+    with (
+        patch("runtime.core.letta_client.get_env_var") as mock_env,
+        patch("runtime.core.letta_client.Letta") as mock_letta_class,
+    ):
         mock_env.side_effect = lambda key, **kwargs: {
             "AGENT_ENDPOINT": "http://test.endpoint",
             "AGENT_API_KEY": "test-api-key",
@@ -98,8 +103,9 @@ def test_letta_client_close():
 
     runtime.core.letta_client._letta_client = None
 
-    with patch("runtime.core.letta_client.get_env_var") as mock_env, patch(
-        "runtime.core.letta_client.Letta"
+    with (
+        patch("runtime.core.letta_client.get_env_var") as mock_env,
+        patch("runtime.core.letta_client.Letta"),
     ):
         mock_env.side_effect = lambda key, **kwargs: {
             "AGENT_ENDPOINT": "http://test.endpoint",

@@ -45,9 +45,10 @@ async def test_agent_client_initialization_with_defaults():
 @pytest.mark.asyncio
 async def test_agent_client_send_message_success():
     """Test AgentClient process_message success."""
-    with patch.dict(
-        "os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
-    ), patch("runtime.core.agent.get_letta_client") as mock_get_client:
+    with (
+        patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}),
+        patch("runtime.core.agent.get_letta_client") as mock_get_client,
+    ):
         # Mock the Letta client and its response
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -80,9 +81,10 @@ async def test_agent_client_send_message_success():
 @pytest.mark.asyncio
 async def test_agent_client_send_message_http_error():
     """Test AgentClient process_message with error."""
-    with patch.dict(
-        "os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
-    ), patch("runtime.core.agent.get_letta_client") as mock_get_client:
+    with (
+        patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}),
+        patch("runtime.core.agent.get_letta_client") as mock_get_client,
+    ):
         # Mock the Letta client to raise an exception
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -99,9 +101,10 @@ async def test_agent_client_send_message_http_error():
 @pytest.mark.asyncio
 async def test_agent_client_get_status_success():
     """Test AgentClient initialize success."""
-    with patch.dict(
-        "os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
-    ), patch("runtime.core.agent.get_letta_client") as mock_get_client:
+    with (
+        patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}),
+        patch("runtime.core.agent.get_letta_client") as mock_get_client,
+    ):
         # Mock the Letta client and agent
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -121,9 +124,10 @@ async def test_agent_client_get_status_success():
 @pytest.mark.asyncio
 async def test_agent_client_get_status_error():
     """Test AgentClient initialize error."""
-    with patch.dict(
-        "os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}
-    ), patch("runtime.core.agent.get_letta_client") as mock_get_client:
+    with (
+        patch.dict("os.environ", {"DEBUG_MODE": "false", "AGENT_ID": "test-agent-123"}),
+        patch("runtime.core.agent.get_letta_client") as mock_get_client,
+    ):
         # Mock the Letta client to raise an exception
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -153,12 +157,15 @@ async def test_plugin_manager_load_plugin_success():
     """Test PluginManager load_plugin success."""
     manager = PluginManager()
 
-    with patch("runtime.core.plugin.Path") as mock_path, patch(
-        "runtime.core.plugin.importlib.util.spec_from_file_location"
-    ) as mock_spec, patch(
-        "runtime.core.plugin.importlib.util.module_from_spec"
-    ) as mock_module_from_spec, patch(
-        "runtime.core.plugin.sys.modules"
+    with (
+        patch("runtime.core.plugin.Path") as mock_path,
+        patch(
+            "runtime.core.plugin.importlib.util.spec_from_file_location"
+        ) as mock_spec,
+        patch(
+            "runtime.core.plugin.importlib.util.module_from_spec"
+        ) as mock_module_from_spec,
+        patch("runtime.core.plugin.sys.modules"),
     ):
         mock_path.return_value.stem = "test_plugin"
         mock_spec.return_value = MagicMock()
@@ -192,9 +199,12 @@ async def test_plugin_manager_load_plugin_no_spec():
     """Test PluginManager load_plugin with no spec."""
     manager = PluginManager()
 
-    with patch("runtime.core.plugin.Path") as mock_path, patch(
-        "runtime.core.plugin.importlib.util.spec_from_file_location"
-    ) as mock_spec:
+    with (
+        patch("runtime.core.plugin.Path") as mock_path,
+        patch(
+            "runtime.core.plugin.importlib.util.spec_from_file_location"
+        ) as mock_spec,
+    ):
         mock_path.return_value.stem = "test_plugin"
         mock_spec.return_value = None
 
@@ -208,12 +218,15 @@ async def test_plugin_manager_load_plugin_no_plugin_class():
     """Test PluginManager load_plugin with no plugin class."""
     manager = PluginManager()
 
-    with patch("runtime.core.plugin.Path") as mock_path, patch(
-        "runtime.core.plugin.importlib.util.spec_from_file_location"
-    ) as mock_spec, patch(
-        "runtime.core.plugin.importlib.util.module_from_spec"
-    ) as mock_module_from_spec, patch(
-        "runtime.core.plugin.sys.modules"
+    with (
+        patch("runtime.core.plugin.Path") as mock_path,
+        patch(
+            "runtime.core.plugin.importlib.util.spec_from_file_location"
+        ) as mock_spec,
+        patch(
+            "runtime.core.plugin.importlib.util.module_from_spec"
+        ) as mock_module_from_spec,
+        patch("runtime.core.plugin.sys.modules"),
     ):
         mock_path.return_value.stem = "test_plugin"
         mock_spec.return_value = MagicMock()

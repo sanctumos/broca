@@ -1,6 +1,5 @@
 """Telegram plugin entry point."""
 
-from plugins import Plugin
 from plugins.base import BasePluginWrapper
 from plugins.telegram.telegram_plugin import TelegramPlugin
 
@@ -14,9 +13,9 @@ class TelegramPluginWrapper(BasePluginWrapper):
 
     def add_message_handler(self, callback, event):
         """Add a message handler.
-        
+
         This is specific to TelegramPlugin and not part of the base wrapper.
-        
+
         Args:
             callback: Callback function
             event: Event to handle
