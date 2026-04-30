@@ -25,6 +25,7 @@ async def test_application_starts_and_stops_gracefully(temp_db: str):
     mock_client.agents.blocks.detach.return_value = None
 
     with (
+        patch.dict("os.environ", {"AGENT_ID": "integration-lifecycle-agent"}, clear=False),
         patch("main.PIDManager") as mock_pid_class,
         patch("main.create_default_settings"),
         patch("runtime.core.letta_client.get_letta_client", return_value=mock_client),
