@@ -55,25 +55,39 @@ def tmpfiles_addendum_enabled() -> bool:
 def build_message_for_agent(
     text: str,
     image_paths: Sequence[Path] | None = None,
+    image_meta_lines: Sequence[str] | None = None,
 ) -> str:
     """
     Build the single message string for the agent (to store in DB and enqueue).
 
-    - If image handling is off or image_paths is None/empty: return sanitized text only.
+    - If image handling is off or image_paths is None/empty: return sanitized text only
+      (optional **image_meta_lines** still append when paths empty and text empty).
     - If image handling is on and image_paths non-empty and tmpfiles addendum on:
+      optional **image_meta_lines** (e.g. Telegram WxH) are appended before URLs;
       for each path upload to tmpfiles.org, append \\n[Image Attachment: <direct_url>];
       on upload failure log and skip that image.
-    - If image handling is on and tmpfiles addendum off: use only sanitized text.
+    - If image handling is on and tmpfiles addendum off: sanitized text plus meta only.
     """
     sanitized = MessageFormatter.sanitize_text(text or "")
     if not _get_image_handling_enabled():
         return sanitized
     paths = list(image_paths) if image_paths else []
+    meta = [m.strip() for m in (image_meta_lines or []) if m and str(m).strip()]
     if not paths:
+        if meta:
+            base = [sanitized] if sanitized else []
+            return "\n".join([*base, *meta]).strip()
         return sanitized
     if not _get_tmpfiles_addendum_enabled():
+        if meta:
+            base = [sanitized] if sanitized else []
+            return "\n".join([*base, *meta]).strip()
         return sanitized
-    parts = [sanitized]
+    parts: list[str] = []
+    if sanitized:
+        parts.append(sanitized)
+    parts.extend(meta)
+    uploaded = False
     for path in paths:
         if not path.exists():
             logger.warning("Image path does not exist, skipping: %s", path)
@@ -81,6 +95,12 @@ def build_message_for_agent(
         try:
             direct_url = tmpfiles_upload_file(path)
             parts.append(f"[Image Attachment: {direct_url}]")
+            uploaded = True
         except Exception as e:
             logger.warning("tmpfiles upload failed for %s: %s", path, e)
-    return "\n".join(parts)
+    if not uploaded and paths:
+        parts.append(
+            "[Image: upload failed — no fetchable URL for Letta. "
+            "Send as compressed Photo (not File) or retry.]"
+        )
+    return "\n".join(parts).strip()

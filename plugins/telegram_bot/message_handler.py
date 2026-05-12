@@ -64,36 +64,73 @@ class TelegramMessageHandler:
                 self.formatter.sanitize_text(username) if username else None
             )
 
-            # If image handling is on and message has photo(s), download largest and build message with addendum
-            if image_handling_enabled() and getattr(message, "photo", None):
+            # If image handling is on and message has photo(s) or an image document,
+            # download and build message with tmpfiles URL + optional WxH metadata.
+            if image_handling_enabled():
                 bot = getattr(self, "bot", None) or getattr(message, "bot", None)
                 if not bot:
                     logger.warning(
-                        "Image handling enabled but no bot available for photo download; "
+                        "Image handling enabled but no bot available for media download; "
                         "using caption/text only."
                     )
                 else:
+                    file_obj = None
+                    meta_lines: list[str] = []
                     try:
-                        largest = message.photo[-1]
-                        file = await bot.get_file(largest.file_id)
-                        suffix = Path(file.file_path or "photo.jpg").suffix or ".jpg"
-                        with tempfile.NamedTemporaryFile(
-                            suffix=suffix, delete=False
-                        ) as tmp:
-                            tmp_path = Path(tmp.name)
-                        await bot.download_file(
-                            file.file_path, destination=str(tmp_path)
-                        )
-                        try:
-                            content = build_message_for_agent(
-                                raw_text or "", [tmp_path]
+                        photos = getattr(message, "photo", None)
+                        if isinstance(photos, (list, tuple)) and photos:
+                            largest = photos[-1]
+                            meta_lines.append(
+                                f"[Telegram image: {largest.width}x{largest.height}px]"
                             )
-                        finally:
-                            tmp_path.unlink(missing_ok=True)
+                            file_obj = await bot.get_file(largest.file_id)
+                        else:
+                            doc = getattr(message, "document", None)
+                            mime_raw = getattr(doc, "mime_type", None) if doc else None
+                            mime = mime_raw if isinstance(mime_raw, str) else ""
+                            if (
+                                doc is not None
+                                and getattr(doc, "file_id", None)
+                                and mime.startswith("image/")
+                            ):
+                                meta_lines.append(
+                                    f"[Telegram image document: mime={mime} "
+                                    f"size={getattr(doc, 'file_size', '?')}b]"
+                                )
+                                file_obj = await bot.get_file(doc.file_id)
                     except Exception as e:
                         logger.warning(
-                            "Failed to process photo, using caption/text only: %s", e
+                            "Failed to resolve Telegram image file: %s", e
                         )
+                        file_obj = None
+
+                    if file_obj is not None:
+                        try:
+                            suffix = (
+                                Path(file_obj.file_path or "photo.jpg").suffix
+                                or ".jpg"
+                            )
+                            with tempfile.NamedTemporaryFile(
+                                suffix=suffix, delete=False
+                            ) as tmp:
+                                tmp_path = Path(tmp.name)
+                            await bot.download_file(
+                                file_obj.file_path, destination=str(tmp_path)
+                            )
+                            try:
+                                content = build_message_for_agent(
+                                    raw_text or "",
+                                    [tmp_path],
+                                    meta_lines,
+                                )
+                            finally:
+                                tmp_path.unlink(missing_ok=True)
+                        except Exception as e:
+                            logger.warning(
+                                "Failed to process Telegram image, "
+                                "using caption/text only: %s",
+                                e,
+                            )
 
             # Get or create user profile
             profile, letta_user = await get_or_create_platform_profile(
