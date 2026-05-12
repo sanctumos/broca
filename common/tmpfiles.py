@@ -26,15 +26,24 @@ def view_url_to_direct_url(view_url: str) -> str:
     Convert tmpfiles.org view URL to direct download URL.
 
     View URL returns HTML. Direct URL returns the raw file.
-    Example: https://tmpfiles.org/22907829/test.png -> https://tmpfiles.org/dl/22907829/test.png
+    Examples:
+      https://tmpfiles.org/22907829/test.png -> https://tmpfiles.org/dl/22907829/test.png
+      https://tmpfiles.org/w7w8wftSNHu5/tiny.png -> https://tmpfiles.org/dl/w7w8wftSNHu5/tiny.png
     """
     parsed = urlparse(view_url)
     path = parsed.path.strip("/")
-    if not re.match(r"^\d+/", path):
+    # API returns either legacy numeric ids or opaque alphanumeric tokens: {id}/{filename}
+    parts = path.split("/")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
         raise ValueError(
             f"Unexpected tmpfiles path (expected {{id}}/{{filename}}): {path}"
         )
-    direct_path = "dl/" + path
+    id_part, filename = parts[0], parts[1]
+    if "/" in filename or not re.match(r"^[A-Za-z0-9_-]+$", id_part):
+        raise ValueError(
+            f"Unexpected tmpfiles path (expected {{id}}/{{filename}}): {path}"
+        )
+    direct_path = f"dl/{id_part}/{filename}"
     return urlunparse(
         (
             parsed.scheme or "https",

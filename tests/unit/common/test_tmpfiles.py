@@ -11,10 +11,18 @@ from common.tmpfiles import upload_file, view_url_to_direct_url
 
 @pytest.mark.unit
 def test_view_url_to_direct_url():
-    """View URL is converted to direct download URL."""
+    """View URL is converted to direct download URL (legacy numeric id)."""
     view_url = "https://tmpfiles.org/22907829/test.png"
     direct = view_url_to_direct_url(view_url)
     assert direct == "https://tmpfiles.org/dl/22907829/test.png"
+
+
+@pytest.mark.unit
+def test_view_url_to_direct_url_alphanumeric_id():
+    """API now returns opaque alphanumeric ids, not only digits."""
+    view_url = "https://tmpfiles.org/w7w8wftSNHu5/tiny.png"
+    direct = view_url_to_direct_url(view_url)
+    assert direct == "https://tmpfiles.org/dl/w7w8wftSNHu5/tiny.png"
 
 
 @pytest.mark.unit
@@ -28,16 +36,20 @@ def test_view_url_to_direct_url_http_normalized():
 
 @pytest.mark.unit
 def test_view_url_to_direct_url_invalid_path_raises():
-    """Invalid path (no id/filename) raises ValueError."""
+    """Invalid path (not exactly id/filename) raises ValueError."""
     with pytest.raises(ValueError, match="Unexpected tmpfiles path"):
-        view_url_to_direct_url("https://tmpfiles.org/notnumeric/file.png")
+        view_url_to_direct_url("https://tmpfiles.org/onlyone")
+    with pytest.raises(ValueError, match="Unexpected tmpfiles path"):
+        view_url_to_direct_url("https://tmpfiles.org/a/b/extra.png")
+    with pytest.raises(ValueError, match="Unexpected tmpfiles path"):
+        view_url_to_direct_url("https://tmpfiles.org/bad@id/file.png")
 
 
 @pytest.mark.unit
 def test_upload_file_returns_direct_url():
     """upload_file returns direct download URL when API returns success."""
     api_response = (
-        b'{"status":"success","data":{"url":"https://tmpfiles.org/99999/uploaded.png"}}'
+        b'{"status":"success","data":{"url":"https://tmpfiles.org/wAbC12xYz/uploaded.png"}}'
     )
     mock_resp = MagicMock()
     mock_resp.read.return_value = api_response
@@ -51,7 +63,7 @@ def test_upload_file_returns_direct_url():
     try:
         with patch("common.tmpfiles.urlopen", return_value=mock_resp):
             result = upload_file(path)
-        assert result == "https://tmpfiles.org/dl/99999/uploaded.png"
+        assert result == "https://tmpfiles.org/dl/wAbC12xYz/uploaded.png"
     finally:
         path.unlink(missing_ok=True)
 
