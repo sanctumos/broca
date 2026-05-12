@@ -67,6 +67,44 @@ def test_build_message_for_agent_no_paths_returns_sanitized_text():
         assert result == "caption"
         result = build_message_for_agent("caption", [])
         assert result == "caption"
+        result = build_message_for_agent("", [], ["[Telegram image: 10x10px]"])
+        assert result == "[Telegram image: 10x10px]"
+
+
+@pytest.mark.unit
+def test_build_message_for_agent_meta_with_upload():
+    """Meta lines appear before Image Attachment when tmpfiles succeeds."""
+    _reset_env_cache()
+
+    def env_get(name, default=None, **kwargs):
+        if name == "ENABLE_IMAGE_HANDLING":
+            return "true"
+        if name == "ENABLE_TMPFILES_IMAGE_ADDENDUM":
+            return "true"
+        return default
+
+    with patch("runtime.core.image_handling.get_env_var", side_effect=env_get):
+        _reset_env_cache()
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            f.write(b"\x89PNG")
+            path = Path(f.name)
+        try:
+            with patch(
+                "runtime.core.image_handling.tmpfiles_upload_file",
+                return_value="https://tmpfiles.org/dl/9/x.png",
+            ):
+                result = build_message_for_agent(
+                    "hi",
+                    [path],
+                    ["[Telegram image: 640x480px]"],
+                )
+            assert "hi" in result
+            assert "[Telegram image: 640x480px]" in result
+            assert "[Image Attachment: https://tmpfiles.org/dl/9/x.png]" in result
+            # meta before URL in joined string
+            assert result.index("640x480") < result.index("Image Attachment")
+        finally:
+            path.unlink(missing_ok=True)
 
 
 @pytest.mark.unit
@@ -147,7 +185,8 @@ def test_build_message_for_agent_upload_failure_logs_and_skips():
             ):
                 with patch("runtime.core.image_handling.logger") as mock_logger:
                     result = build_message_for_agent("caption", [path])
-            assert result == "caption"
+            assert "caption" in result
+            assert "[Image: upload failed" in result
             mock_logger.warning.assert_called()
         finally:
             path.unlink(missing_ok=True)

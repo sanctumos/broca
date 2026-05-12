@@ -464,7 +464,9 @@ class TestTelegramMessageHandler:
         mock_message.date = datetime.now()
         mock_message.text = None
         mock_message.caption = "Photo caption"
-        mock_message.photo = [MagicMock(file_id="f1"), MagicMock(file_id="f2")]
+        p1 = MagicMock(file_id="f1", width=90, height=90)
+        p2 = MagicMock(file_id="f2", width=800, height=600)
+        mock_message.photo = [p1, p2]
 
         handler.formatter.sanitize_text.side_effect = lambda x: x if x else "Unknown"
         mock_bot = MagicMock()
@@ -487,7 +489,7 @@ class TestTelegramMessageHandler:
             patch(
                 "plugins.telegram_bot.message_handler.build_message_for_agent",
                 return_value="Photo caption\n[Image Attachment: https://tmpfiles.org/dl/1/photo.jpg]",
-            ),
+            ) as mock_build,
             patch(
                 "plugins.telegram_bot.message_handler.get_or_create_platform_profile",
                 new_callable=AsyncMock,
@@ -507,3 +509,7 @@ class TestTelegramMessageHandler:
                     call_args = mock_insert.call_args
                     assert "[Image Attachment:" in call_args[1]["message"]
                     assert "Photo caption" in call_args[1]["message"]
+                    mock_build.assert_called_once()
+                    bargs, _bkwargs = mock_build.call_args
+                    assert len(bargs) >= 3 and bargs[2]
+                    assert "800x600" in bargs[2][0]
