@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from common.config import get_env_var
-from common.tmpfiles import upload_file as tmpfiles_upload_file
+from common.ephemeral_upload import upload_file as tmpfiles_upload_file
 
 from .message import MessageFormatter
 
