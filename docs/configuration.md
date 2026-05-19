@@ -55,6 +55,7 @@ Each agent instance has its own configuration in `agent-{uuid}/` directories:
 | `LOG_LEVEL`                      | Logging level                                                      | `INFO`                       |
 | `ENABLE_IMAGE_HANDLING`          | Enable multimodal image handling (photos accepted, optional addendum) | `false`                      |
 | `ENABLE_TMPFILES_IMAGE_ADDENDUM` | When image handling is on, upload images to tmpfiles.org and append `[Image Attachment: url]` to message text | `false`                      |
+| `SANCTUM_TMP_UPLOAD_URL` | Fallback upload endpoint when tmpfiles.org fails | `https://tmp.sanctumos.org/api/v1/upload.php` |
 
 ### Agent Instance Variables (.env in agent-{uuid}/)
 | Variable                | Description                        | Example Value                |
