@@ -17,7 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 async def get_or_create_letta_user(
-    username: str = None, display_name: str = None, platform_user_id: str = None
+    username: str = None,
+    display_name: str = None,
+    platform_user_id: str = None,
+    identity_key: str | None = None,
+    channel_label: str = "Telegram",
 ) -> LettaUser:
     """Create a new Letta user with default settings and associated Letta identity."""
     now = datetime.utcnow().isoformat()
@@ -33,8 +37,9 @@ async def get_or_create_letta_user(
 
         # 1. Create Letta identity (SDK 1.7.x has no top-level identities; we use create_identity)
         unique_id = str(uuid.uuid4())[:8]
+        stable_key = identity_key or f"broca_user_{unique_id}"
         identity_data = {
-            "identifier_key": f"broca_user_{unique_id}",
+            "identifier_key": stable_key,
             "name": display_name or username or f"Unknown User {platform_user_id}",
             "identity_type": "user",
         }
@@ -49,9 +54,10 @@ async def get_or_create_letta_user(
         else:
             block_content.append(f"About Me ({username or 'Unknown User'})")
 
-        block_content.append(f"This user's Telegram ID is: {platform_user_id}")
+        if platform_user_id:
+            block_content.append(f"This user's {channel_label} ID is: {platform_user_id}")
         if username:
-            block_content.append(f"This user's Telegram Username is: {username}")
+            block_content.append(f"This user's {channel_label} Username is: {username}")
 
         block_data = {
             "label": "human",  # Always use "human" as the label
@@ -168,10 +174,18 @@ async def get_or_create_platform_profile(
                 return profile, letta_user
 
             # Create new Letta user and profile
+            identity_key = None
+            channel_label = "Telegram"
+            if platform_user_id and str(platform_user_id).startswith("tasks:"):
+                tasks_id = str(platform_user_id).split(":", 1)[1]
+                identity_key = f"tasks_user_{tasks_id}"
+                channel_label = "Tasks"
             letta_user = await get_or_create_letta_user(
                 username=username,
                 display_name=display_name,
                 platform_user_id=platform_user_id,
+                identity_key=identity_key,
+                channel_label=channel_label,
             )
 
             cursor = await db.execute(

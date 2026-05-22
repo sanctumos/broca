@@ -11,13 +11,12 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from database.operations.messages import insert_message
 from database.operations.queue import add_to_queue
 from database.operations.users import (
     get_letta_user_block_id,
-    get_or_create_letta_user,
     get_or_create_platform_profile,
 )
 from runtime.core.letta_client import get_letta_client
@@ -33,31 +32,27 @@ class WebChatMessageHandler:
         self.platform_name = platform_name
         self.logger = logging.getLogger(__name__)
 
-    def _publish_chatter_context(self, tasks_user_id: Any) -> None:
+    def _publish_chatter_context(self, tasks_user_id: int) -> None:
         """Write active chatter id for Q Vernal SMCP (plugin-only; not Broca core)."""
-        if not tasks_user_id:
-            return
-        try:
-            uid = int(tasks_user_id)
-        except (TypeError, ValueError):
-            return
-        if uid <= 0:
+        if tasks_user_id <= 0:
             return
         run_dir = Path(os.getenv("BROCA_RUN_DIR", "/opt/broca-q/run"))
         run_dir.mkdir(parents=True, exist_ok=True)
         path = run_dir / "current_tasks_user_id.txt"
-        path.write_text(str(uid), encoding="utf-8")
-        self.logger.debug("Published chatter context for SMCP: user_id=%s", uid)
+        path.write_text(str(tasks_user_id), encoding="utf-8")
+        self.logger.debug("Published chatter context for SMCP: user_id=%s", tasks_user_id)
 
     @staticmethod
-    def _tasks_platform_user_id(tasks_user_id: Any) -> Optional[str]:
+    def _parse_tasks_user_id(raw: Any) -> Optional[int]:
         try:
-            tid = int(tasks_user_id)
+            uid = int(raw)
         except (TypeError, ValueError):
             return None
-        if tid <= 0:
-            return None
-        return f"tasks:{tid}"
+        return uid if uid > 0 else None
+
+    @staticmethod
+    def _tasks_platform_user_id(tasks_user_id: int) -> str:
+        return f"tasks:{tasks_user_id}"
 
     @staticmethod
     def _first_contact_prefix(
@@ -68,7 +63,7 @@ class WebChatMessageHandler:
             "[System — first conversation with this Tasks user]\n"
             f"This is the first time you are speaking with **{who}** "
             f"(Tasks user id {tasks_user_id}). Greet them by username. "
-            "Their Letta human block has been seeded with this identity — "
+            "Their Letta human block is tied to this Tasks user — "
             "you may add notes there as you learn about them.\n\n"
             "---\n\n"
         )
@@ -88,6 +83,7 @@ class WebChatMessageHandler:
             f"About Me ({tasks_username})",
             f"Tasks username: {tasks_username}",
             f"Tasks user id: {tasks_user_id}",
+            f"Broca platform_user_id: {self._tasks_platform_user_id(tasks_user_id)}",
             "Channel: Sanctum Tasks — Ask Q webchat",
         ]
         if is_first_contact:
@@ -119,6 +115,37 @@ class WebChatMessageHandler:
         except Exception as exc:
             self.logger.warning("Human block update failed: %s", exc)
 
+    async def _resolve_tasks_chatter_profile(
+        self,
+        tasks_user_id: int,
+        tasks_username: str,
+        tasks_display_name: str,
+        session_id: str,
+        uid: Optional[str],
+    ) -> Tuple[Any, Any, str]:
+        """
+        One Letta identity per Tasks user (platform_user_id tasks:{id}), not per session/uid.
+        """
+        platform_user_id = self._tasks_platform_user_id(tasks_user_id)
+        username = tasks_username
+        display_name = tasks_display_name or tasks_username
+
+        profile, letta_user = await get_or_create_platform_profile(
+            platform=self.platform_name,
+            platform_user_id=platform_user_id,
+            username=username,
+            display_name=display_name,
+            metadata={
+                "session_id": session_id,
+                "uid": uid,
+                "source": "q_vernal_webchat",
+                "tasks_user_id": tasks_user_id,
+                "tasks_username": tasks_username,
+                "identity_scope": "tasks_user",
+            },
+        )
+        return profile, letta_user, platform_user_id
+
     async def process_incoming_message(self, message_data: Dict[str, Any]) -> Optional[int]:
         """
         Process an incoming message from the web chat API.
@@ -131,82 +158,57 @@ class WebChatMessageHandler:
             message_text = message_data.get("message", "")
             timestamp = message_data.get("timestamp")
             uid = message_data.get("uid")
-            tasks_user_id = message_data.get("tasks_user_id")
+            tasks_user_id = self._parse_tasks_user_id(message_data.get("tasks_user_id"))
             tasks_username = (message_data.get("tasks_username") or "").strip()
             tasks_display_name = (
                 message_data.get("tasks_display_name") or tasks_username or ""
             ).strip()
             is_first_contact = bool(message_data.get("is_first_contact"))
 
-            self._publish_chatter_context(tasks_user_id)
-
             if not session_id or not message_text:
                 self.logger.warning("Invalid message data: %s", message_data)
                 return None
 
-            tasks_platform_id = self._tasks_platform_user_id(tasks_user_id)
-            platform_user_id = tasks_platform_id if tasks_platform_id else (uid or session_id)
-
-            if tasks_username and tasks_user_id:
-                username = tasks_username
-                display_name = tasks_display_name or tasks_username
-            else:
-                username = f"web_user_{platform_user_id}"
-                display_name = f"Web User ({str(platform_user_id)[:8]})"
-
-            if self.platform_name in ("web_chat", "q_vernal_webchat"):
-                letta_user = await get_or_create_letta_user(
-                    username=username,
-                    display_name=display_name,
-                    platform_user_id=platform_user_id,
+            if not tasks_user_id:
+                self.logger.error(
+                    "Rejecting webchat message without tasks_user_id (identity is per Tasks user, not session): %s",
+                    message_data,
                 )
+                return None
 
-                platform_profile, letta_user = await get_or_create_platform_profile(
-                    platform=self.platform_name,
-                    platform_user_id=platform_user_id,
-                    username=username,
-                    display_name=display_name,
-                    metadata={
-                        "session_id": session_id,
-                        "uid": uid,
-                        "source": "q_vernal_webchat",
-                        "tasks_user_id": tasks_user_id,
-                        "tasks_username": tasks_username,
-                    },
-                )
-            else:
-                letta_user = await get_or_create_letta_user(
-                    username=f"{self.platform_name}_user_{platform_user_id}",
-                    display_name=f"{self.platform_name.title()} User",
-                    platform_user_id=platform_user_id,
-                )
+            if not tasks_username:
+                tasks_username = f"tasks_user_{tasks_user_id}"
+                tasks_display_name = tasks_username
 
-                platform_profile, letta_user = await get_or_create_platform_profile(
-                    platform=self.platform_name,
-                    platform_user_id=platform_user_id,
-                    username=f"{self.platform_name}_user_{platform_user_id}",
-                    display_name=f"{self.platform_name.title()} User",
-                    metadata={"session_id": session_id},
-                )
+            self._publish_chatter_context(tasks_user_id)
 
-            if tasks_username and tasks_user_id:
-                await self._sync_human_block(
-                    letta_user.id,
+            platform_profile, letta_user, platform_user_id = (
+                await self._resolve_tasks_chatter_profile(
+                    tasks_user_id,
                     tasks_username,
-                    int(tasks_user_id),
-                    is_first_contact=is_first_contact,
+                    tasks_display_name,
+                    session_id,
+                    uid,
                 )
+            )
+
+            await self._sync_human_block(
+                letta_user.id,
+                tasks_username,
+                tasks_user_id,
+                is_first_contact=is_first_contact,
+            )
 
             agent_message = message_text
-            if is_first_contact and tasks_user_id and tasks_username:
+            if is_first_contact:
                 agent_message = self._first_contact_prefix(
-                    tasks_username, int(tasks_user_id), display_name
+                    tasks_username, tasks_user_id, tasks_display_name
                 ) + message_text
 
             message = Message(
                 content=agent_message,
                 user_id=platform_user_id,
-                username=username,
+                username=tasks_username,
                 platform=self.platform_name,
                 timestamp=datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                 if timestamp
@@ -221,6 +223,7 @@ class WebChatMessageHandler:
                     "is_first_contact": is_first_contact,
                     "letta_user_id": letta_user.id,
                     "platform_profile_id": platform_profile.id,
+                    "identity_scope": "tasks_user",
                 },
             )
 
@@ -235,9 +238,11 @@ class WebChatMessageHandler:
             await add_to_queue(letta_user_id=letta_user.id, message_id=message_id)
 
             self.logger.info(
-                "Processed message session=%s user=%s first=%s",
+                "Processed message session=%s tasks_user=%s (%s) letta_user=%s first=%s",
                 session_id,
-                tasks_username or platform_user_id,
+                tasks_user_id,
+                tasks_username,
+                letta_user.id,
                 is_first_contact,
             )
             return message_id
