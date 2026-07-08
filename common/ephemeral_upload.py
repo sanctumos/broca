@@ -1,8 +1,9 @@
 """
 Upload ephemeral files for agent image attachments.
 
-Primary: tmpfiles.org (compatible API).
-Fallback: Sanctum tmp host (tmp.sanctumos.org) when primary fails.
+Primary: Sanctum tmp host (tmp.sanctumos.org) — its direct_url serves raw bytes.
+Fallback: tmpfiles.org (compatible API). Note: tmpfiles.org's /dl/ direct URL may
+302-redirect to an HTML interstitial (Cloudflare), which Venice vision cannot read.
 
 Returns direct download URLs suitable for Venice vision (GET raw bytes).
 """
@@ -48,17 +49,17 @@ def view_url_to_direct_url(view_url: str) -> str:
 def upload_file(file_path: Path) -> str:
     """
     Upload file; return direct download URL.
-    Tries tmpfiles.org first, then Sanctum tmp host.
+    Tries Sanctum tmp host first (serves raw bytes), then tmpfiles.org.
     """
     errors: list[str] = []
-    try:
-        return _tmpfiles.upload_file(file_path)
-    except Exception as e:
-        errors.append(f"tmpfiles.org: {e}")
     try:
         return _upload_sanctum_tmp(file_path)
     except Exception as e:
         errors.append(f"sanctum tmp: {e}")
+    try:
+        return _tmpfiles.upload_file(file_path)
+    except Exception as e:
+        errors.append(f"tmpfiles.org: {e}")
     raise RuntimeError("; ".join(errors))
 
 
