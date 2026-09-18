@@ -91,6 +91,11 @@ def live_queue_deps() -> None:
             return_value=True,
         ),
         patch("runtime.core.queue.asyncio.sleep", new_callable=AsyncMock),
+        patch(
+            "runtime.core.queue.write_active_turn",
+            return_value="turn_test",
+        ),
+        patch("runtime.core.queue.clear_active_turn", return_value=True),
     ):
         prof = MagicMock()
         prof.platform = "telegram"

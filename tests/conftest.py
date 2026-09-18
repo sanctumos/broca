@@ -44,6 +44,16 @@ except ImportError:
 from database.operations.shared import initialize_database  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _isolate_active_turn_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep Doc #1387 active-turn sidecar out of /opt during tests."""
+    monkeypatch.setenv(
+        "BROCA_ACTIVE_TURN_FILE", str(tmp_path / "active_turn.json")
+    )
+
+
 @pytest.fixture
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """Create a new event loop per test so async tests don't share a closed loop."""

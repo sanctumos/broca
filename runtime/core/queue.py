@@ -24,6 +24,11 @@ from database.operations.users import (
     get_platform_profile_id,
     get_user_details,
 )
+from runtime.core.active_turn import (
+    clear_active_turn,
+    extract_turn_ids_from_profile_metadata,
+    write_active_turn,
+)
 from runtime.core.letta_client import get_letta_client
 
 from .message import MessageFormatter
@@ -176,6 +181,7 @@ class QueueProcessor:
         Args:
             queue_item: The queue item to process
         """
+        active_turn_id: str | None = None
         try:
             # Get message details
             message_data = await get_message_text(queue_item.message_id)
@@ -226,6 +232,27 @@ class QueueProcessor:
                 username=username,
                 platform=platform_name,
             )
+
+            # Doc #1387 §7: turn-scoped active-turn sidecar before AgentClient / echo.
+            # Q: tasks_user_id / session_id from platform_profiles.metadata when present.
+            try:
+                tasks_user_id, session_id = extract_turn_ids_from_profile_metadata(
+                    getattr(profile, "metadata", None) if profile else None,
+                    platform_user_id=platform_user_id,
+                )
+                active_turn_id = write_active_turn(
+                    platform=platform_name or "unknown",
+                    broca_message_id=int(queue_item.message_id),
+                    tasks_user_id=tasks_user_id,
+                    session_id=session_id,
+                )
+            except Exception as turn_exc:
+                logger.warning(
+                    "Failed to write active turn for message %s: %s",
+                    queue_item.message_id,
+                    turn_exc,
+                )
+                active_turn_id = None
 
             # Process message according to mode
             if self.message_mode == "echo":
@@ -352,6 +379,17 @@ class QueueProcessor:
                 await asyncio.sleep(delay)
             # Try to requeue on error, if max attempts exceeded it will be marked as failed
             await requeue_failed_item(queue_item.id)
+
+        finally:
+            if active_turn_id:
+                try:
+                    clear_active_turn(active_turn_id)
+                except Exception as clear_exc:
+                    logger.warning(
+                        "Failed to clear active turn %s: %s",
+                        active_turn_id,
+                        clear_exc,
+                    )
 
     async def _process_single_message_with_tracking(self, queue_item: Any) -> None:
         """Wrapper to track message processing and manage semaphore.

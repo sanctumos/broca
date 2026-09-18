@@ -41,6 +41,14 @@ class WebChatMessageHandler:
         path = run_dir / "current_tasks_user_id.txt"
         path.write_text(str(tasks_user_id), encoding="utf-8")
         self.logger.debug("Published chatter context for SMCP: user_id=%s", tasks_user_id)
+        # Best-effort: if queue already wrote an active-turn sidecar, fill tasks_user_id.
+        # Primary ownership is dequeue-time write in runtime.core.queue.
+        try:
+            from runtime.core.active_turn import maybe_set_tasks_user_id
+
+            maybe_set_tasks_user_id(tasks_user_id)
+        except Exception as exc:
+            self.logger.debug("active-turn tasks_user_id assist skipped: %s", exc)
 
     @staticmethod
     def _parse_tasks_user_id(raw: Any) -> Optional[int]:
