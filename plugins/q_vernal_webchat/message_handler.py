@@ -207,11 +207,18 @@ class WebChatMessageHandler:
                 is_first_contact=is_first_contact,
             )
 
-            agent_message = message_text
+            # Porter precedent: Layer B chat_context_block before user text.
+            prefix_parts = []
             if is_first_contact:
-                agent_message = self._first_contact_prefix(
-                    tasks_username, tasks_user_id, tasks_display_name
-                ) + message_text
+                prefix_parts.append(
+                    self._first_contact_prefix(
+                        tasks_username, tasks_user_id, tasks_display_name
+                    )
+                )
+            ctx_block = (message_data.get("chat_context_block") or "").strip()
+            if ctx_block:
+                prefix_parts.append(ctx_block + "\n\n---\n\n")
+            agent_message = "".join(prefix_parts) + message_text
 
             message = Message(
                 content=agent_message,
