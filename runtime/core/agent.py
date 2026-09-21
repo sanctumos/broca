@@ -20,7 +20,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import logging
 import re
+import time
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from common.config import get_env_var
 from common.exceptions import AgentTurnTimeoutInFlight
@@ -463,6 +465,7 @@ class AgentClient:
             return None
 
         max_wait = int(get_env_var("LONG_TASK_MAX_WAIT", default="600"))
+        turn_started = datetime.now(timezone.utc) - timedelta(seconds=5)
         try:
             return await asyncio.wait_for(
                 exponential_backoff(
@@ -475,6 +478,13 @@ class AgentClient:
             )
         except TimeoutError:
             logger.error("Stream processing timed out after %s seconds", max_wait)
+            logger.info(
+                "Waiting for the in-flight Letta reply before starting another turn"
+            )
+            harvested = await self._harvest_recent_assistant(turn_started)
+            if harvested:
+                logger.info("Recovered in-flight assistant reply after stream timeout")
+                return harvested
             logger.info("Attempting fallback to create_async method")
             try:
                 fb = await self._fallback_to_async(message, sender_id)
@@ -514,6 +524,97 @@ class AgentClient:
             except Exception as fallback_error:
                 logger.error("Fallback method also failed: %s", str(fallback_error))
                 return None
+
+    async def _harvest_recent_assistant(
+        self, not_before: datetime, grace_seconds: int = 90
+    ) -> str | None:
+        """Read an assistant reply that landed after the stream wait gave up.
+
+        Does not start a new Letta run. A late tool-heavy turn was finishing a
+        few seconds after LONG_TASK_MAX_WAIT and the reply was thrown away.
+        """
+        client = get_letta_client()
+        deadline = time.monotonic() + grace_seconds
+        while True:
+            messages_response = None
+            try:
+                messages_response = await asyncio.to_thread(
+                    client.agents.messages.list,
+                    agent_id=self.agent_id,
+                    limit=20,
+                )
+            except TypeError:
+                try:
+                    messages_response = await asyncio.to_thread(
+                        client.agents.messages.list,
+                        self.agent_id,
+                        limit=20,
+                    )
+                except Exception as exc:
+                    logger.warning("Harvest list failed: %s", exc)
+            except Exception as exc:
+                logger.warning("Harvest list failed: %s", exc)
+
+            items = []
+            if isinstance(messages_response, list):
+                items = messages_response
+            elif hasattr(messages_response, "data") and messages_response.data:
+                items = list(messages_response.data)
+            elif isinstance(messages_response, dict):
+                items = (
+                    messages_response.get("messages")
+                    or messages_response.get("data")
+                    or []
+                )
+
+            for msg in items:
+                if isinstance(msg, dict):
+                    mtype = msg.get("message_type") or msg.get("role")
+                    raw_date = msg.get("date") or msg.get("created_at")
+                    content = msg.get("content") or msg.get("text") or ""
+                else:
+                    mtype = getattr(msg, "message_type", None) or getattr(
+                        msg, "role", None
+                    )
+                    raw_date = getattr(msg, "date", None) or getattr(
+                        msg, "created_at", None
+                    )
+                    content = getattr(msg, "content", None) or getattr(
+                        msg, "text", None
+                    ) or ""
+                if mtype not in ("assistant_message", "assistant"):
+                    continue
+                if isinstance(content, list):
+                    parts = []
+                    for piece in content:
+                        if isinstance(piece, dict):
+                            parts.append(
+                                str(piece.get("text") or piece.get("content") or "")
+                            )
+                        else:
+                            parts.append(str(piece))
+                    content = "".join(parts)
+                content = str(content or "").strip()
+                if not content:
+                    continue
+                when = None
+                if isinstance(raw_date, datetime):
+                    when = (
+                        raw_date
+                        if raw_date.tzinfo
+                        else raw_date.replace(tzinfo=timezone.utc)
+                    )
+                elif isinstance(raw_date, str):
+                    try:
+                        when = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+                    except ValueError:
+                        when = None
+                if when is not None and when >= not_before:
+                    return content
+
+            if time.monotonic() >= deadline:
+                return None
+            await asyncio.sleep(3)
 
     async def _fallback_to_async(
         self, message: str, sender_id: str | None = None
