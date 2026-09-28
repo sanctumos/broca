@@ -34,6 +34,17 @@ async def insert_message(
         return cursor.lastrowid
 
 
+async def count_messages_for_letta_user(letta_user_id: int) -> int:
+    """How many Broca messages already exist for this Letta user (any role)."""
+    async with get_pool().connection() as db:
+        async with db.execute(
+            "SELECT COUNT(*) FROM messages WHERE letta_user_id = ?",
+            (letta_user_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return int(row[0] or 0) if row else 0
+
+
 async def get_message_text(message_id: int) -> tuple[str, str] | None:
     """Get the message text and role for a message ID."""
     async with get_pool().connection() as db:

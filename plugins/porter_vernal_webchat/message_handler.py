@@ -116,6 +116,19 @@ class PorterWebChatMessageHandler:
                 uid,
             )
 
+            from database.operations.messages import count_messages_for_letta_user
+
+            prior_msgs = await count_messages_for_letta_user(letta_user.id)
+            if prior_msgs > 0 and is_first_contact:
+                self.logger.warning(
+                    "Ignoring false is_first_contact for partner_user=%s — "
+                    "Broca already has %s message(s) for letta_user=%s",
+                    partner_user_id,
+                    prior_msgs,
+                    letta_user.id,
+                )
+                is_first_contact = False
+
             agent_message = message_text
             prefix_parts = []
             if is_first_contact:

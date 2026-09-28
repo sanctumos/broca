@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from database.operations.messages import insert_message
+from database.operations.messages import count_messages_for_letta_user, insert_message
 from database.operations.queue import add_to_queue
 from database.operations.users import (
     get_letta_user_block_id,
@@ -23,6 +23,16 @@ from runtime.core.letta_client import get_letta_client
 from runtime.core.message import Message
 
 logger = logging.getLogger(__name__)
+
+# Stable identity lines Broca owns; anything after these is preserved (agent notes).
+_HUMAN_BLOCK_OWNED_PREFIXES = (
+    "About Me (",
+    "Tasks username:",
+    "Tasks user id:",
+    "Broca platform_user_id:",
+    "Channel: Sanctum Tasks",
+    "First conversation with Q Vernal:",
+)
 
 
 class WebChatMessageHandler:
@@ -76,6 +86,39 @@ class WebChatMessageHandler:
             "---\n\n"
         )
 
+    @staticmethod
+    def _parse_existing_human_block(raw: Optional[str]) -> Tuple[Optional[str], str]:
+        """Return (created_at, content) from an existing human block value."""
+        if not raw:
+            return None, ""
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None, str(raw)
+        if not isinstance(parsed, dict):
+            return None, str(raw)
+        data = parsed.get("data") if parsed.get("type") == "human_core" else parsed
+        if not isinstance(data, dict):
+            return None, str(raw)
+        created = data.get("created_at")
+        content = data.get("content") or ""
+        return (str(created) if created else None), str(content)
+
+    @staticmethod
+    def _preserve_agent_notes(existing_content: str) -> str:
+        """Keep freeform lines after Broca-owned identity headers."""
+        if not existing_content:
+            return ""
+        extras: list[str] = []
+        for line in existing_content.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if any(stripped.startswith(p) for p in _HUMAN_BLOCK_OWNED_PREFIXES):
+                continue
+            extras.append(line)
+        return "\n".join(extras).strip()
+
     async def _sync_human_block(
         self,
         letta_user_id: int,
@@ -83,10 +126,33 @@ class WebChatMessageHandler:
         tasks_user_id: int,
         *,
         is_first_contact: bool,
+        profile_created_at: Optional[str] = None,
     ) -> None:
         block_id = await get_letta_user_block_id(letta_user_id)
         if not block_id:
             return
+
+        client = get_letta_client()
+        existing_created_at: Optional[str] = None
+        existing_content = ""
+        try:
+            block = await asyncio.to_thread(client.blocks.retrieve, block_id=block_id)
+            raw_value = getattr(block, "value", None) or (
+                block.get("value") if isinstance(block, dict) else None
+            )
+            existing_created_at, existing_content = self._parse_existing_human_block(
+                raw_value
+            )
+        except Exception as exc:
+            self.logger.debug("Could not read existing human block %s: %s", block_id, exc)
+
+        # Never mint a fresh created_at for returning users — that reads as "new user".
+        created_at = (
+            existing_created_at
+            or profile_created_at
+            or datetime.utcnow().isoformat()
+        )
+
         lines = [
             f"About Me ({tasks_username})",
             f"Tasks username: {tasks_username}",
@@ -94,31 +160,42 @@ class WebChatMessageHandler:
             f"Broca platform_user_id: {self._tasks_platform_user_id(tasks_user_id)}",
             "Channel: Sanctum Tasks — Ask Q webchat",
         ]
-        if is_first_contact:
+        if is_first_contact and "First conversation with Q Vernal:" not in existing_content:
             lines.append(
                 f"First conversation with Q Vernal: {datetime.utcnow().isoformat()}Z"
             )
+        elif "First conversation with Q Vernal:" in existing_content:
+            for line in existing_content.splitlines():
+                if line.strip().startswith("First conversation with Q Vernal:"):
+                    lines.append(line.strip())
+                    break
+
+        notes = self._preserve_agent_notes(existing_content)
+        if notes:
+            lines.append(notes)
+
         block_value = json.dumps(
             {
                 "type": "human_core",
                 "data": {
                     "name": tasks_username,
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": created_at,
                     "content": "\n".join(lines),
                 },
             }
         )
         try:
-            client = get_letta_client()
             await asyncio.to_thread(
                 client.blocks.update,
                 block_id=block_id,
                 value=block_value,
             )
             self.logger.info(
-                "Updated human block for Tasks user %s (%s)",
+                "Updated human block for Tasks user %s (%s) created_at=%s first=%s",
                 tasks_user_id,
                 tasks_username,
+                created_at,
+                is_first_contact,
             )
         except Exception as exc:
             self.logger.warning("Human block update failed: %s", exc)
@@ -200,11 +277,25 @@ class WebChatMessageHandler:
                 )
             )
 
+            # Client is_first_contact can lie (session uid churn). Broca history wins.
+            prior_msgs = await count_messages_for_letta_user(letta_user.id)
+            if prior_msgs > 0 and is_first_contact:
+                self.logger.warning(
+                    "Ignoring false is_first_contact for tasks_user=%s (%s) "
+                    "— Broca already has %s message(s) for letta_user=%s",
+                    tasks_user_id,
+                    tasks_username,
+                    prior_msgs,
+                    letta_user.id,
+                )
+                is_first_contact = False
+
             await self._sync_human_block(
                 letta_user.id,
                 tasks_username,
                 tasks_user_id,
                 is_first_contact=is_first_contact,
+                profile_created_at=getattr(platform_profile, "created_at", None),
             )
 
             # Porter precedent: Layer B chat_context_block before user text.
