@@ -192,6 +192,22 @@ class TestPluginManagerExtended:
                 mock_load.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_discover_plugins_skips_bak_dirs(self, tmp_path):
+        bak = tmp_path / "rico_kitchen_webchat.bak.20260821111713"
+        bak.mkdir()
+        (bak / "plugin.py").write_text("# backup copy\n")
+        live = tmp_path / "rico_kitchen_webchat"
+        live.mkdir()
+        (live / "plugin.py").write_text("# live\n")
+        manager = PluginManager()
+        with patch.object(manager, "load_plugin", new_callable=AsyncMock) as mock_load:
+            await manager.discover_plugins(plugins_dir=str(tmp_path))
+        loaded = [call.args[0] for call in mock_load.call_args_list]
+        assert len(loaded) == 1
+        assert loaded[0].endswith("rico_kitchen_webchat/plugin.py")
+        assert all(".bak." not in path for path in loaded)
+
+    @pytest.mark.asyncio
     async def test_start_all_plugins(self):
         """Test starting all plugins."""
         manager = PluginManager()

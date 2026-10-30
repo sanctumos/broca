@@ -308,6 +308,10 @@ class PluginManager:
         for plugin_dir in plugins_path.iterdir():
             if not plugin_dir.is_dir() or plugin_dir.name.startswith("_"):
                 continue
+            # Timestamped copies like foo.bak.20260821 must not start as a second poller.
+            if ".bak." in plugin_dir.name or plugin_dir.name.endswith(".bak"):
+                logger.info(f"Skipping backup plugin dir: {plugin_dir.name}")
+                continue
 
             plugin_file = plugin_dir / "plugin.py"
             if plugin_file.exists():
